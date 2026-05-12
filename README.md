@@ -4,10 +4,10 @@
 
 | Item | Description |
 |---|---|
-| Course |  |
-| Class |  |
+| Course | SWP391 |
+| Class | SE20A04 |
 | Semester | SU26 |
-| Group |  |
+| Group | 01 |
 | Topic |  |
 | Repository |  |
 
@@ -17,11 +17,10 @@
 
 | No | Student ID | Full Name | GitHub Username | Role | Main Responsibility |
 |---:|---|---|---|---|---|
-| 1 |  |  |  | Leader |  |
-| 2 |  |  |  | Member |  |
-| 3 |  |  |  | Member |  |
-| 4 |  |  |  | Member |  |
-| 5 |  |  |  | Member |  |
+| 1 |DE190285  | Võ Thị Mỹ Xuân | Myxuan10 | Leader |  |
+| 2 |DE190462  | Nguyễn Hữu Phúc | phucdz21 | Member |  |
+| 3 |DE190716  | Nguyễn Nho Trường Phát | Trường Phát | Member |  |
+| 4 |DE191103  | Tô Thị Oanh | W3n3r | Member |  |
 
 ---
 
