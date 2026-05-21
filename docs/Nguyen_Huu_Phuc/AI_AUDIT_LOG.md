@@ -4,15 +4,15 @@
 
 | Thông tin | Nội dung |
 |---|---|
-| Môn học |  |
-| Mã môn học |  |
-| Lớp |  |
-| Học kỳ |  |
+| Môn học |Software Development Project  |
+| Mã môn học |SWP391  |
+| Lớp |SE20A04  |
+| Học kỳ | 5 |
 | Tên bài tập / Project |  |
-| Tên sinh viên / Nhóm |  |
-| MSSV / Danh sách MSSV |  |
-| Giảng viên hướng dẫn |  |
-| Ngày bắt đầu |  |
+| Tên sinh viên / Nhóm | Nguyen Huu Phuc |
+| MSSV / Danh sách MSSV |DE190462  |
+| Giảng viên hướng dẫn |Thầy QuangLTN |
+| Ngày bắt đầu | 11/05/2026 |
 | Ngày hoàn thành |  |
 
 ---
@@ -21,12 +21,12 @@
 
 Đánh dấu các công cụ AI đã sử dụng trong quá trình thực hiện bài tập/project.
 
-- [ ] ChatGPT
-- [ ] Gemini
-- [ ] Claude
+- [✓] ChatGPT
+- [✓] Gemini
+- [✓] Claude
 - [ ] GitHub Copilot
 - [ ] Cursor
-- [ ] Antigravity
+- [✓] Antigravity
 - [ ] Perplexity
 - [ ] Microsoft Copilot
 - [ ] Công cụ khác: ....................................
