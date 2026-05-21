@@ -8,7 +8,7 @@
 | Class | SE20A04 |
 | Semester | SU26 |
 | Group | 01 |
-| Topic |Urban Delivery Order Management and Route Optimization System|
+| Topic |DN-Pulse: Intelligent Urban Routing System|
 | Repository |  |
 
 ---
@@ -27,10 +27,17 @@
 ## 3. Project Structure
 
 ```text
-src/
-docs/
-.github/
-README.md
+|── src/
+├── docs/                   
+│   ├── AI_AUDIT_LOG.md
+│   ├── CHANGELOG.md
+│   ├── PROMPTS.md
+│   |── REFLECTION.md            
+│   ├── database/            
+│   ├── design_ui/         
+│   └── diagrams/
+|── .github/
+|── README.md
 ```
 
 ---
