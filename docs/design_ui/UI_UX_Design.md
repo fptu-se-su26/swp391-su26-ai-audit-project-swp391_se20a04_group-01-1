@@ -7,7 +7,7 @@ II. Các màn hình cốt lõi (Core Screens)
 
 1. Màn hình Bản đồ, Sự kiện & Cảnh báo (Home & Alerts View)
    
-![Trang chủ & Cảnh báo giao thông](./assets/home_map_alerts.jpg)
+![Trang chủ & Cảnh báo giao thông](./home_map_alerts.png) 
 - Giao diện bao gồm 3 thông tin trên cùng một màn hình:
 
   - Panel bên trái: Danh sách sự kiện giúp người dùng nắm bắt nhanh tình hình thành phố.
@@ -18,7 +18,7 @@ II. Các màn hình cốt lõi (Core Screens)
 
 2. Màn hình Đề xuất Lộ trình thông minh (Route Selection)
    
-![Đề xuất lộ trình](./assets/route_selection.png)
+![Đề xuất lộ trình](./route_selection.png)
 - Khi người dùng cần di chuyển, hệ thống cung cấp 3 lựa chọn thay vì chỉ một đường duy nhất:
 
   - Route A (Nhanh nhất): Cảnh báo có đường cấm hoặc ùn tắc cao.
@@ -29,7 +29,7 @@ II. Các màn hình cốt lõi (Core Screens)
 
 3. Màn hình Điều hướng (Turn-by-turn Navigation)
    
-![Chỉ đường](./assets/turn_by_turn_nav.jpg)
+![Chỉ đường](./route_selection.png)
 - Giao diện chỉ đường thực tế tập trung vào sự an toàn và hạn chế phân tâm:
 
   - Thanh Header (Top): Tthông báo hướng rẽ tiếp theo.
@@ -40,7 +40,7 @@ II. Các màn hình cốt lõi (Core Screens)
 
 4. Màn hình Quản trị viên (Admin Dashboard)
    
-   ![Admin Dashboard](./assets/admin_dashboard.jpg)
+   ![Admin Dashboard](./admin_dashboard.png)
 - Đây là trung tâm điều khiển dành cho Admin quản lý dữ liệu toàn thành phố:
 
   - Thống kê tổng quan: Sự kiện đang diễn ra, vùng ngập lụt, đường phong tỏa.
