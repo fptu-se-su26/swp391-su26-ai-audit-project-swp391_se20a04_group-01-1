@@ -1,5 +1,5 @@
 1. Hình ảnh Sơ đồ Tổng quan
-   ![Sơ đồ Use Case DN-Pulse](./UseCase_Diagram.png)
+   ![Sơ đồ Use Case DN-Pulse](./UseCase_Diagram.drawio.png)
 3. Các Tác nhân (Actors)
 - Sơ đồ bao gồm 3 tác nhân chính:
 - User (Người dùng): Tương tác trực tiếp với các tính năng cốt lõi của hệ thống ở mặt ứng dụng.
