@@ -1,94 +1,149 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, User, Lock, MapPin, Navigation, Star } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, Mail, Lock, MapPin, Navigation } from 'lucide-react';
 
-// ── Right panel slides ─────────────────────────────────────────────────
+// ── Cấu hình danh sách các hình ảnh slide ở cột phải ────────────────────────────────
 const slides = [
   {
-    img: 'https://images.unsplash.com/photo-1559592413-7cec4d0cae2b?q=80&w=2000&auto=format&fit=crop',
-    badge: 'Đà Nẵng · Vietnam',
-    title: 'Explore the\nDragon City',
-    sub: 'Discover vibrant events, smart navigation and real‑time alerts across Da Nang.',
+    img: 'https://images.pexels.com/photos/14435439/pexels-photo-14435439.jpeg',
+    badge: 'Bà Nà Hills · Đà Nẵng',
+    title: 'Touch the\nSky',
+    sub: 'Khám phá các sự kiện độc quyền và cảnh sắc ngoạn mục tại Cầu Vàng nổi tiếng.',
   },
   {
-    img: 'https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=2000&auto=format&fit=crop',
-    badge: 'My Khe Beach',
-    title: 'Navigate\nEvery Corner',
-    sub: 'Get the best route, avoid floods and congestion with real‑time traffic data.',
+    img: 'https://images.pexels.com/photos/2162459/pexels-photo-2162459.jpeg',
+    badge: 'Sông Hàn · Đà Nẵng',
+    title: 'City of\nBridges',
+    sub: 'Tham gia các lễ hội ven sông và thưởng thức những màn phun lửa rực rỡ vào cuối tuần.',
   },
   {
-    img: 'https://images.unsplash.com/photo-1597149952762-06b4e2cd3f9b?q=80&w=2000&auto=format&fit=crop',
-    badge: 'City Events',
-    title: 'Never Miss\nan Event',
-    sub: 'Stay informed about concerts, festivals and city activities happening near you.',
+    img: 'https://images.pexels.com/photos/26550067/pexels-photo-26550067.jpeg',
+    badge: 'Biển Mỹ Khê',
+    title: 'Sun, Sand\n& Events',
+    sub: 'Cập nhật nhanh nhất các buổi hòa nhạc trên biển, giải lướt sóng và marathon.',
   },
+  {
+    img: 'https://i2.ex-cdn.com/crystalbay.com/files/content/2024/10/09/deo-hai-van-da-nang-kham-pha-cung-duong-deo-dep-nhat-viet-nam-2-1123.jpg',
+    badge: 'Đèo Hải Vân',
+    title: 'Scenic\nRoutes',
+    sub: 'Tìm kiếm tuyến đường đẹp nhất và an toàn nhất cho những chuyến phượt ngoại ô.',
+  },
+  {
+    img: 'https://images.pexels.com/photos/33501215/pexels-photo-33501215.jpeg',
+    badge: 'Phố Cổ Hội An',
+    title: 'Vibrant\nCulture',
+    sub: 'Không bỏ lỡ đêm hội hoa đăng, phố lồng đèn và các hoạt động văn hóa đặc sắc.',
+  }
 ];
 
 export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [slide, setSlide] = useState(0);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
 
-  // Auto-rotate slides every 5s
-  React.useEffect(() => {
+  // Các trạng thái quản lý thông tin Form nhập liệu và API
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Tự động chuyển đổi hình ảnh slide bên cột phải mỗi 5 giây
+  useEffect(() => {
     const id = setInterval(() => setSlide(s => (s + 1) % slides.length), 5000);
     return () => clearInterval(id);
   }, []);
 
   const current = slides[slide];
 
+  // Xử lý logic gọi API đăng nhập thực tế kết nối trực tiếp với Backend
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setLoading(true);
+
+    try {
+      // Kết nối chính xác tới cổng 5001 đang hoạt động của server backend
+      const response = await fetch('http://localhost:5001/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Lưu trữ Token và quyền người dùng vào Local Storage để trang Home xác thực
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('userRole', data.role);
+
+        // Chuyển hướng thẳng vào trang quản trị hoặc trang chủ ngay lập tức không qua màn hình chờ
+        if (data.role === 'admin') {
+          window.location.href = '/admin';
+        } else {
+          window.location.href = '/';
+        }
+      } else {
+        setErrorMsg(data.message || 'Email hoặc mật khẩu không chính xác!');
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại backend.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-wrapper">
-      {/* ── LEFT PANEL ──────────────────────────────────────── */}
+      {/* ── CỘT TRÁI: FORM ĐĂNG NHẬP CHÍNH ── */}
       <div className="auth-left">
         <div className="auth-left-inner">
-          {/* Logo */}
-          <a href="/" className="auth-logo animate-fade-up">
+          {/* Khu vực Logo thương hiệu */}
+          <a href="/" className="auth-logo">
             <div className="auth-logo-icon">
-              <Navigation size={20} color="#fff" strokeWidth={2.5} />
+              <Navigation size={20} color="#fff" />
             </div>
             <span className="auth-logo-text">
               DaNang <span>EventMap</span>
             </span>
           </a>
 
-          {/* Heading */}
-          <h1 className="auth-heading animate-fade-up delay-1">Welcome back 👋</h1>
-          <p className="auth-subheading animate-fade-up delay-2">
-            Sign in to your account to continue exploring.
-          </p>
+          <h1 className="auth-heading">Welcome back 👋</h1>
+          <p className="auth-subheading">Sign in to your account to continue exploring.</p>
 
-          {/* Form */}
-          <form onSubmit={e => e.preventDefault()}>
-            {/* Username */}
-            <div className="form-group animate-fade-up delay-2">
-              <label className="form-label" htmlFor="login-username">Username</label>
+          {/* Hiển thị thông báo lỗi trực quan từ hệ thống nếu thông tin đăng nhập sai */}
+          {errorMsg && (
+            <div style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px', border: '1px solid #fecaca' }}>
+              {errorMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin}>
+            {/* Trường dữ liệu nhập Email */}
+            <div className="form-group">
+              <label className="form-label">Email</label>
               <div className="input-wrapper">
                 <span className="input-icon">
-                  <User size={17} strokeWidth={2} />
+                  <Mail size={17} />
                 </span>
                 <input
-                  id="login-username"
-                  type="text"
+                  type="email"
                   className="form-input"
-                  placeholder="Enter your username"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  autoComplete="username"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  autoComplete="email"
                   required
                 />
               </div>
             </div>
 
-            {/* Password */}
-            <div className="form-group animate-fade-up delay-3">
-              <label className="form-label" htmlFor="login-password">Password</label>
+            {/* Trường dữ liệu nhập Mật khẩu */}
+            <div className="form-group">
+              <label className="form-label">Password</label>
               <div className="input-wrapper">
                 <span className="input-icon">
-                  <Lock size={17} strokeWidth={2} />
+                  <Lock size={17} />
                 </span>
                 <input
-                  id="login-password"
                   type={showPw ? 'text' : 'password'}
                   className="form-input"
                   placeholder="••••••••"
@@ -103,13 +158,13 @@ export default function Login() {
                   onClick={() => setShowPw(v => !v)}
                   aria-label={showPw ? 'Hide password' : 'Show password'}
                 >
-                  {showPw ? <EyeOff size={17} strokeWidth={2} /> : <Eye size={17} strokeWidth={2} />}
+                  {showPw ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
             </div>
 
-            {/* Remember + Forgot */}
-            <div className="form-row animate-fade-up delay-4">
+            {/* Thanh tùy chọn ghi nhớ đăng nhập và quên mật khẩu */}
+            <div className="form-row">
               <label className="remember-label">
                 <input type="checkbox" id="remember-me" />
                 Remember me
@@ -119,25 +174,25 @@ export default function Login() {
               </a>
             </div>
 
-            {/* Submit */}
+            {/* Nút bấm thực hiện Đăng nhập */}
             <button
               type="submit"
-              id="login-btn"
-              className="btn-primary animate-fade-up delay-4"
+              className="btn-primary"
+              disabled={loading}
+              style={{ opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
             >
-              Sign In
+              {loading ? 'Signing In...' : 'Sign In'}
             </button>
           </form>
 
-          {/* Bottom link */}
-          <p className="auth-bottom-text animate-fade-up delay-5">
-            Don't have an account?{' '}
-            <a href="/register">Sign up</a>
+          {/* Đường dẫn đăng ký tài khoản mới */}
+          <p className="auth-bottom-text">
+            Don't have an account? <a href="/register">Sign up</a>
           </p>
         </div>
       </div>
 
-      {/* ── RIGHT PANEL ─────────────────────────────────────── */}
+      {/* ── CỘT PHẢI: HIỂN THỊ HÌNH ẢNH BANNER VÀ ĐỊA ĐIỂM SỰ KIỆN ── */}
       <div className="auth-right">
         <img
           key={slide}
@@ -148,44 +203,34 @@ export default function Login() {
         />
         <div className="auth-right-overlay" />
 
-        {/* Stats cards */}
+        {/* Khung hiển thị các số liệu thống kê */}
         <div className="auth-right-stats">
           <div className="stat-card">
-            <div className="stat-value">120+</div>
-            <div className="stat-label">Annual Events</div>
+            <div className="stat-value">500+</div>
+            <div className="stat-label">Sự Kiện Hàng Năm</div>
           </div>
           <div className="stat-card">
             <div className="stat-value">4.9 ★</div>
-            <div className="stat-label">User Rating</div>
+            <div className="stat-label">Đánh Giá</div>
           </div>
         </div>
 
+        {/* Khung hiển thị thông tin giới thiệu địa điểm sự kiện */}
         <div className="auth-right-content">
-          <div
-            className="auth-right-badge"
-            style={{ animation: 'fadeInUp 0.6s ease both' }}
-          >
-            <MapPin size={13} strokeWidth={2.5} />
+          <div className="auth-right-badge">
+            <MapPin size={13} />
             {current.badge}
           </div>
 
-          <h2
-            className="auth-right-title"
-            style={{
-              animation: 'fadeInUp 0.6s ease 0.1s both',
-              whiteSpace: 'pre-line',
-            }}
-          >
+          <h2 className="auth-right-title" style={{ whiteSpace: 'pre-line' }}>
             {current.title}
           </h2>
 
-          <p
-            className="auth-right-subtitle"
-            style={{ animation: 'fadeInUp 0.6s ease 0.2s both' }}
-          >
+          <p className="auth-right-subtitle">
             {current.sub}
           </p>
 
+          {/* Các nút chấm tròn chuyển đổi slide thủ công */}
           <div className="auth-right-dots">
             {slides.map((_, i) => (
               <button

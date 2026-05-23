@@ -36,6 +36,11 @@ export default function Register() {
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [slide, setSlide] = useState(0);
+
+  // State quản lý API
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
   const [form, setForm] = useState({
     username: '',
     email: '',
@@ -57,29 +62,77 @@ export default function Register() {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
+  // ── LOGIC GỌI API ĐĂNG KÝ ──────────────────────────────────────────
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault(); // Chặn reload trang
+    setErrorMsg('');
+
+    // Kiểm tra mật khẩu khớp chưa
+    if (pwMismatch) {
+      setErrorMsg('Mật khẩu nhập lại không khớp!');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Gọi xuống backend (Cổng 5001)
+      const response = await fetch('http://localhost:5001/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: form.username,
+          email: form.email,
+          password: form.password
+          // Có thể truyền thêm fullName nếu backend của bạn có hỗ trợ lưu fullName
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('Tạo tài khoản thành công! Hãy đăng nhập nhé.');
+        window.location.href = '/login'; // Chuyển hướng sang trang đăng nhập
+      } else {
+        setErrorMsg(data.message || 'Đăng ký thất bại!');
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại Backend!');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-wrapper">
       {/* ── LEFT PANEL ──────────────────────────────────────── */}
       <div className="auth-left">
         <div className="auth-left-inner">
           {/* Logo */}
-          <a href="/" className="auth-logo animate-fade-up">
+          <div className="auth-logo select-none">
             <div className="auth-logo-icon">
-              <Navigation size={20} color="#fff" strokeWidth={2.5} />
+              <Navigation size={20} color="#fff" />
             </div>
             <span className="auth-logo-text">
               DaNang <span>EventMap</span>
             </span>
-          </a>
-
+          </div>
           {/* Heading */}
           <h1 className="auth-heading animate-fade-up delay-1">Create account ✨</h1>
           <p className="auth-subheading animate-fade-up delay-2">
             Join thousands exploring events and smart navigation.
           </p>
 
-          {/* Form */}
-          <form onSubmit={e => e.preventDefault()}>
+          {/* Khung báo lỗi màu đỏ nếu đăng ký thất bại */}
+          {errorMsg && (
+            <div className="animate-fade-up delay-2" style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px', border: '1px solid #fecaca' }}>
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Form - Thay thế onSubmit bằng hàm handleRegister */}
+          <form onSubmit={handleRegister}>
             {/* Username */}
             <div className="form-group animate-fade-up delay-2">
               <label className="form-label" htmlFor="reg-username">Username</label>
@@ -235,9 +288,10 @@ export default function Register() {
               type="submit"
               id="register-btn"
               className="btn-primary animate-fade-up delay-5"
-              style={{ marginTop: '0.5rem' }}
+              disabled={loading}
+              style={{ marginTop: '0.5rem', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
             >
-              Create Account
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
 
