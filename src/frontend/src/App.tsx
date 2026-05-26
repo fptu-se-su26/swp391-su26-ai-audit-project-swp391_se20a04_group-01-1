@@ -3,8 +3,9 @@ import SplashScreen from './pages/SplashScreen/SplashScreen';
 import Login from './pages/Login/Login';
 import Home from './pages/Home/Home';
 import ProfilePage from './pages/Profile/ProfilePage';
-import AdminDashboard from './pages/Admin/AdminDashboard'; // ✅ ĐÚNG
+import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProtectedRoute from './pages/components/ProtectedRoute';
+import Register from './pages/Login/Register';
 
 export default function App() {
     const token = localStorage.getItem('token');
@@ -14,6 +15,7 @@ export default function App() {
             <Routes>
                 <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <SplashScreen />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
                 
                 <Route path="/dashboard" element={
                     <ProtectedRoute>
