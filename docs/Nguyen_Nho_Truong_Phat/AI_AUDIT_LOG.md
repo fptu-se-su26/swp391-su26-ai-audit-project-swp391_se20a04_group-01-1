@@ -4,15 +4,15 @@
 
 | Thông tin | Nội dung |
 |---|---|
-| Môn học |  |
-| Mã môn học |  |
-| Lớp |  |
-| Học kỳ |  |
-| Tên bài tập / Project |  |
-| Tên sinh viên / Nhóm |  |
-| MSSV / Danh sách MSSV |  |
-| Giảng viên hướng dẫn |  |
-| Ngày bắt đầu |  |
+| Môn học |SWP|
+| Mã môn học |391|
+| Lớp |SE20A04|
+| Học kỳ |SU26|
+| Tên bài tập / Project |DN-Pulse: Intelligent Urban Routing System|
+| Tên sinh viên / Nhóm |Nguyễn Nho Trường Phát|
+| MSSV / Danh sách MSSV |DE190716|
+| Giảng viên hướng dẫn |QuangLTN3|
+| Ngày bắt đầu |2026-05-26|
 | Ngày hoàn thành |  |
 
 ---
@@ -21,12 +21,12 @@
 
 Đánh dấu các công cụ AI đã sử dụng trong quá trình thực hiện bài tập/project.
 
-- [ ] ChatGPT
-- [ ] Gemini
-- [ ] Claude
+- [x] ChatGPT
+- [x] Gemini
+- [x] Claude
 - [ ] GitHub Copilot
 - [ ] Cursor
-- [ ] Antigravity
+- [x] Antigravity
 - [ ] Perplexity
 - [ ] Microsoft Copilot
 - [ ] Công cụ khác: ....................................
@@ -54,8 +54,17 @@ Ví dụ:
 
 ### Mô tả mục tiêu sử dụng AI
 
-```text
-Viết tại đây...
+```
+- Gợi ý ý tưởng giải pháp
+- Thiết kế database
+- Thiết kế giao diện
+- Viết code mẫu
+- Debug lỗi
+- Tối ưu code
+- Viết test case
+- Viết báo cáo
+- Tìm hiểu các cách làm và triển khai
+...
 
 ## 4. Nhật ký sử dụng AI chi tiết
 
@@ -68,32 +77,48 @@ Viết tại đây...
 
 | Nội dung | Thông tin |
 |---|---|
-| Ngày sử dụng |  |
-| Công cụ AI | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác |
-| Mục đích sử dụng |  |
-| Phần việc liên quan | Requirement / Design / Database / Frontend / Backend / Testing / Debug / Report / Presentation / Other |
-| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung |
+| Ngày sử dụng |2026-05-26|
+| Công cụ AI | ChatGPT / Gemini / Claude / Antigravity |
+| Mục đích sử dụng |Thiết kế Database|
+| Phần việc liên quan | Database |
+| Mức độ sử dụng | Hỗ trợ ý tưởng |
 
 #### 4.1. Prompt đã sử dụng
 
-```text
-Dán nguyên văn prompt đã hỏi AI tại đây.
+```1. Tối ưu kiểu dữ liệu không gian (Spatial Data) Bạn đang sử dụng SQL Server, một hệ quản trị hỗ trợ cực kỳ mạnh mẽ kiểu dữ liệu GEOGRAPHY. Lỗi ở các thuộc tính: Trong các bảng FloodZones và EventRoads, bạn đang để các trường như polygon_coordinates, polyline_encoded, và geojson_coords. Trong thực tế, bạn không nên lưu tọa độ dưới dạng chuỗi văn bản (như VARCHAR hay JSON text). Gợi ý sửa: Hãy gộp chung lại thành một thuộc tính duy nhất mang tên geography_data (hoặc affected_area) và set cứng kiểu dữ liệu là GEOGRAPHY. Backend của bạn sẽ gọi thẳng hàm STDistance hoặc STIntersects của SQL Server để xử lý. Với bảng Events & POIs: Bạn đang tách rời latitude và longitude. Điều này ổn định cho truy vấn cơ bản, nhưng để tối ưu hóa việc tìm các sự kiện "trong bán kính 2-5km", bạn nên thêm một trường location_point (kiểu GEOGRAPHY) để SQL Server có thể đánh index không gian (Spatial Index). 2. Chuẩn hóa mối quan hệ Nhiều-Nhiều (M:N) Lỗi ở UserFavoriteEvents: Trên sơ đồ, bạn đang biểu diễn UserFavoriteEvents (với thuộc tính saved_at) như một thuộc tính của đường liên kết (relationship diamond) giữa User và Events. Gợi ý sửa: Trong cơ sở dữ liệu quan hệ, bạn không thể code một đường liên kết. Bạn bắt buộc phải chuyển nó thành một bảng trung gian (Associative Entity). Bảng này sẽ có tên là UserFavoriteEvents gồm các cột: user_id (FK), event_id (FK), và saved_at. Khóa chính của bảng này sẽ là khóa ghép (user_id, event_id). 3. Nguy cơ phình to (Bloat) ở bảng Notifications Lỗi logic hệ thống: Bảng Notifications của bạn đang trỏ trực tiếp bằng user_id. Như mình đã từng lưu ý trước đây, nếu có một sự kiện cấm đường lớn ảnh hưởng đến 10.000 người dùng, việc backend tạo ra 10.000 dòng dữ liệu INSERT vào bảng này cùng một lúc sẽ làm sập hoặc phình to Database một cách lãng phí. Gợi ý sửa: Hãy tách thành 2 bảng: NotificationTemplates (Lưu nội dung thông báo gốc: id, title, message, type, created_at). UserNotifications (Chỉ lưu trạng thái đọc của người dùng: user_id, notification_template_id, is_read). (Thậm chí trong thực tế, các thông báo mang tính Real-time thường được đẩy thẳng qua Firebase Push Notification chứ không lưu cứng toàn bộ vào SQL DB ). 4. Tinh chỉnh bảng TrafficAlerts và EventRoads Lỗi dư thừa khóa ngoại: Bảng TrafficAlerts đang có liên kết khóa ngoại event_id. Nếu một sự cố giao thông (tai nạn, tắc đường đột xuất) không liên quan đến sự kiện nào cả, trường này sẽ bị Null. Đồng thời, bạn đã có bảng EventRoads chuyên xử lý các tuyến đường bị cấm do sự kiện. Gợi ý sửa: Giữ nguyên EventRoads để quản lý các tuyến đường phục vụ sự kiện. Đối với TrafficAlerts, hãy đảm bảo trường event_id là tùy chọn (Nullable) hoặc tốt nhất là loại bỏ nó nếu bạn muốn bảng này chỉ thuần túy lưu trữ dữ liệu kẹt xe/tai nạn ngẫu nhiên, tách biệt hoàn toàn với logic sự kiện. 5. Quản lý Route Data trong SavedRoutes Lưu ý thiết kế: Bảng SavedRoutes của bạn có trường route_data. Khi Mapbox API trả về một tuyến đường, dữ liệu JSON của tuyến đường đó rất lớn (chứa hàng ngàn điểm tọa độ để vẽ Polyline). Gợi ý sửa: Nếu bạn lưu toàn bộ file JSON đó vào SQL Server, hãy sử dụng kiểu dữ liệu NVARCHAR(MAX) hoặc lưu nó ở một dịch vụ lưu trữ ngoài (như AWS S3/Firebase Storage) và chỉ lưu route_data_url trong Database. Nếu bạn chỉ cần điểm đầu và cuối (origin_lat, destination_lat), khi người dùng mở lại, hãy gọi lại Mapbox API để xin đường mới nhất, như vậy sẽ đảm bảo tuyến đường luôn được cập nhật tình trạng giao thông thực tế.
 ```
 
 #### 4.2. Kết quả AI gợi ý
 
 Tóm tắt nội dung AI đã trả lời hoặc gợi ý.
 
-```text
-Viết tại đây...
+```
+Được, mình sẽ phân tích thẳng vào phần bạn gửi. Nhìn chung SQL hiện tại của bạn đã làm được project, không sai nghiêm trọng. Các góp ý bạn liệt kê phía dưới là đúng theo hướng “nâng cấp chuyên nghiệp”, nhưng không phải cái nào cũng nên sửa ngay, vì nếu sửa quá sâu sẽ làm bạn khó code backend/frontend hơn.
+
+Theo thiết kế ban đầu trong file DN-Pulse, database của bạn gồm 11 bảng, trong đó Users, Events, TrafficAlerts, EventRoads, POIs, SavedRoutes, UserFavoriteEvents, Notifications là các bảng chính để phục vụ sự kiện, giao thông, bản đồ và trải nghiệm người dùng.
+
+Kết luận nhanh
+
+Bạn có thể giữ gần như nguyên bản SQL hiện tại, chỉ nên chỉnh một số điểm sau:
+
+Vấn đề	Có nên sửa ngay không?	Mức độ
+Đổi password thành password_hash	Có	Bắt buộc nên sửa
+UserFavoriteEvents	Không cần sửa	Bạn đã làm đúng
+Notifications tách 2 bảng	Nên sửa nếu muốn chuẩn hơn	Khá quan trọng
+Spatial Data GEOGRAPHY	Có thể thêm, không bắt buộc thay hết	Nâng cao
+TrafficAlerts.event_id	Giữ nullable như hiện tại	Đúng rồi
+SavedRoutes.route_data	Giữ NVARCHAR(MAX) được	Đủ dùng cho project
+Thêm updated_at cho vài bảng	Nên thêm	Tốt hơn
+
+Sau đó AI đưa ra các code mẫu và giải thích
 ```
 
 #### 4.3. Phần sinh viên/nhóm đã sử dụng từ AI
 
 Mô tả rõ phần nào được sử dụng lại từ gợi ý của AI.
 
-```text
-Viết tại đây...
+```
+copy hết tất cả code mẫu từ AI để test
 ```
 
 #### 4.4. Phần sinh viên/nhóm tự chỉnh sửa hoặc cải tiến
@@ -119,8 +144,8 @@ Viết tại đây...
 
 Sinh viên/nhóm học được gì sau lần sử dụng AI này?
 
-```text
-Viết tại đây...
+```
+có được databse để test hệ thống 
 ```
 
 ---
