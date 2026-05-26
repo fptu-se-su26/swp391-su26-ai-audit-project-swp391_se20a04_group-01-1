@@ -78,9 +78,9 @@ export default function Login() {
         // ✅ Redirect dựa trên role
         // ✅ ĐÚNG
 if (data.role === 'admin') {
-  window.location.href = '/admin/dashboard';  // ← Admin dashboard
+  window.location.href = '/admin/dashboard';  
 } else {
-  window.location.href = '/dashboard';        // ← User dashboard
+  window.location.href = '/dashboard';       
 }
       } else {
         setErrorMsg(data.message || 'Email hoặc mật khẩu không chính xác!');
