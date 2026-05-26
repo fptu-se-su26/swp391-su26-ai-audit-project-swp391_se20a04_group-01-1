@@ -3,9 +3,10 @@ import SplashScreen from './pages/SplashScreen/SplashScreen';
 import Login from './pages/Login/Login';
 import Register from './pages/Login/Register';
 import Dashboard from './pages/Home/Home'; // Trang chính sau khi đăng nhập thành công
-import AdminDashboard from './pages/Admin/AdminAddEvent';
+import AdminDashboard from './layouts/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage/LandingPage';
+
 
 export default function App() {
     return (
@@ -31,7 +32,7 @@ export default function App() {
                     }
                 />
 
-                {/* 5. Trang Dashboard của Admin (Được bảo vệ bằng ProtectedRoute) */}
+                {/*     {/* 5. Trang Dashboard của Admin (Được bảo vệ bằng ProtectedRoute) */}
                 <Route
                     path="/admin/dashboard"
                     element={

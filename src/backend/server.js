@@ -1,9 +1,9 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { sql, poolPromise } = require('./db');
-require('dotenv').config();
 
 const app = express();
 app.use(cors());
@@ -34,6 +34,7 @@ app.post('/api/auth/register', async (req, res) => {
 
         res.status(201).json({ message: 'Đăng ký tài khoản thành công!' });
     } catch (error) {
+        console.error('❌ Lỗi API đăng ký:', error);
         res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
 });
@@ -62,6 +63,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         res.json({ message: 'Đăng nhập thành công!', token, role: user.role });
     } catch (error) {
+        console.error('❌ Lỗi API đăng nhập:', error);
         res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
 });
