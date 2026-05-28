@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+
 const API_URL = 'http://localhost:5001/api';
 
 const apiClient = axios.create({
@@ -85,3 +86,8 @@ export const adminAPI = {
 };
 
 export default apiClient;
+
+// Thêm vào trong api.ts
+export const eventAPI = {
+    getAllEvents: () => apiClient.get('/events'),
+};

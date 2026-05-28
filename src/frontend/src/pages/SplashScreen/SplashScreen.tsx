@@ -105,7 +105,7 @@ export default function SplashScreen() {
                     </div>
                     {/* TIÊU ĐỀ CHÍNH: Phông chữ cứng cáp, phối màu Gradient sang trọng */}
                     <h1 className="text-4xl md:text-5xl font-black text-white tracking-[0.2em] uppercase text-center mb-3 drop-shadow-lg">
-                        DA NANG <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-teal-400 to-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.3)] block mt-1 md:inline md:mt-0">- PULSE</span>
+                        DA NANG <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-teal-400 to-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.3)] block mt-1 md:inline md:mt-0"> PULSE</span>
                     </h1>
 
                     {/* TIÊU ĐỀ PHỤ: Câu slogan đắt giá của bạn, căn chỉnh mật độ gọn gàng */}
