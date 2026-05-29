@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Map, { NavigationControl, Marker, Source, Layer } from 'react-map-gl/mapbox'; 
 import 'mapbox-gl/dist/mapbox-gl.css'; 
+
 import {
     Search, Navigation, Bell, User, LogOut, ArrowLeft, Settings,
     ShieldAlert, Ban, CloudRain, Compass, Utensils, Hotel,
@@ -324,7 +325,7 @@ export default function Home() {
             </div>
 
             {/* ================= CỤM CÔNG CỤ BẢN ĐỒ GÓC PHẢI (MAP CONTROLS) ================= */}
-            <div className="absolute right-6 bottom-10 flex flex-col gap-3 z-10 pointer-events-none">
+            <div className="absolute right-6 bottom-32 flex flex-col gap-3 z-10 pointer-events-none">
 
                 {/* Nút Vị Trí Hiện Tại */}
                 <div className="group relative pointer-events-auto flex justify-end items-center">
@@ -383,16 +384,6 @@ export default function Home() {
 
                 {/* Dải phân cách mỏng trước khi đến cụm Zoom */}
                 <div className="h-1"></div>
-
-                {/* Cụm Zoom Bản Đồ (+ / -) - ✅ Vẫn giữ nguyên như yêu cầu */}
-                <div className="flex flex-col gap-2 pointer-events-auto items-end">
-                    <button className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                        <Plus size={20} />
-                    </button>
-                    <button className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                        <Minus size={20} />
-                    </button>
-                </div>
 
             </div>
 
