@@ -80,9 +80,8 @@ export default function Register() {
       await authAPI.register(form.username, form.email, form.password);
       
       alert('Tạo tài khoản thành công! Hãy đăng nhập nhé.');
-      window.location.href = '/login'; 
-      
-    } catch (err: any) {
+      window.location.href = '/login';
+} catch (err: any) {
       console.error(err);
       // Lấy câu thông báo lỗi từ backend trả về
       if (err.response && err.response.data && err.response.data.message) {
@@ -158,7 +157,7 @@ export default function Register() {
                   required
                 />
               </div>
-            </div>
+</div>
 
             {/* Full name */}
             <div className="form-group animate-fade-up delay-3">
@@ -231,7 +230,7 @@ export default function Register() {
               <div className="input-wrapper">
                 <span className="input-icon"><Lock size={17} strokeWidth={2} /></span>
                 <input
-                  id="reg-confirm"
+id="reg-confirm"
                   type={showConfirm ? 'text' : 'password'}
                   className="form-input"
                   placeholder="Re-enter password"
@@ -312,7 +311,7 @@ export default function Register() {
         >
           <div className="stat-card" style={{ minWidth: 'auto' }}>
             <div className="stat-value">50K+</div>
-            <div className="stat-label">Active Users</div>
+<div className="stat-label">Active Users</div>
           </div>
         </div>
 

@@ -4,10 +4,10 @@ import Login from './pages/Login/Login';
 import Home from './pages/Home/Home';
 import ProfilePage from './pages/Profile/ProfilePage';
 import Register from './pages/Login/Register';
-import Dashboard from './pages/Home/Home'; // Trang chính sau khi đăng nhập thành công
 import AdminDashboard from './layouts/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage/LandingPage';
+import ForgotPassword from './pages/Login/ForgotPassword';
 
 
 export default function App() {
@@ -19,6 +19,9 @@ export default function App() {
                 <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <SplashScreen />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+
 
                 <Route path="/dashboard" element={
                     <ProtectedRoute>
