@@ -1,20 +1,21 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, User, Lock, Mail, UserCircle, Navigation, MapPin, CheckCircle } from 'lucide-react';
+import { authAPI } from '../../services/api';
 
 // ── Right panel slides ─────────────────────────────────────────────────
 const slides = [
   {
-    img: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?q=80&w=2000&auto=format&fit=crop',
-    badge: 'Han River · Đà Nẵng',
-    title: 'Join Our\nCommunity',
-    sub: 'Create an account to save routes, get alerts, and never miss a city event.',
+    img: 'https://images.pexels.com/photos/34373624/pexels-photo-34373624.jpeg',
+    badge: 'Cầu Rồng · Đà Nẵng',
+    title: 'Iconic\nLandmark',
+    sub: 'Chiêm ngưỡng toàn cảnh Cầu Rồng vươn mình tráng lệ từ trên cao và không bỏ lỡ các sự kiện đôi bờ sông Hàn.',
   },
   {
-    img: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2000&auto=format&fit=crop',
-    badge: 'Smart Routing',
-    title: 'Travel\nSmarter',
-    sub: 'Our AI-powered routing avoids floods and congestion to get you there faster.',
-  },
+    img: 'https://images.pexels.com/photos/36761634/pexels-photo-36761634.jpeg',
+    badge: 'Thành phố Đà Nẵng',
+    title: 'City of\nLights',
+    sub: 'Thu trọn vẻ đẹp lung linh của thành phố vào tầm mắt và khám phá những tuyến phố đi bộ nhộn nhịp về đêm.',
+  }
 ];
 
 // ── Password strength helper ───────────────────────────────────────────
@@ -64,10 +65,9 @@ export default function Register() {
 
   // ── LOGIC GỌI API ĐĂNG KÝ ──────────────────────────────────────────
   const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault(); // Chặn reload trang
+    e.preventDefault(); 
     setErrorMsg('');
 
-    // Kiểm tra mật khẩu khớp chưa
     if (pwMismatch) {
       setErrorMsg('Mật khẩu nhập lại không khớp!');
       return;
@@ -76,29 +76,20 @@ export default function Register() {
     setLoading(true);
 
     try {
-      // Gọi xuống backend (Cổng 5001)
-      const response = await fetch('http://localhost:5001/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: form.username,
-          email: form.email,
-          password: form.password
-          // Có thể truyền thêm fullName nếu backend của bạn có hỗ trợ lưu fullName
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert('Tạo tài khoản thành công! Hãy đăng nhập nhé.');
-        window.location.href = '/login'; // Chuyển hướng sang trang đăng nhập
-      } else {
-        setErrorMsg(data.message || 'Đăng ký thất bại!');
-      }
-    } catch (err) {
+      // Sử dụng authAPI từ file api.ts
+      await authAPI.register(form.username, form.email, form.password);
+      
+      alert('Tạo tài khoản thành công! Hãy đăng nhập nhé.');
+      window.location.href = '/login'; 
+      
+    } catch (err: any) {
       console.error(err);
-      setErrorMsg('Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại Backend!');
+      // Lấy câu thông báo lỗi từ backend trả về
+      if (err.response && err.response.data && err.response.data.message) {
+        setErrorMsg(err.response.data.message);
+      } else {
+        setErrorMsg('Không thể kết nối đến máy chủ. Vui lòng thử lại!');
+      }
     } finally {
       setLoading(false);
     }
@@ -131,7 +122,7 @@ export default function Register() {
             </div>
           )}
 
-          {/* Form - Thay thế onSubmit bằng hàm handleRegister */}
+          {/* Form */}
           <form onSubmit={handleRegister}>
             {/* Username */}
             <div className="form-group animate-fade-up delay-2">
