@@ -5,17 +5,17 @@ import { authAPI } from '../../services/api';
 // ── Right panel slides ─────────────────────────────────────────────────
 const slides = [
   {
-    img: 'https://images.unsplash.com/photo-1583417319070-4a69db38a482?q=80&w=2000&auto=format&fit=crop',
-    badge: 'Han River · Đà Nẵng',
-    title: 'Join Our\nCommunity',
-    sub: 'Create an account to save routes, get alerts, and never miss a city event.',
+    img: 'https://images.pexels.com/photos/34373624/pexels-photo-34373624.jpeg',
+    badge: 'Cầu Rồng · Đà Nẵng',
+    title: 'Iconic\nLandmark',
+    sub: 'Chiêm ngưỡng toàn cảnh Cầu Rồng vươn mình tráng lệ từ trên cao và không bỏ lỡ các sự kiện đôi bờ sông Hàn.',
   },
   {
-    img: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2000&auto=format&fit=crop',
-    badge: 'Smart Routing',
-    title: 'Travel\nSmarter',
-    sub: 'Our AI-powered routing avoids floods and congestion to get you there faster.',
-  },
+    img: 'https://images.pexels.com/photos/36761634/pexels-photo-36761634.jpeg',
+    badge: 'Thành phố Đà Nẵng',
+    title: 'City of\nLights',
+    sub: 'Thu trọn vẻ đẹp lung linh của thành phố vào tầm mắt và khám phá những tuyến phố đi bộ nhộn nhịp về đêm.',
+  }
 ];
 
 // ── Password strength helper ───────────────────────────────────────────

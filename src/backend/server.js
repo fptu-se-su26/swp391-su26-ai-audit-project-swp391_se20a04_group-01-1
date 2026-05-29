@@ -88,6 +88,47 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
+// POST /api/auth/register
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { username, email, password } = req.body;
+
+        // 1. Kiểm tra dữ liệu đầu vào
+        if (!username || !email || !password) {
+            return res.status(400).json({ message: 'Vui lòng điền đầy đủ thông tin!' });
+        }
+
+        const pool = await poolPromise;
+
+        // 2. Kiểm tra xem email hoặc username đã tồn tại chưa
+        const checkExist = await pool.request()
+            .input('email', sql.NVarChar, email)
+            .input('username', sql.NVarChar, username)
+            .query('SELECT user_id FROM Users WHERE email = @email OR username = @username');
+
+        if (checkExist.recordset.length > 0) {
+            return res.status(400).json({ message: 'Email hoặc Username đã được sử dụng!' });
+        }
+
+        // 3. Mã hóa mật khẩu (Băm password)
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // 4. Lưu user mới vào Database (Mặc định role là 'user')
+        await pool.request()
+            .input('username', sql.NVarChar, username)
+            .input('email', sql.NVarChar, email)
+            .input('password_hash', sql.NVarChar, hashedPassword)
+            .input('role', sql.NVarChar, 'user')
+            .query(`INSERT INTO Users (username, email, password_hash, role) 
+                    VALUES (@username, @email, @password_hash, @role)`);
+
+        res.status(201).json({ message: 'Tạo tài khoản thành công!' });
+    } catch (error) {
+        console.error('Register error:', error);
+        res.status(500).json({ message: 'Lỗi server', error: error.message });
+    }
+});
 // ============ ĐĂNG NHẬP ============
 
 // POST /api/auth/login

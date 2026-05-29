@@ -3,12 +3,18 @@ import { useNavigate } from 'react-router-dom';
 
 // Tuyển chọn 3 bức ảnh góc rộng lộng lẫy nhất của Đà Nẵng để tối ưu tốc độ tải
 const DA_NANG_SLIDES = [
-    'https://images.pexels.com/photos/2162723/pexels-photo-2162723.jpeg', // Cầu Rồng ban đêm
-    // 'https://images.pexels.com/photos/6136132/pexels-photo-6136132.jpeg', // Cầu Vàng trong sương
-    // 'https://images.pexels.com/photos/14438239/pexels-photo-14438239.jpeg', // Phong cảnh
-    'https://images.pexels.com/photos/5037910/pexels-photo-5037910.jpeg', // Biển
-    // 'https://images.pexels.com/photos/1064886/pexels-photo-1064886.jpeg', // Kiến trúc
-    'https://images.pexels.com/photos/36947721/pexels-photo-36947721.jpeg', // Toàn cảnh
+    {
+    img: 'https://images.pexels.com/photos/34373624/pexels-photo-34373624.jpeg',
+    badge: 'Công viên APEC · Đà Nẵng',
+    title: 'Cultural\nHub',
+    sub: 'Khám phá các triển lãm nghệ thuật, sự kiện văn hóa cộng đồng và tìm bãi đỗ xe thông minh ngay trung tâm.',
+  },
+  {
+    img: 'https://images.pexels.com/photos/36761634/pexels-photo-36761634.jpeg',
+    badge: 'Bà Nà Hills · Đà Nẵng',
+    title: 'Touch the\nSky',
+    sub: 'Trải nghiệm các lễ hội độc quyền trên mây và nhận gợi ý lộ trình an toàn nhất để di chuyển lên đỉnh núi.',
+  }
 ];
 
 export default function SplashScreen() {
