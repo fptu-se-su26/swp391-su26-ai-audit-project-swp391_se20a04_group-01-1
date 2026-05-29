@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, Navigation, RefreshCw, ShieldCheck } from 'lucide-react';
+import { forgotPasswordAPI } from '../../services/api'; // Đảm bảo đường dẫn này đúng với dự án của bạn
 
 // ── Step indicator ─────────────────────────────────────────────────────
 const STEPS = [
@@ -7,6 +8,10 @@ const STEPS = [
   { label: 'Verify' },
   { label: 'Reset' },
 ];
+
+const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+const strengthColors = ['', '#EF4444', '#F59E0B', '#10B981', '#059669'];
+const segmentClass = ['', 'weak', 'fair', 'good', 'strong'];
 
 // ── OTP digit input ────────────────────────────────────────────────────
 function OtpInput({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
@@ -68,10 +73,7 @@ function getStrength(pw: string): 0 | 1 | 2 | 3 | 4 {
   return score as 0 | 1 | 2 | 3 | 4;
 }
 
-const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
-const strengthColors = ['', '#EF4444', '#F59E0B', '#10B981', '#059669'];
-const segmentClass = ['', 'weak', 'fair', 'good', 'strong'];
-
+// ── MAIN COMPONENT ─────────────────────────────────────────────────────
 export default function ForgotPassword() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [email, setEmail] = useState('');
@@ -81,10 +83,13 @@ export default function ForgotPassword() {
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [done, setDone] = useState(false);
+  
   const [countdown, setCountdown] = useState(60);
   const [canResend, setCanResend] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Resend countdown
+  // ── RESEND COUNTDOWN LOGIC ──
   useEffect(() => {
     if (step !== 2) return;
     setCountdown(60);
@@ -107,11 +112,64 @@ export default function ForgotPassword() {
   const pwMatch = confirmPw && newPw === confirmPw;
   const pwMismatch = confirmPw && newPw !== confirmPw;
 
-  const handleResend = () => {
+  // ✅ BƯỚC 1: Gửi OTP
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      await forgotPasswordAPI.sendOtp(email);
+      setStep(2);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Lỗi gửi OTP, vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ BƯỚC 2: Xác thực OTP
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpComplete) return;
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      await forgotPasswordAPI.verifyOtp(email, otp.join(''));
+      setStep(3);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Mã OTP không chính xác hoặc đã hết hạn.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ BƯỚC 3: Đặt lại Mật khẩu
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pwMatch) return;
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      await forgotPasswordAPI.resetPassword(email, newPw);
+      setDone(true);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Lỗi đặt lại mật khẩu.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Gửi lại OTP
+  const handleResend = async () => {
     setOtp(['', '', '', '', '', '']);
     setCountdown(60);
     setCanResend(false);
-    // TODO: call API to resend OTP
+    setErrorMsg('');
+    try {
+      await forgotPasswordAPI.resendOtp(email);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || 'Lỗi gửi lại OTP.');
+    }
   };
 
   return (
@@ -154,6 +212,13 @@ export default function ForgotPassword() {
           })}
         </div>
 
+        {/* Hiển thị lỗi chung cho tất cả các bước */}
+        {errorMsg && (
+          <div className="animate-fade-up" style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '14px', border: '1px solid #fecaca', textAlign: 'center' }}>
+            {errorMsg}
+          </div>
+        )}
+
         {/* ── STEP 1 — Email ── */}
         {step === 1 && !done && (
           <div className="animate-fade-up">
@@ -162,26 +227,19 @@ export default function ForgotPassword() {
             </div>
 
             <h2 style={{
-              fontSize: '1.5rem',
-              fontWeight: 800,
-              color: 'var(--text-primary)',
-              textAlign: 'center',
-              letterSpacing: '-0.02em',
-              marginBottom: '0.375rem',
+              fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)',
+              textAlign: 'center', letterSpacing: '-0.02em', marginBottom: '0.375rem',
             }}>
               Forgot Password?
             </h2>
             <p style={{
-              fontSize: '0.9rem',
-              color: 'var(--text-secondary)',
-              textAlign: 'center',
-              marginBottom: '1.75rem',
-              lineHeight: 1.55,
+              fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center',
+              marginBottom: '1.75rem', lineHeight: 1.55,
             }}>
               No worries! Enter your email address and we'll send you a 6-digit verification code.
             </p>
 
-            <form onSubmit={e => { e.preventDefault(); setStep(2); }}>
+            <form onSubmit={handleSendOtp}>
               <div className="form-group">
                 <label className="form-label" htmlFor="fp-email">Email Address</label>
                 <div className="input-wrapper">
@@ -199,20 +257,19 @@ export default function ForgotPassword() {
                 </div>
               </div>
 
-              <button type="submit" id="fp-send-btn" className="btn-primary" style={{ marginTop: '0.25rem' }}>
-                Send Verification Code
+              <button type="submit" id="fp-send-btn" className="btn-primary" disabled={loading} style={{ marginTop: '0.25rem', opacity: loading ? 0.7 : 1 }}>
+                {loading ? 'Sending...' : 'Send Verification Code'}
               </button>
             </form>
 
             <div className="forgot-footer">
               <a href="/login">
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <ArrowLeft size={13} strokeWidth={2.5} />
-                  Back to Sign In
+                  <ArrowLeft size={13} strokeWidth={2.5} /> Back to Sign In
                 </span>
               </a>
               <div className="forgot-footer-sep" />
-              <a href="/register">Don't have an account?{' '}<strong>Sign up</strong></a>
+              <a href="/register">Don't have an account? <strong>Sign up</strong></a>
             </div>
           </div>
         )}
@@ -225,45 +282,35 @@ export default function ForgotPassword() {
             </div>
 
             <h2 style={{
-              fontSize: '1.5rem',
-              fontWeight: 800,
-              color: 'var(--text-primary)',
-              textAlign: 'center',
-              letterSpacing: '-0.02em',
-              marginBottom: '0.375rem',
+              fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)',
+              textAlign: 'center', letterSpacing: '-0.02em', marginBottom: '0.375rem',
             }}>
               Check Your Email
             </h2>
             <p style={{
-              fontSize: '0.9rem',
-              color: 'var(--text-secondary)',
-              textAlign: 'center',
-              marginBottom: '0.375rem',
-              lineHeight: 1.55,
+              fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center',
+              marginBottom: '0.375rem', lineHeight: 1.55,
             }}>
               We sent a 6-digit code to
             </p>
             <p style={{
-              fontSize: '0.9rem',
-              fontWeight: 700,
-              color: 'var(--primary)',
-              textAlign: 'center',
-              marginBottom: '0.25rem',
+              fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)',
+              textAlign: 'center', marginBottom: '0.25rem',
             }}>
               {email}
             </p>
 
-            <form onSubmit={e => { e.preventDefault(); if (otpComplete) setStep(3); }}>
+            <form onSubmit={handleVerifyOtp}>
               <OtpInput value={otp} onChange={setOtp} />
 
               <button
                 type="submit"
                 id="fp-verify-btn"
                 className="btn-primary"
-                disabled={!otpComplete}
-                style={{ opacity: otpComplete ? 1 : 0.5, cursor: otpComplete ? 'pointer' : 'not-allowed' }}
+                disabled={!otpComplete || loading}
+                style={{ opacity: (otpComplete && !loading) ? 1 : 0.5, cursor: (otpComplete && !loading) ? 'pointer' : 'not-allowed' }}
               >
-                Verify Code
+                {loading ? 'Verifying...' : 'Verify Code'}
               </button>
             </form>
 
@@ -272,41 +319,22 @@ export default function ForgotPassword() {
                 <>
                   Didn't receive it?{' '}
                   <button className="resend-btn" onClick={handleResend}>
-                    <RefreshCw size={12} style={{ display: 'inline', marginRight: 3 }} />
-                    Resend code
+                    <RefreshCw size={12} style={{ display: 'inline', marginRight: 3 }} /> Resend code
                   </button>
                 </>
               ) : (
                 <>
-                  Resend code in{' '}
-                  <strong style={{ color: 'var(--primary)' }}>0:{countdown.toString().padStart(2, '0')}</strong>
+                  Resend code in <strong style={{ color: 'var(--primary)' }}>0:{countdown.toString().padStart(2, '0')}</strong>
                 </>
               )}
             </div>
 
             <div className="forgot-footer">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  fontSize: '0.8375rem',
-                  fontWeight: 600,
-                  color: 'var(--text-secondary)',
-                  fontFamily: 'Inter, sans-serif',
-                }}
-              >
+              <button type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8375rem', fontWeight: 600, color: 'var(--text-secondary)', fontFamily: 'Inter, sans-serif' }}>
                 <ArrowLeft size={13} strokeWidth={2.5} /> Back
               </button>
               <div className="forgot-footer-sep" />
               <a href="/login">Sign In</a>
-              <div className="forgot-footer-sep" />
-              <a href="/register">Sign up</a>
             </div>
           </div>
         )}
@@ -319,27 +347,19 @@ export default function ForgotPassword() {
             </div>
 
             <h2 style={{
-              fontSize: '1.5rem',
-              fontWeight: 800,
-              color: 'var(--text-primary)',
-              textAlign: 'center',
-              letterSpacing: '-0.02em',
-              marginBottom: '0.375rem',
+              fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)',
+              textAlign: 'center', letterSpacing: '-0.02em', marginBottom: '0.375rem',
             }}>
               Set New Password
             </h2>
             <p style={{
-              fontSize: '0.9rem',
-              color: 'var(--text-secondary)',
-              textAlign: 'center',
-              marginBottom: '1.75rem',
-              lineHeight: 1.55,
+              fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center',
+              marginBottom: '1.75rem', lineHeight: 1.55,
             }}>
               Your new password must be different from previously used passwords.
             </p>
 
-            <form onSubmit={e => { e.preventDefault(); if (pwMatch) setDone(true); }}>
-              {/* New password */}
+            <form onSubmit={handleResetPassword}>
               <div className="form-group">
                 <label className="form-label" htmlFor="fp-newpw">New Password</label>
                 <div className="input-wrapper">
@@ -354,11 +374,7 @@ export default function ForgotPassword() {
                     autoComplete="new-password"
                     required
                   />
-                  <button
-                    type="button"
-                    className="input-suffix-btn"
-                    onClick={() => setShowPw(v => !v)}
-                  >
+                  <button type="button" className="input-suffix-btn" onClick={() => setShowPw(v => !v)}>
                     {showPw ? <EyeOff size={17} strokeWidth={2} /> : <Eye size={17} strokeWidth={2} />}
                   </button>
                 </div>
@@ -376,7 +392,6 @@ export default function ForgotPassword() {
                 )}
               </div>
 
-              {/* Confirm password */}
               <div className="form-group">
                 <label className="form-label" htmlFor="fp-confirm">Confirm Password</label>
                 <div className="input-wrapper">
@@ -392,11 +407,7 @@ export default function ForgotPassword() {
                     required
                     style={{ borderColor: pwMismatch ? '#EF4444' : pwMatch ? '#10B981' : undefined }}
                   />
-                  <button
-                    type="button"
-                    className="input-suffix-btn"
-                    onClick={() => setShowConfirm(v => !v)}
-                  >
+                  <button type="button" className="input-suffix-btn" onClick={() => setShowConfirm(v => !v)}>
                     {showConfirm ? <EyeOff size={17} strokeWidth={2} /> : <Eye size={17} strokeWidth={2} />}
                   </button>
                   {pwMatch && (
@@ -406,9 +417,7 @@ export default function ForgotPassword() {
                   )}
                 </div>
                 {pwMismatch && (
-                  <p style={{ fontSize: '0.75rem', color: '#EF4444', marginTop: '0.25rem' }}>
-                    Passwords do not match
-                  </p>
+                  <p style={{ fontSize: '0.75rem', color: '#EF4444', marginTop: '0.25rem' }}>Passwords do not match</p>
                 )}
               </div>
 
@@ -416,83 +425,34 @@ export default function ForgotPassword() {
                 type="submit"
                 id="fp-reset-btn"
                 className="btn-primary"
-                disabled={!pwMatch}
-                style={{ marginTop: '0.25rem', opacity: pwMatch ? 1 : 0.5, cursor: pwMatch ? 'pointer' : 'not-allowed' }}
+                disabled={!pwMatch || loading}
+                style={{ marginTop: '0.25rem', opacity: (pwMatch && !loading) ? 1 : 0.5, cursor: (pwMatch && !loading) ? 'pointer' : 'not-allowed' }}
               >
-                Reset Password
+                {loading ? 'Resetting...' : 'Reset Password'}
               </button>
             </form>
-
-            <div className="forgot-footer">
-              <a href="/login">Sign In</a>
-              <div className="forgot-footer-sep" />
-              <a href="/register">Sign up</a>
-            </div>
           </div>
         )}
 
         {/* ── SUCCESS STATE ── */}
         {done && (
           <div className="animate-scale" style={{ textAlign: 'center' }}>
-            <div
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: '50%',
-                background: '#F0FDF4',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 1.5rem',
-              }}
-            >
+            <div style={{ width: 72, height: 72, borderRadius: '50%', background: '#F0FDF4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem' }}>
               <CheckCircle size={36} color="#10B981" strokeWidth={2} />
             </div>
-
-            <h2 style={{
-              fontSize: '1.5rem',
-              fontWeight: 800,
-              color: 'var(--text-primary)',
-              letterSpacing: '-0.02em',
-              marginBottom: '0.5rem',
-            }}>
+            <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
               Password Reset! 🎉
             </h2>
-            <p style={{
-              fontSize: '0.9rem',
-              color: 'var(--text-secondary)',
-              lineHeight: 1.55,
-              marginBottom: '1.75rem',
-            }}>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: '1.75rem' }}>
               Your password has been changed successfully. You can now sign in with your new password.
             </p>
-
             <a
               href="/login"
               id="fp-go-login-btn"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                width: '100%',
-                height: 48,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #2563EB 0%, #1e40af 100%)',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '0.9375rem',
-                textDecoration: 'none',
-                boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
-                transition: 'all 0.2s ease',
-              }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', height: 48, borderRadius: 10, background: 'linear-gradient(135deg, #2563EB 0%, #1e40af 100%)', color: '#fff', fontWeight: 700, fontSize: '0.9375rem', textDecoration: 'none', boxShadow: '0 4px 14px rgba(37,99,235,0.35)', transition: 'all 0.2s ease' }}
             >
               Back to Sign In
             </a>
-
-            <div className="forgot-footer">
-              <a href="/register">Don't have an account? <strong>Sign up</strong></a>
-            </div>
           </div>
         )}
       </div>

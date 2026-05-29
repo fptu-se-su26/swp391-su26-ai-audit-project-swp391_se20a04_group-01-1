@@ -51,6 +51,21 @@ apiClient.interceptors.response.use(
     }
 );
 
+// ============ FORGOT PASSWORD API ============
+
+export const forgotPasswordAPI = {
+    sendOtp: (email: string) =>
+        apiClient.post('/auth/forgot-password', { email }),
+
+    verifyOtp: (email: string, otp: string) =>
+        apiClient.post('/auth/verify-otp', { email, otp }),
+
+    resetPassword: (email: string, newPassword: string) =>
+        apiClient.post('/auth/reset-password', { email, newPassword }),
+
+    resendOtp: (email: string) =>
+        apiClient.post('/auth/resend-otp', { email }),
+};
 // ============ AUTH API ============
 
 export const authAPI = {
