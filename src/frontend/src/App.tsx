@@ -6,6 +6,7 @@ import ProfilePage from './pages/Profile/ProfilePage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProtectedRoute from './pages/components/ProtectedRoute';
 import Register from './pages/Login/Register';
+import ForgotPassword from './pages/Login/ForgotPassword';
 
 export default function App() {
     const token = localStorage.getItem('token');
@@ -16,6 +17,7 @@ export default function App() {
                 <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <SplashScreen />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} /> 
                 
                 <Route path="/dashboard" element={
                     <ProtectedRoute>

@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom'; // ✅ Thêm import
+import { useNavigate } from 'react-router-dom';
+import Map, { NavigationControl, Marker, Source, Layer } from 'react-map-gl/mapbox'; 
+import 'mapbox-gl/dist/mapbox-gl.css'; 
 import {
     Search, Navigation, Bell, User, LogOut, ArrowLeft, Settings,
     ShieldAlert, Ban, CloudRain, Compass, Utensils, Hotel,
@@ -32,7 +34,7 @@ const mockEvents = [
 ];
 
 export default function Home() {
-    const navigate = useNavigate(); // ✅ Thêm
+    const navigate = useNavigate();
     const [showAlertPopup, setShowAlertPopup] = useState(true);
     const [showNotificationModal, setShowNotificationModal] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
@@ -44,6 +46,104 @@ export default function Home() {
         traffic: true,
         flood: false
     });
+
+    // ✅ CÁC STATE CỦA MAPBOX VÀ CHỈ ĐƯỜNG
+    const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
+    const [destination, setDestination] = useState<{ lng: number; lat: number } | null>(null);
+    const [routeData, setRouteData] = useState<{
+        totalDistanceKm: number;
+        totalTimeMin: number;
+        coordinates: [number, number][];
+    } | null>(null);
+    const [loadingRoute, setLoadingRoute] = useState(false);
+
+    // ✅ HÀM: Lấy tọa độ GPS của người dùng hiện tại
+    const handleGetCurrentLocation = () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const loc = {
+                        lng: position.coords.longitude,
+                        lat: position.coords.latitude
+                    };
+                    setUserLocation(loc);
+                    // Reset lại chỉ dẫn cũ
+                    setDestination(null);
+                    setRouteData(null);
+                },
+                (error) => {
+                    alert("Không thể lấy vị trí hiện tại. Vui lòng cho phép quyền truy cập GPS.");
+                    console.error(error);
+                }
+            );
+        }
+    };
+
+    // ✅ HÀM: Chọn điểm đến khi click lên bản đồ
+    const handleMapClick = (event: any) => {
+        const { lng, lat } = event.lngLat;
+        setDestination({ lng, lat });
+    };
+
+    // ✅ EFFECT: Tự động gọi API tìm đường khi có đủ điểm đi và điểm đến
+    useEffect(() => {
+        if (!userLocation || !destination) return;
+
+        const getShortestRoute = async () => {
+            setLoadingRoute(true);
+            try {
+                const response = await fetch('http://localhost:5001/api/navigation/route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        startLat: userLocation.lat,
+                        startLng: userLocation.lng,
+                        endLat: destination.lat,
+                        endLng: destination.lng
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    setRouteData(data);
+                } else {
+                    alert(data.message || 'Không tìm thấy đường đi!');
+                    setRouteData(null);
+                }
+            } catch (err) {
+                console.error("Lỗi kết nối API đường đi:", err);
+            } finally {
+                setLoadingRoute(false);
+            }
+        };
+
+        getShortestRoute();
+    }, [userLocation, destination]);
+
+    // ✅ Dựng cấu trúc GeoJSON cho đường đi
+    const geojsonData: any = routeData ? {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+            type: 'LineString',
+            coordinates: routeData.coordinates
+        }
+    } : null;
+
+    // ✅ Định nghĩa CSS Line của bản đồ
+    const routeLayerStyle: any = {
+        id: 'route-line',
+        type: 'line',
+        layout: {
+            'line-join': 'round',
+            'line-cap': 'round'
+        },
+        paint: {
+            'line-color': '#2563eb', // Màu xanh lục chỉ đường
+            'line-width': 6,
+            'line-opacity': 0.85
+        }
+    };
 
     useEffect(() => {
         if (showAlertPopup) {
@@ -84,11 +184,42 @@ export default function Home() {
     return (
         <div className="w-full h-screen relative bg-slate-100 overflow-hidden font-sans select-none">
 
-            <div className="absolute inset-0 bg-[#e5e7eb] flex items-center justify-center z-0">
-                <div className="text-slate-400 text-center">
-                    <p className="text-xl font-bold">🗺️ LAYER BẢN ĐỒ MAPBOX</p>
-                    <p className="text-sm mt-1">(Dữ liệu ngập lụt và sự kiện đô thị vẽ tại đây)</p>
-                </div>
+            {/* ✅ BẢN ĐỒ MAPBOX ĐÃ ĐƯỢC TÍCH HỢP */}
+            <div className="absolute inset-0 z-0">
+                <Map
+                    initialViewState={{
+                        longitude: 108.2022,
+                        latitude: 16.0544,
+                        zoom: 13
+                    }}
+                    onClick={handleMapClick}
+                    style={{ width: '100%', height: '100%' }}
+                    mapStyle="mapbox://styles/mapbox/streets-v12"
+                    mapboxAccessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
+                >
+                    <NavigationControl position="bottom-right" showCompass={true} />
+                    
+                    {/* Marker: Vị trí hiện tại của người dùng */}
+                    {userLocation && (
+                        <Marker longitude={userLocation.lng} latitude={userLocation.lat} anchor="center">
+                            <div className="w-4 h-4 bg-blue-600 border-2 border-white rounded-full shadow-lg animate-pulse" />
+                        </Marker>
+                    )}
+                    
+                    {/* Marker: Vị trí điểm đến được chọn */}
+                    {destination && (
+                        <Marker longitude={destination.lng} latitude={destination.lat} anchor="bottom">
+                            <div className="text-red-600 text-2xl animate-bounce">📍</div>
+                        </Marker>
+                    )}
+                    
+                    {/* Vẽ đường đi tìm được dạng GeoJSON */}
+                    {geojsonData && (
+                        <Source id="route-source" type="geojson" data={geojsonData}>
+                            <Layer {...routeLayerStyle} />
+                        </Source>
+                    )}
+                </Map>
             </div>
 
             {/* ================= BAR TRÊN CÙNG ================= */}
@@ -158,7 +289,6 @@ export default function Home() {
                         )}
                     </div>
 
-                    {/* ✅ FIX: Nút User chuyển sang /profile */}
                     <button
                         onClick={() => navigate('/profile')}
                         className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all"
@@ -201,12 +331,15 @@ export default function Home() {
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Vị trí
                     </span>
-                    <button className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors">
+                    <button 
+                        onClick={handleGetCurrentLocation} // ✅ Đã map chức năng lấy vị trí vào đây
+                        className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
                         <Navigation size={18} className="rotate-45 -ml-1 -mt-1" />
                     </button>
                 </div>
 
-                {/* Nút Layer Bản Đồ (Màu tím khi bật) */}
+                {/* Nút Layer Bản Đồ */}
                 <div className="group relative pointer-events-auto flex justify-end items-center">
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Lớp
@@ -220,7 +353,7 @@ export default function Home() {
                     </button>
                 </div>
 
-                {/* Nút Tuyến Đường Giao Thông (Màu đỏ khi bật) */}
+                {/* Nút Tuyến Đường Giao Thông */}
                 <div className="group relative pointer-events-auto flex justify-end items-center">
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Giao thông
@@ -234,7 +367,7 @@ export default function Home() {
                     </button>
                 </div>
 
-                {/* Nút Hiển Thị Vùng Ngập Lụt (Màu xanh dương nhạt khi bật) */}
+                {/* Nút Hiển Thị Vùng Ngập Lụt */}
                 <div className="group relative pointer-events-auto flex justify-end items-center">
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Ngập lụt
@@ -251,7 +384,7 @@ export default function Home() {
                 {/* Dải phân cách mỏng trước khi đến cụm Zoom */}
                 <div className="h-1"></div>
 
-                {/* Cụm Zoom Bản Đồ (+ / -) */}
+                {/* Cụm Zoom Bản Đồ (+ / -) - ✅ Vẫn giữ nguyên như yêu cầu */}
                 <div className="flex flex-col gap-2 pointer-events-auto items-end">
                     <button className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
                         <Plus size={20} />
@@ -298,6 +431,28 @@ export default function Home() {
                 </div>
             )}
 
+            {/* ✅ PANEL HIỂN THỊ CHI TIẾT ĐƯỜNG ĐI ĐƯỢC THÊM VÀO KHI CÓ DATA */}
+            {routeData && (
+                <div className="absolute bottom-10 left-6 z-10 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
+                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl">
+                        <div>
+                            <p className="text-[10px] text-slate-400 font-semibold">KHOẢNG CÁCH</p>
+                            <p className="text-lg font-black text-slate-800">{routeData.totalDistanceKm} km</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[10px] text-slate-400 font-semibold">THỜI GIAN DỰ KIẾN</p>
+                            <p className="text-lg font-black text-blue-600">{routeData.totalTimeMin} phút</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => { setRouteData(null); setDestination(null); }}
+                        className="mt-3 w-full bg-slate-100 text-slate-600 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
+                    >
+                        Xóa lộ trình
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

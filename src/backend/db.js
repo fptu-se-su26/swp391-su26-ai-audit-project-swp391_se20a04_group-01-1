@@ -1,4 +1,6 @@
 require('dotenv').config();
+console.log('🔑 RESEND_API_KEY loaded:', !!process.env.RESEND_API_KEY);
+console.log('🔑 API Key prefix:', process.env.RESEND_API_KEY?.substring(0, 10) + '...');
 const sql = require('mssql');
 
 const dbConfig = {
