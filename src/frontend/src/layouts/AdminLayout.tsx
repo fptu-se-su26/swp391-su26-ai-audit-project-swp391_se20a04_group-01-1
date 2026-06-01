@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
     LayoutDashboard,
     Car,
@@ -7,41 +7,56 @@ import {
     RouteOff,
     Settings,
     LogOut,
-    AlertTriangle
+    AlertTriangle,
+    Home
 } from 'lucide-react';
 
-// Dữ liệu mẫu (Giả lập việc fetch từ API xem có bao nhiêu sự kiện, ngập lụt...)
 const MENU_ITEMS = [
     { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard },
     { id: 'traffic', label: 'Giao thông', icon: Car },
     { id: 'events', label: 'Sự kiện', icon: CalendarDays, count: 12 },
     { id: 'flood', label: 'Ngập lụt', icon: Waves, count: 2 },
     { id: 'closure', label: 'Cấm đường', icon: RouteOff, count: 5 },
+    { id: 'settings', label: 'Cài đặt', icon: Settings },
 ];
 
-export default function AdminLayout({ children }: { children?: React.ReactNode }) {
-    const [activeMenu, setActiveMenu] = useState('overview');
+interface AdminLayoutProps {
+    activeMenu: string;
+    setActiveMenu: (menu: string) => void;
+    children?: React.ReactNode;
+}
+
+export default function AdminLayout({ activeMenu, setActiveMenu, children }: AdminLayoutProps) {
+    
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+    };
+
+    const handleBackToApp = () => {
+        window.location.href = '/dashboard';
+    };
 
     return (
-        <div className="flex h-screen w-full bg-slate-100 font-sans">
+        <div className="flex h-screen w-full bg-slate-100 font-sans overflow-hidden">
 
             {/* ================= SIDEBAR TRÁI ================= */}
-            <aside className="w-72 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20">
+            <aside className="w-72 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 shrink-0">
 
                 {/* PHẦN 1: HEADER (Logo & Tên hệ thống) */}
                 <div className="flex items-center gap-3 p-5 border-b border-slate-800">
-                    {/* Logo: Kích thước w-11 h-11 là tỷ lệ vàng để đi kèm 2 dòng text */}
                     <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-emerald-400 flex items-center justify-center shadow-lg shrink-0">
                         <span className="text-white font-black text-xl tracking-tighter">DS</span>
                     </div>
 
-                    {/* Text: Sử dụng flex-col để xếp chồng, leading-tight để khoảng cách 2 dòng khít lại */}
                     <div className="flex flex-col justify-center">
                         <h1 className="text-white font-bold text-lg leading-tight tracking-wide">
                             Danang Smart
                         </h1>
                         <p className="text-emerald-400 text-xs font-medium mt-0.5 uppercase tracking-widest">
-                            Admin Dashboard
+                            Admin Control
                         </p>
                     </div>
                 </div>
@@ -57,16 +72,16 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
                                 key={item.id}
                                 onClick={() => setActiveMenu(item.id)}
                                 className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all duration-200 ${isActive
-                                        ? 'bg-blue-500/10 text-blue-400'
+                                        ? 'bg-blue-500/10 text-blue-400 font-semibold'
                                         : 'hover:bg-slate-800 hover:text-white'
                                     }`}
                             >
                                 <div className="flex items-center gap-3">
                                     <Icon size={20} className={isActive ? 'text-blue-400' : 'text-slate-400'} />
-                                    <span className="font-medium text-sm">{item.label}</span>
+                                    <span className="text-sm">{item.label}</span>
                                 </div>
 
-                                {/* Badge số lượng (Chỉ hiện khi có thuộc tính count và count > 0) */}
+                                {/* Badge số lượng */}
                                 {item.count && item.count > 0 && (
                                     <span className="bg-red-500/90 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm">
                                         {item.count}
@@ -80,47 +95,55 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
                 {/* PHẦN 3: BOTTOM (Cảnh báo, Cài đặt, Đăng xuất) */}
                 <div className="p-4 border-t border-slate-800 flex flex-col gap-3">
 
-                    {/* Box Cảnh báo khẩn cấp */}
+                    {/* Box Cảnh báo giao thông */}
                     <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
                         <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5 animate-pulse" />
                         <div className="flex flex-col">
                             <span className="text-red-500 text-xs font-bold uppercase tracking-wider mb-1">
-                                Cảnh báo giao thông
+                                Cảnh báo hệ thống
                             </span>
                             <p className="text-red-400/80 text-[11px] leading-relaxed">
-                                Đang kẹt xe nghiêm trọng tại Cầu Rồng và khu vực trung tâm.
+                                Cần phê duyệt 3 cảnh báo ngập lụt mới tại khu vực Cẩm Lệ.
                             </p>
                         </div>
                     </div>
 
-                    {/* Nút Cài đặt */}
-                    <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 hover:text-white transition-all text-slate-400">
-                        <Settings size={20} />
-                        <span className="font-medium text-sm">Cài đặt</span>
+                    {/* Nút Quay lại App */}
+                    <button 
+                        onClick={handleBackToApp}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800 hover:text-white transition-all text-slate-400"
+                    >
+                        <Home size={20} />
+                        <span className="font-medium text-sm">Quay lại ứng dụng</span>
                     </button>
 
                     {/* Nút Thoát Admin */}
-                    <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-400 mt-1">
+                    <button 
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-400 mt-1"
+                    >
                         <LogOut size={20} />
-                        <span className="font-medium text-sm">Thoát Admin</span>
+                        <span className="font-medium text-sm">Đăng xuất</span>
                     </button>
 
                 </div>
             </aside>
 
             {/* ================= KHU VỰC NỘI DUNG CHÍNH (BÊN PHẢI) ================= */}
-            <main className="flex-1 overflow-y-auto bg-slate-50">
-                <header className="bg-white h-16 border-b border-slate-200 flex items-center px-8 shadow-sm">
+            <main className="flex-1 flex flex-col overflow-hidden bg-slate-50">
+                <header className="bg-white h-16 border-b border-slate-200 flex items-center px-8 shadow-sm justify-between shrink-0">
                     <h2 className="text-lg font-bold text-slate-800 capitalize">
-                        {MENU_ITEMS.find(m => m.id === activeMenu)?.label}
+                        {MENU_ITEMS.find(m => m.id === activeMenu)?.label || 'Quản trị'}
                     </h2>
+                    
+                    <div className="flex items-center gap-3">
+                        <span className="text-slate-500 text-xs font-medium">Phiên đăng nhập Admin</span>
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
+                    </div>
                 </header>
-                <div className="p-8">
-                    {children || (
-                        <div className="border-2 border-dashed border-slate-300 rounded-2xl h-96 flex items-center justify-center text-slate-400">
-                            Khu vực hiển thị nội dung chức năng...
-                        </div>
-                    )}
+                
+                <div className="flex-1 overflow-y-auto p-8">
+                    {children}
                 </div>
             </main>
 

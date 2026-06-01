@@ -71,6 +71,19 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
+
+        // ================= XỬ LÝ TRƯỜNG HỢP YÊU CẦU 2FA (ADMIN) =================
+        if (data.requires2FA) {
+          // Lưu token tạm thời và email vào localStorage để dùng ở màn hình Verify2FA
+          localStorage.setItem("temp_token", data.tempToken);
+          localStorage.setItem("pending_user_email", data.email);
+
+          // Chuyển hướng ngay sang trang xác minh mã 2FA
+          window.location.href = "/verify-2fa";
+          return; // Dừng hàm lại ở đây
+        }
+        // =======================================================================
+        // ĐĂNG NHẬP THƯỜNG (Đối với User hoặc Admin chưa bật 2FA)
         // ✅ Lưu token
         localStorage.setItem("token", data.token);
         localStorage.setItem("userRole", data.role);
@@ -209,7 +222,7 @@ export default function Login() {
           </form>
 
           {/* ================= PHẦN CHỈ THÊM MỚI TẠI ĐÂY ================= */}
-          <div className="divider">Hoặc đăng nhập bằng</div>
+          <div className="divider">Or sign in with Google</div>
           <div
             style={{
               display: "flex",
