@@ -36,6 +36,7 @@ const mockEvents = [
 
 export default function Home() {
     const navigate = useNavigate();
+    const userRole = localStorage.getItem('userRole');
     const [showAlertPopup, setShowAlertPopup] = useState(true);
     const [showNotificationModal, setShowNotificationModal] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
@@ -93,26 +94,27 @@ export default function Home() {
         const getShortestRoute = async () => {
             setLoadingRoute(true);
             try {
-                const response = await fetch('http://localhost:5001/api/navigation/route', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        startLat: userLocation.lat,
-                        startLng: userLocation.lng,
-                        endLat: destination.lat,
-                        endLng: destination.lng
-                    })
-                });
+                const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+                // Query Mapbox Directions API directly (using driving profile)
+                const response = await fetch(
+                    `https://api.mapbox.com/directions/v5/mapbox/driving/${userLocation.lng},${userLocation.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&access_token=${mapboxToken}`
+                );
 
                 const data = await response.json();
-                if (response.ok) {
-                    setRouteData(data);
+                if (response.ok && data.routes && data.routes.length > 0) {
+                    const route = data.routes[0];
+                    setRouteData({
+                        totalDistanceKm: parseFloat((route.distance / 1000).toFixed(2)),
+                        totalTimeMin: Math.round(route.duration / 60),
+                        coordinates: route.geometry.coordinates // Mapbox returns [lng, lat] coordinates which fits Mapbox GL LineString
+                    });
                 } else {
-                    alert(data.message || 'Không tìm thấy đường đi!');
+                    alert('Không tìm thấy đường đi từ Mapbox!');
                     setRouteData(null);
                 }
             } catch (err) {
-                console.error("Lỗi kết nối API đường đi:", err);
+                console.error("Lỗi kết nối API đường đi Mapbox:", err);
+                setRouteData(null);
             } finally {
                 setLoadingRoute(false);
             }
@@ -289,6 +291,16 @@ export default function Home() {
                             </div>
                         )}
                     </div>
+
+                    {userRole === 'admin' && (
+                        <button
+                            onClick={() => navigate('/admin/dashboard')}
+                            className="w-[42px] h-[42px] flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-md transition-all"
+                            title="Bảng điều khiển Admin"
+                        >
+                            <Settings size={18} />
+                        </button>
+                    )}
 
                     <button
                         onClick={() => navigate('/profile')}

@@ -5,7 +5,11 @@ import OTPInput from '../components/OTPInput';
 import toast from 'react-hot-toast';
 import { OTP_EXPIRY_SECONDS } from '../../config/auth';
 
-const VerifyOTP: React.FC = () => {
+interface VerifyOTPProps {
+  email?: string;
+}
+
+const VerifyOTP: React.FC<VerifyOTPProps> = ({ email }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [userId, setUserId] = useState<string | null>(null);
@@ -122,7 +126,7 @@ const VerifyOTP: React.FC = () => {
         {/* Email Info */}
         <div className="bg-blue-50 p-4 rounded-lg mb-8">
           <p className="text-sm text-center text-gray-700">
-            Mã OTP đã được gửi đến email đăng ký
+            Mã OTP đã được gửi đến email đăng ký {email ? `(${email})` : ''}
           </p>
         </div>
 

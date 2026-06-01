@@ -14,7 +14,7 @@ const api: AxiosInstance = axios.create({
 // Request interceptor - Add token to headers
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -36,6 +36,9 @@ api.interceptors.response.use(
       authStore.logout();
       localStorage.removeItem('auth_token');
       localStorage.removeItem('auth_user');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userRole');
       window.location.href = '/login';
       toast.error('Phiên đăng nhập đã hết hạn');
     } else if (error.response?.status === 403) {
