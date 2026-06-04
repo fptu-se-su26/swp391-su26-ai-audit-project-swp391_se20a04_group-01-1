@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Map, { NavigationControl, Marker, Source, Layer } from 'react-map-gl/mapbox'; 
-import 'mapbox-gl/dist/mapbox-gl.css'; 
+import Map, { NavigationControl, Marker, Source, Layer } from 'react-map-gl/mapbox';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import {
     Search, Navigation, Bell, User, LogOut, ArrowLeft, Settings,
     ShieldAlert, Ban, CloudRain, Compass, Utensils, Hotel,
     Gamepad2, Calendar, Landmark, DollarSign, ChevronRight,
-    Layers, TrendingUp, Plus, Minus
+    Layers, TrendingUp, Plus, Minus,
+    Car, Footprints, Bike
 } from 'lucide-react';
 
 const filterCategories = [
@@ -58,6 +59,15 @@ export default function Home() {
     } | null>(null);
     const [loadingRoute, setLoadingRoute] = useState(false);
 
+    // State cho Gợi ý Tìm kiếm (Auto-complete)
+    const [searchQuery, setSearchQuery] = useState('');
+    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [loadingSearch, setLoadingSearch] = useState(false);
+    // State cho Chế độ di chuyển (Mặc định là driving - Lái xe)
+    // Các chế độ được hỗ trợ bởi Mapbox Directions API: 'driving', 'walking', 'cycling'
+    const [travelMode, setTravelMode] = useState<'driving' | 'walking' | 'cycling'>('driving');
+
     // ✅ HÀM: Lấy tọa độ GPS của người dùng hiện tại
     const handleGetCurrentLocation = () => {
         if (navigator.geolocation) {
@@ -86,29 +96,57 @@ export default function Home() {
         setDestination({ lng, lat });
     };
 
-    // ✅ EFFECT: Tự động gọi API tìm đường khi có đủ điểm đi và điểm đến
+    // Xử lý tự động tìm gợi ý địa điểm (Auto-complete)
+    useEffect(() => {
+        if (!searchQuery.trim()) {
+            setSuggestions([]);
+            setShowSuggestions(false);
+            return;
+        }
+        const delayDebounceFn = setTimeout(async () => {
+            setLoadingSearch(true);
+            try {
+                const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+                // Gọi Mapbox Geocoding API với bbox giới hạn tại khu vực Đà Nẵng
+                const response = await fetch(
+                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(searchQuery)}.json?access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
+                );
+                const data = await response.json();
+                if (data.features) {
+                    setSuggestions(data.features);
+                    setShowSuggestions(true);
+                }
+            } catch (error) {
+                console.error("Lỗi tìm kiếm gợi ý địa điểm:", error);
+            } finally {
+                setLoadingSearch(false);
+            }
+        }, 300); // Đợi 300ms sau khi người dùng dừng gõ phím mới gọi API để tối ưu số lần gọi
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery]);
+
+
+    // Cập nhật Effect chỉ đường để hỗ trợ đổi phương tiện di chuyển
     useEffect(() => {
         if (!userLocation || !destination) return;
-
         const getShortestRoute = async () => {
             setLoadingRoute(true);
             try {
                 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-                // Query Mapbox Directions API directly (using driving profile)
+                // Thay đổi 'driving' cứng thành `${travelMode}` để lấy tuyến đường tương ứng
                 const response = await fetch(
-                    `https://api.mapbox.com/directions/v5/mapbox/driving/${userLocation.lng},${userLocation.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&access_token=${mapboxToken}`
+                    `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${userLocation.lng},${userLocation.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&access_token=${mapboxToken}`
                 );
-
                 const data = await response.json();
                 if (response.ok && data.routes && data.routes.length > 0) {
                     const route = data.routes[0];
                     setRouteData({
                         totalDistanceKm: parseFloat((route.distance / 1000).toFixed(2)),
                         totalTimeMin: Math.round(route.duration / 60),
-                        coordinates: route.geometry.coordinates // Mapbox returns [lng, lat] coordinates which fits Mapbox GL LineString
+                        coordinates: route.geometry.coordinates
                     });
                 } else {
-                    alert('Không tìm thấy đường đi từ Mapbox!');
+                    alert('Không tìm thấy đường đi thích hợp cho phương tiện này!');
                     setRouteData(null);
                 }
             } catch (err) {
@@ -118,9 +156,9 @@ export default function Home() {
                 setLoadingRoute(false);
             }
         };
-
         getShortestRoute();
-    }, [userLocation, destination]);
+    }, [userLocation, destination, travelMode]);
+
 
     // ✅ Dựng cấu trúc GeoJSON cho đường đi
     const geojsonData: any = routeData ? {
@@ -200,21 +238,21 @@ export default function Home() {
                     mapboxAccessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
                 >
                     <NavigationControl position="bottom-right" showCompass={true} />
-                    
+
                     {/* Marker: Vị trí hiện tại của người dùng */}
                     {userLocation && (
                         <Marker longitude={userLocation.lng} latitude={userLocation.lat} anchor="center">
                             <div className="w-4 h-4 bg-blue-600 border-2 border-white rounded-full shadow-lg animate-pulse" />
                         </Marker>
                     )}
-                    
+
                     {/* Marker: Vị trí điểm đến được chọn */}
                     {destination && (
                         <Marker longitude={destination.lng} latitude={destination.lat} anchor="bottom">
                             <div className="text-red-600 text-2xl animate-bounce">📍</div>
                         </Marker>
                     )}
-                    
+
                     {/* Vẽ đường đi tìm được dạng GeoJSON */}
                     {geojsonData && (
                         <Source id="route-source" type="geojson" data={geojsonData}>
@@ -227,36 +265,49 @@ export default function Home() {
             {/* ================= BAR TRÊN CÙNG ================= */}
             <div className="absolute top-6 left-6 right-6 z-10 flex items-center justify-between gap-4 pointer-events-none">
 
-                <div className="flex items-center gap-3 flex-1 max-w-[calc(100%-120px)] overflow-hidden pointer-events-auto">
-                    <div className="w-72 h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4 shrink-0">
+                <div className="relative pointer-events-auto">
+                    <div className="w-80 h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4 shrink-0">
                         <Search className="text-blue-500 mr-2 shrink-0" size={18} />
                         <input
                             type="text"
-                            placeholder="Tìm kiếm..."
+                            placeholder="Tìm kiếm địa điểm tại Đà Nẵng..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
                             className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
                         />
-                        <Navigation className="text-slate-400 ml-2 cursor-pointer hover:text-blue-500 shrink-0" size={16} />
+                        {searchQuery && (
+                            <button
+                                onClick={() => { setSearchQuery(''); setSuggestions([]); }}
+                                className="text-slate-400 hover:text-slate-600 text-xs px-1"
+                            >
+                                ✕
+                            </button>
+                        )}
                     </div>
-
-                    <div className="flex items-center gap-2 overflow-x-auto py-1 scrollbar-none max-w-full">
-                        {filterCategories.map((cat) => {
-                            const IconComponent = cat.icon;
-                            const isSelected = selectedFilter === cat.id;
-                            return (
+                    {/* Dropdown danh sách gợi ý tự động (Auto-complete Suggestions) */}
+                    {showSuggestions && suggestions.length > 0 && (
+                        <div className="absolute top-[48px] left-0 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-fade-up">
+                            {suggestions.map((item: any) => (
                                 <button
-                                    key={cat.id}
-                                    onClick={() => handleFilterClick(cat.id)}
-                                    className={`flex items-center gap-1.5 px-4 h-[42px] rounded-full text-xs font-semibold shadow-md border transition-all whitespace-nowrap ${isSelected
-                                        ? 'bg-blue-600 text-white border-blue-600 scale-102'
-                                        : 'bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50'
-                                        }`}
+                                    key={item.id}
+                                    onClick={() => {
+                                        const [lng, lat] = item.center;
+                                        setDestination({ lng, lat });
+                                        setSearchQuery(item.place_name_vi || item.place_name);
+                                        setShowSuggestions(false);
+                                    }}
+                                    className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-start gap-2 text-[11px] font-medium text-slate-700 border-b border-slate-50 last:border-b-0"
                                 >
-                                    <IconComponent size={14} className={isSelected ? 'text-white' : 'text-slate-500'} />
-                                    <span>{cat.label}</span>
+                                    <span className="text-slate-400 mt-0.5">📍</span>
+                                    <div>
+                                        <div className="font-bold text-slate-800 line-clamp-1">{item.text_vi || item.text}</div>
+                                        <div className="text-slate-400 text-[10px] line-clamp-1 mt-0.5">{item.place_name_vi || item.place_name}</div>
+                                    </div>
                                 </button>
-                            );
-                        })}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0 pointer-events-auto relative">
@@ -310,7 +361,7 @@ export default function Home() {
                 </div>
             </div>
 
-            {/* ================= SIDEBAR TRÁI: SỰ KIỆN ================= */}
+            {/* ================= SIDEBAR TRÁI: SỰ KIỆN =================
             <div className="absolute top-[88px] left-6 z-10 w-72 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col max-h-[calc(100vh-120px)]">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3 border-b border-slate-100 pb-2">
                     Sự kiện
@@ -333,7 +384,7 @@ export default function Home() {
                         </div>
                     ))}
                 </div>
-            </div>
+            </div> */}
 
             {/* ================= CỤM CÔNG CỤ BẢN ĐỒ GÓC PHẢI (MAP CONTROLS) ================= */}
             <div className="absolute right-6 bottom-10 flex flex-col gap-3 z-10 pointer-events-none">
@@ -343,7 +394,7 @@ export default function Home() {
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Vị trí
                     </span>
-                    <button 
+                    <button
                         onClick={handleGetCurrentLocation} // ✅ Đã map chức năng lấy vị trí vào đây
                         className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
                     >
@@ -395,17 +446,6 @@ export default function Home() {
 
                 {/* Dải phân cách mỏng trước khi đến cụm Zoom */}
                 <div className="h-1"></div>
-
-                {/* Cụm Zoom Bản Đồ (+ / -) - ✅ Vẫn giữ nguyên như yêu cầu */}
-                <div className="flex flex-col gap-2 pointer-events-auto items-end">
-                    <button className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                        <Plus size={20} />
-                    </button>
-                    <button className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
-                        <Minus size={20} />
-                    </button>
-                </div>
-
             </div>
 
             {/* ================= POPUP GIỮA MÀN HÌNH ================= */}
@@ -443,11 +483,39 @@ export default function Home() {
                 </div>
             )}
 
-            {/* ✅ PANEL HIỂN THỊ CHI TIẾT ĐƯỜNG ĐI ĐƯỢC THÊM VÀO KHI CÓ DATA */}
+            {/* CẬP NHẬT PANEL HIỂN THỊ CHI TIẾT ĐƯỜNG ĐI ĐỂ THÊM BỘ CHỌN CHẾ ĐỘ DI CHUYỂN */}
             {routeData && (
                 <div className="absolute bottom-10 left-6 z-10 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
-                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl">
+
+                    {/* Bộ chọn phương tiện di chuyển (Travel Mode Selector) */}
+                    <div className="flex gap-2 mb-3 bg-slate-50 p-1 rounded-xl">
+                        <button
+                            onClick={() => setTravelMode('driving')}
+                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'driving' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
+                                }`}
+                        >
+                            <Car size={13} />
+                            Lái xe
+                        </button>
+                        <button
+                            onClick={() => setTravelMode('walking')}
+                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'walking' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
+                                }`}
+                        >
+                            <Footprints size={13} />
+                            Đi bộ
+                        </button>
+                        <button
+                            onClick={() => setTravelMode('cycling')}
+                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'cycling' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
+                                }`}
+                        >
+                            <Bike size={13} />
+                            Xe đạp
+                        </button>
+                    </div>
+                    <div className="flex justify-between items-center bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                         <div>
                             <p className="text-[10px] text-slate-400 font-semibold">KHOẢNG CÁCH</p>
                             <p className="text-lg font-black text-slate-800">{routeData.totalDistanceKm} km</p>
@@ -458,7 +526,7 @@ export default function Home() {
                         </div>
                     </div>
                     <button
-                        onClick={() => { setRouteData(null); setDestination(null); }}
+                        onClick={() => { setRouteData(null); setDestination(null); setSearchQuery(''); }}
                         className="mt-3 w-full bg-slate-100 text-slate-600 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
                     >
                         Xóa lộ trình

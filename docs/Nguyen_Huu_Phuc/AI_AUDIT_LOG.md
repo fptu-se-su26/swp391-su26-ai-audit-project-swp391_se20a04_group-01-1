@@ -55,7 +55,7 @@ Ví dụ:
 ### Mô tả mục tiêu sử dụng AI
 
 ```text
-Viết tại đây...
+ Em đã sử dụng AI để hỗ trợ trong các công việc hằng ngày của một sinh viên chuyên nhành kỹ thuật phần mềm đó là nhờ AI hỗ trợ đưa ra các công nghệ sử dụng cho dự án ,thiết kế giao diện sao cho thân thiện nhất , gợi ý thiết kế database , debug lỗi , tối ưu code, đưa ra ý tưởng cho các chức năng của dự án và hướng dẫn viết test case. Nhưng, AI chỉ đóng vai trò hỗ trợ tham khảo, việc phát triển và hoàn thiện sản phẩm vẫn do cá nhân thực hiện.
 
 ## 4. Nhật ký sử dụng AI chi tiết
 
@@ -68,16 +68,26 @@ Viết tại đây...
 
 | Nội dung | Thông tin |
 |---|---|
-| Ngày sử dụng |  |
-| Công cụ AI | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác |
-| Mục đích sử dụng |  |
-| Phần việc liên quan | Requirement / Design / Database / Frontend / Backend / Testing / Debug / Report / Presentation / Other |
-| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung |
+| Ngày sử dụng | 18/5/2026 |
+| Công cụ AI | ChatGPT / Gemini / Claude |
+| Mục đích sử dụng | Hỗ trợ phân tích và phát triển hệ thống bản đồ cảnh báo cho thành phố Đà Nẵng  |
+| Phần việc liên quan | Requirement / Design / Database / Frontend   |
+| Mức độ sử dụng |  Hỗ trợ nhiều |
 
 #### 4.1. Prompt đã sử dụng
 
 ```text
-Dán nguyên văn prompt đã hỏi AI tại đây.
+Tôi muốn làm một dự án môn học về một map có cảnh báo ngập khi trời mưa, cảnh báo tắc đường, gợi ý đường đi tốt nhất, cảnh báo các tuyến đường tắc khi có sự kiện, nhưng mà đó chỉ là các tính năng cơ bản mục đích chính của dự án này đó là quảng bá các sự kiện của 1 thành phố (ví dụ thành phố đà nẵng của việt nam).
+Yêu cầu:
+Map data: MapBox.
+Routing API: Directions API của MapBox.
+Authentication: JWT đơn giản, sau này phát triển Google OAuth.
+Chạy local.
+Database: SQL Server Express.
+- Hướng dẫn tạo các file code cho dự án map cảnh báo từ backend, frontend, database và tất cả các file liên quan để tạo ra map hoàn chỉnh nhất.
+-Frontend sử dụng React, backend NodeJS + Express, database SQL Server.
+-Hướng dẫn thiết kế database chi tiết cho dự án, nêu rõ các mối quan hệ giữa các bảng với nhau.
+-gợi ý thiết kết UX/Ui của Map
 ```
 
 #### 4.2. Kết quả AI gợi ý
@@ -85,7 +95,7 @@ Dán nguyên văn prompt đã hỏi AI tại đây.
 Tóm tắt nội dung AI đã trả lời hoặc gợi ý.
 
 ```text
-Viết tại đây...
+AI đã gợi ý kiến trúc tổng thể cho hệ thống map cảnh báo gồm frontend React, backend NodeJS/Express và SQL Server. AI hướng dẫn tổ chức thư mục dự án, xây dựng giao diện bản đồ, thiết kế database, tạo API backend, sửa lỗi giao diện và cải thiện UX/UI.
 ```
 
 #### 4.3. Phần sinh viên/nhóm đã sử dụng từ AI
@@ -93,7 +103,7 @@ Viết tại đây...
 Mô tả rõ phần nào được sử dụng lại từ gợi ý của AI.
 
 ```text
-Viết tại đây...
+Em đã tham khảo cấu trúc thư mục dự án, cách kết nối frontend với backend, thiết kế database, một số đoạn code mẫu React và NodeJS, cũng như ý tưởng thiết kế giao diện bản đồ cảnh báo để đề xuất nhóm.
 ```
 
 #### 4.4. Phần sinh viên/nhóm tự chỉnh sửa hoặc cải tiến
@@ -101,26 +111,28 @@ Viết tại đây...
 Mô tả sinh viên/nhóm đã thay đổi, kiểm tra, sửa lỗi hoặc cải tiến gì so với gợi ý ban đầu của AI.
 
 ```text
-Viết tại đây...
+Em đã chỉnh sửa lại lại một số layout ở phần giao diện để phù hợp với yêu cầu thực tế, tối ưu lại cấu trúc database là thêm một số bảng so với số bảng mà AI đã đưa ra , bổ sung chức năng riêng và kiểm tra lại code trước khi sử dụng trong dự án và trước khi push lên github.
 ```
 
 #### 4.5. Minh chứng
 
 | Loại minh chứng | Nội dung |
 |---|---|
-| Link commit |  |
-| File liên quan |  |
-| Screenshot |  |
+| Link commit | https://github.com/fptu-se-su26/swp391-su26-ai-audit-project-swp391_se20a04_group-01-1/tree/feature/de190462_update_MapBox_API |
+| File liên quan ||
+| Screenshot |  ![Ảnh AI gợi ý thiết kế database](./images/database.png)  ![Ảnh AI gợi ý thiết kế folder và cấu trúc dự án](./images/structurefolder.png)    ![Ảnh AI gợi ý giao diện](./images/homepage.png)    |
 | Kết quả chạy/test |  |
 | Link video demo |  |
 | Ghi chú khác |  |
+
+
 
 #### 4.6. Nhận xét cá nhân/nhóm
 
 Sinh viên/nhóm học được gì sau lần sử dụng AI này?
 
 ```text
-Viết tại đây...
+Em đã học được các bước để xây dựng hệ thống map fullstack bằng React, NodeJS và SQL Server, tổ chức cấu trúc dự án và cải thiện kỹ năng debug, thiết kế giao diện cũng như làm việc với Git/GitHub.
 ```
 
 ---
@@ -129,11 +141,11 @@ Viết tại đây...
 
 | Nội dung | Thông tin |
 |---|---|
-| Ngày sử dụng |  |
-| Công cụ AI | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác |
+| Ngày sử dụng |  26/05/2026|
+| Công cụ AI | ChatGPT / Gemini / Antigravity |
 | Mục đích sử dụng |  |
-| Phần việc liên quan | Requirement / Design / Database / Frontend / Backend / Testing / Debug / Report / Presentation / Other |
-| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung |
+| Phần việc liên quan | Frontend / Backend  |
+| Mức độ sử dụng | Hỗ trợ nhiều |
 
 #### 4.1. Prompt đã sử dụng
 
