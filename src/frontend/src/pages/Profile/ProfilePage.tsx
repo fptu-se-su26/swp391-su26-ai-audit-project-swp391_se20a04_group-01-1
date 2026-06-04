@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ChangePasswordModal from './ChangePasswordModal';
+import EditProfileModal from './EditProfileModal';
 import {
     Navigation, LogOut, User, Mail, Shield, Calendar, Clock,
-    Settings, Heart, MapPin, HelpCircle, Edit2, Lock, Bell,
-    ChevronRight, Map, History
+    Settings, Heart, HelpCircle, Edit2, Lock, Bell, History
 } from 'lucide-react';
 
 interface UserData {
@@ -11,6 +12,10 @@ interface UserData {
     username: string;
     email: string;
     role: string;
+    created_at?: string;
+    last_login_at?: string;
+    has_password?: boolean;
+    avatar_url?: string;
 }
 
 export default function ProfilePage() {
@@ -19,6 +24,9 @@ export default function ProfilePage() {
     const [userData, setUserData] = useState<UserData | null>(null);
     const [error, setError] = useState('');
     const [activeMenu, setActiveMenu] = useState<'profile' | 'events' | 'favorites' | 'settings' | 'help'>('profile');
+    
+    const [showChangePassword, setShowChangePassword] = useState(false);
+    const [showEditProfile, setShowEditProfile] = useState(false);
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -27,9 +35,8 @@ export default function ProfilePage() {
         window.location.href = '/login';
     };
 
-    useEffect(() => {
+    const fetchProfile = () => {
         const token = localStorage.getItem('token');
-
         if (!token) {
             handleLogout();
             return;
@@ -39,8 +46,10 @@ export default function ProfilePage() {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            },
+            cache: 'no-store'
         })
             .then(res => {
                 if (res.status === 401) {
@@ -60,6 +69,10 @@ export default function ProfilePage() {
                 setError('Không thể tải thông tin người dùng');
                 setIsChecking(false);
             });
+    };
+
+    useEffect(() => {
+        fetchProfile();
     }, []);
 
     if (isChecking) {
@@ -99,17 +112,10 @@ export default function ProfilePage() {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                     <button style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        color: 'white',
-                        padding: '8px 12px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '13px',
-                        transition: 'all 0.3s ease'
+                        display: 'flex', alignItems: 'center', gap: '5px',
+                        backgroundColor: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)',
+                        color: 'white', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer',
+                        fontSize: '13px', transition: 'all 0.3s ease'
                     }}
                         onMouseOver={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)'; }}
                         onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
@@ -118,25 +124,20 @@ export default function ProfilePage() {
                     </button>
 
                     <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        padding: '6px 12px',
-                        borderRadius: '20px',
-                        cursor: 'pointer'
+                        display: 'flex', alignItems: 'center', gap: '8px',
+                        backgroundColor: 'rgba(255,255,255,0.2)', padding: '6px 12px',
+                        borderRadius: '20px', cursor: 'pointer'
                     }}>
                         <div style={{
-                            width: '32px',
-                            height: '32px',
-                            backgroundColor: 'rgba(255,255,255,0.3)',
-                            borderRadius: '50%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '16px'
+                            width: '32px', height: '32px', backgroundColor: 'rgba(255,255,255,0.3)',
+                            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '16px', overflow: 'hidden'
                         }}>
-                            👤
+                            {userData?.avatar_url ? (
+                                <img src={userData.avatar_url} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                                "👤"
+                            )}
                         </div>
                         <span style={{ fontSize: '13px', fontWeight: '500' }}>{userData?.username || 'User'}</span>
                     </div>
@@ -147,12 +148,8 @@ export default function ProfilePage() {
             <div style={{ display: 'flex', flex: 1 }}>
                 {/* ============ SIDEBAR ============ */}
                 <div style={{
-                    width: '260px',
-                    backgroundColor: 'white',
-                    borderRight: '1px solid #e5e7eb',
-                    padding: '16px 12px',
-                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                    overflowY: 'auto'
+                    width: '260px', backgroundColor: 'white', borderRight: '1px solid #e5e7eb',
+                    padding: '16px 12px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)', overflowY: 'auto'
                 }}>
                     {menuItems.map((item) => {
                         const IconComponent = item.icon;
@@ -162,31 +159,19 @@ export default function ProfilePage() {
                                 key={item.id}
                                 onClick={() => setActiveMenu(item.id as any)}
                                 style={{
-                                    width: '100%',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '10px',
-                                    padding: '10px 12px',
-                                    marginBottom: '4px',
+                                    width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                                    padding: '10px 12px', marginBottom: '4px',
                                     backgroundColor: isActive ? '#EFF6FF' : 'transparent',
-                                    border: 'none',
-                                    borderLeft: isActive ? '3px solid #2563EB' : '3px solid transparent',
-                                    borderRadius: '4px',
-                                    color: isActive ? '#2563EB' : '#6b7280',
-                                    fontSize: '13px',
-                                    fontWeight: isActive ? '600' : '500',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease'
+                                    border: 'none', borderLeft: isActive ? '3px solid #2563EB' : '3px solid transparent',
+                                    borderRadius: '4px', color: isActive ? '#2563EB' : '#6b7280',
+                                    fontSize: '13px', fontWeight: isActive ? '600' : '500',
+                                    cursor: 'pointer', transition: 'all 0.2s ease'
                                 }}
                                 onMouseOver={(e) => {
-                                    if (!isActive) {
-                                        e.currentTarget.style.backgroundColor = '#f3f4f6';
-                                    }
+                                    if (!isActive) e.currentTarget.style.backgroundColor = '#f3f4f6';
                                 }}
                                 onMouseOut={(e) => {
-                                    if (!isActive) {
-                                        e.currentTarget.style.backgroundColor = 'transparent';
-                                    }
+                                    if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
                                 }}
                             >
                                 <IconComponent size={16} />
@@ -199,15 +184,7 @@ export default function ProfilePage() {
                 {/* ============ MAIN CONTENT AREA ============ */}
                 <div style={{ flex: 1, padding: '24px 32px', overflowY: 'auto' }}>
                     {error && (
-                        <div style={{
-                            backgroundColor: '#fee2e2',
-                            border: '1px solid #fecaca',
-                            color: '#dc2626',
-                            padding: '12px 16px',
-                            borderRadius: '8px',
-                            marginBottom: '20px',
-                            fontSize: '14px'
-                        }}>
+                        <div style={{ backgroundColor: '#fee2e2', border: '1px solid #fecaca', color: '#dc2626', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', fontSize: '14px' }}>
                             ❌ {error}
                         </div>
                     )}
@@ -216,12 +193,7 @@ export default function ProfilePage() {
                     {activeMenu === 'profile' && userData && (
                         <div>
                             {/* Header */}
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                justifyContent: 'space-between',
-                                marginBottom: '24px'
-                            }}>
+                            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
                                 <div>
                                     <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '4px' }}>
                                         Chào mừng, {userData.username}!
@@ -230,20 +202,13 @@ export default function ProfilePage() {
                                         Quản lý thông tin tài khoản của bạn
                                     </p>
                                 </div>
-                                <button style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 14px',
-                                    backgroundColor: '#2563EB',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    fontSize: '13px',
-                                    fontWeight: '600',
-                                    transition: 'all 0.3s ease'
-                                }}
+                                <button 
+                                    onClick={() => setShowEditProfile(true)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px',
+                                        backgroundColor: '#2563EB', color: 'white', border: 'none', borderRadius: '6px',
+                                        cursor: 'pointer', fontSize: '13px', fontWeight: '600', transition: 'all 0.3s ease'
+                                    }}
                                     onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
                                     onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#2563EB'; }}
                                 >
@@ -253,25 +218,13 @@ export default function ProfilePage() {
                             </div>
 
                             {/* Thông Tin Cá Nhân */}
-                            <div style={{
-                                backgroundColor: 'white',
-                                borderRadius: '12px',
-                                padding: '24px',
-                                marginBottom: '20px',
-                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                                border: '1px solid #e5e7eb'
-                            }}>
+                            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '24px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)', border: '1px solid #e5e7eb' }}>
                                 <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px' }}>
                                     Thông Tin Cá Nhân
                                 </h3>
                                 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                                    <div style={{
-                                        padding: '12px',
-                                        backgroundColor: '#f0f9ff',
-                                        borderRadius: '8px',
-                                        border: '1px solid #bfdbfe'
-                                    }}>
+                                    <div style={{ padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', color: '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>
                                             <User size={12} style={{ color: '#2563EB' }} />
                                             USERNAME
@@ -279,12 +232,7 @@ export default function ProfilePage() {
                                         <p style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937' }}>{userData.username}</p>
                                     </div>
 
-                                    <div style={{
-                                        padding: '12px',
-                                        backgroundColor: '#f0f9ff',
-                                        borderRadius: '8px',
-                                        border: '1px solid #bfdbfe'
-                                    }}>
+                                    <div style={{ padding: '12px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', color: '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>
                                             <Mail size={12} style={{ color: '#2563EB' }} />
                                             EMAIL
@@ -292,12 +240,7 @@ export default function ProfilePage() {
                                         <p style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937', wordBreak: 'break-all' }}>{userData.email}</p>
                                     </div>
 
-                                    <div style={{
-                                        padding: '12px',
-                                        backgroundColor: '#fef3c7',
-                                        borderRadius: '8px',
-                                        border: '1px solid #fde68a'
-                                    }}>
+                                    <div style={{ padding: '12px', backgroundColor: '#fef3c7', borderRadius: '8px', border: '1px solid #fde68a' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', color: '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>
                                             <Shield size={12} style={{ color: '#f59e0b' }} />
                                             VAI TRÒ
@@ -307,79 +250,52 @@ export default function ProfilePage() {
                                         </p>
                                     </div>
 
-                                    <div style={{
-                                        padding: '12px',
-                                        backgroundColor: '#f0fdf4',
-                                        borderRadius: '8px',
-                                        border: '1px solid #dcfce7'
-                                    }}>
+                                    <div style={{ padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #dcfce7' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', color: '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>
                                             <Calendar size={12} style={{ color: '#22c55e' }} />
                                             NGÀY THAM GIA
                                         </div>
-                                        <p style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937' }}>20/05/2026</p>
+                                        <p style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937' }}>
+                                            {(userData as any)?.created_at || 'N/A'}
+                                        </p>
                                     </div>
 
-                                    <div style={{
-                                        padding: '12px',
-                                        backgroundColor: '#fce7f3',
-                                        borderRadius: '8px',
-                                        border: '1px solid #fbcfe8',
-                                        gridColumn: '1 / -1'
-                                    }}>
+                                    <div style={{ padding: '12px', backgroundColor: '#fce7f3', borderRadius: '8px', border: '1px solid #fbcfe8', gridColumn: '1 / -1' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', color: '#6b7280', fontSize: '11px', fontWeight: 'bold' }}>
                                             <Clock size={12} style={{ color: '#ec4899' }} />
                                             LẦN ĐĂNG NHẬP CUỐI
                                         </div>
-                                        <p style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937' }}>25/05/2026 14:30</p>
+                                        <p style={{ fontSize: '14px', fontWeight: '600', color: '#1f2937' }}>
+                                            {(userData as any)?.last_login_at || 'Chưa đăng nhập'}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Bảo Mật */}
-                            <div style={{
-                                backgroundColor: 'white',
-                                borderRadius: '12px',
-                                padding: '24px',
-                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                                border: '1px solid #e5e7eb'
-                            }}>
+                            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)', border: '1px solid #e5e7eb' }}>
                                 <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#1f2937', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                     <Lock size={16} style={{ color: '#2563EB' }} />
                                     Bảo Mật
                                 </h3>
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    padding: '12px',
-                                    backgroundColor: '#f9fafb',
-                                    borderRadius: '8px',
-                                    border: '1px solid #e5e7eb'
-                                }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
                                     <div>
                                         <p style={{ fontSize: '13px', fontWeight: '600', color: '#1f2937', marginBottom: '3px' }}>Mật khẩu</p>
-                                        <p style={{ fontSize: '12px', color: '#6b7280' }}>••••••••</p>
+                                        <p style={{ fontSize: '12px', color: '#6b7280' }}>
+                                            {userData?.has_password === false ? 'Chưa thiết lập mật khẩu' : '••••••••'}
+                                        </p>
                                     </div>
-                                    <button style={{
-                                        padding: '6px 12px',
-                                        backgroundColor: 'white',
-                                        color: '#2563EB',
-                                        border: '1px solid #2563EB',
-                                        borderRadius: '6px',
-                                        cursor: 'pointer',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        transition: 'all 0.3s ease'
-                                    }}
-                                        onMouseOver={(e) => {
-                                            e.currentTarget.style.backgroundColor = '#EFF6FF';
+                                    <button 
+                                        onClick={() => setShowChangePassword(true)}
+                                        style={{
+                                            padding: '6px 12px', backgroundColor: 'white', color: '#2563EB',
+                                            border: '1px solid #2563EB', borderRadius: '6px', cursor: 'pointer',
+                                            fontSize: '12px', fontWeight: '600', transition: 'all 0.3s ease'
                                         }}
-                                        onMouseOut={(e) => {
-                                            e.currentTarget.style.backgroundColor = 'white';
-                                        }}
+                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#EFF6FF'; }}
+                                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
                                     >
-                                        Đổi mật khẩu
+                                        {userData?.has_password === false ? 'Tạo mật khẩu' : 'Đổi mật khẩu'}
                                     </button>
                                 </div>
                             </div>
@@ -389,25 +305,11 @@ export default function ProfilePage() {
                     {/* ============ HISTORY TAB ============ */}
                     {activeMenu === 'events' && (
                         <div>
-                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-                                Lịch Sử Di Chuyển
-                            </h1>
-                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>
-                                Xem lại những địa điểm bạn đã ghé thăm
-                            </p>
-
-                            <div style={{
-                                backgroundColor: 'white',
-                                borderRadius: '12px',
-                                padding: '40px',
-                                textAlign: 'center',
-                                border: '2px dashed #d1d5db',
-                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                            }}>
+                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>Lịch Sử Di Chuyển</h1>
+                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Xem lại những địa điểm bạn đã ghé thăm</p>
+                            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '2px dashed #d1d5db', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
                                 <History size={48} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
-                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>
-                                    Chưa có lịch sử di chuyển. Hãy bắt đầu khám phá Đà Nẵng!
-                                </p>
+                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>Chưa có lịch sử di chuyển. Hãy bắt đầu khám phá Đà Nẵng!</p>
                             </div>
                         </div>
                     )}
@@ -415,25 +317,11 @@ export default function ProfilePage() {
                     {/* ============ FAVORITES TAB ============ */}
                     {activeMenu === 'favorites' && (
                         <div>
-                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-                                Địa Điểm Yêu Thích
-                            </h1>
-                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>
-                                Những nơi bạn lưu lại để ghé thăm
-                            </p>
-
-                            <div style={{
-                                backgroundColor: 'white',
-                                borderRadius: '12px',
-                                padding: '40px',
-                                textAlign: 'center',
-                                border: '2px dashed #d1d5db',
-                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                            }}>
+                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>Địa Điểm Yêu Thích</h1>
+                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Những nơi bạn lưu lại để ghé thăm</p>
+                            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '2px dashed #d1d5db', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
                                 <Heart size={48} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
-                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>
-                                    Chưa có địa điểm yêu thích nào. Thêm ngay!
-                                </p>
+                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>Chưa có địa điểm yêu thích nào. Thêm ngay!</p>
                             </div>
                         </div>
                     )}
@@ -441,25 +329,11 @@ export default function ProfilePage() {
                     {/* ============ SETTINGS TAB ============ */}
                     {activeMenu === 'settings' && (
                         <div>
-                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-                                Cài Đặt
-                            </h1>
-                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>
-                                Tuỳ chỉnh các cài đặt của ứng dụng
-                            </p>
-
-                            <div style={{
-                                backgroundColor: 'white',
-                                borderRadius: '12px',
-                                padding: '40px',
-                                textAlign: 'center',
-                                border: '2px dashed #d1d5db',
-                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                            }}>
+                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>Cài Đặt</h1>
+                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Tuỳ chỉnh các cài đặt của ứng dụng</p>
+                            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '2px dashed #d1d5db', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
                                 <Settings size={48} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
-                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>
-                                    Tính năng cài đặt sẽ được cập nhật sớm
-                                </p>
+                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>Tính năng cài đặt sẽ được cập nhật sớm</p>
                             </div>
                         </div>
                     )}
@@ -467,25 +341,11 @@ export default function ProfilePage() {
                     {/* ============ HELP TAB ============ */}
                     {activeMenu === 'help' && (
                         <div>
-                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
-                                Hỗ Trợ
-                            </h1>
-                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>
-                                Câu hỏi thường gặp và hướng dẫn sử dụng
-                            </p>
-
-                            <div style={{
-                                backgroundColor: 'white',
-                                borderRadius: '12px',
-                                padding: '40px',
-                                textAlign: 'center',
-                                border: '2px dashed #d1d5db',
-                                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                            }}>
+                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>Hỗ Trợ</h1>
+                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Câu hỏi thường gặp và hướng dẫn sử dụng</p>
+                            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '2px dashed #d1d5db', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
                                 <HelpCircle size={48} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
-                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>
-                                    Trung tâm hỗ trợ sẽ được cập nhật sớm
-                                </p>
+                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>Trung tâm hỗ trợ sẽ được cập nhật sớm</p>
                             </div>
                         </div>
                     )}
@@ -493,28 +353,10 @@ export default function ProfilePage() {
             </div>
 
             {/* ============ FOOTER ============ */}
-            <div style={{
-                backgroundColor: 'white',
-                padding: '16px 32px',
-                textAlign: 'center',
-                borderTop: '1px solid #e5e7eb',
-                display: 'flex',
-                justifyContent: 'center',
-                gap: '12px'
-            }}>
+            <div style={{ backgroundColor: 'white', padding: '16px 32px', textAlign: 'center', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'center', gap: '12px' }}>
                 <button
                     onClick={() => navigate('/home')}
-                    style={{
-                        padding: '8px 16px',
-                        backgroundColor: '#f3f4f6',
-                        color: '#1f2937',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        transition: 'all 0.3s ease'
-                    }}
+                    style={{ padding: '8px 16px', backgroundColor: '#f3f4f6', color: '#1f2937', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.3s ease' }}
                     onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#e5e7eb'; }}
                     onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6'; }}
                 >
@@ -523,20 +365,7 @@ export default function ProfilePage() {
 
                 <button
                     onClick={handleLogout}
-                    style={{
-                        padding: '8px 16px',
-                        backgroundColor: '#ef4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        transition: 'all 0.3s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                    }}
+                    style={{ padding: '8px 16px', backgroundColor: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', gap: '4px' }}
                     onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; }}
                     onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#ef4444'; }}
                 >
@@ -544,17 +373,26 @@ export default function ProfilePage() {
                     Đăng Xuất
                 </button>
             </div>
-
-            <div style={{
-                backgroundColor: '#f9fafb',
-                padding: '8px',
-                textAlign: 'center',
-                fontSize: '11px',
-                color: '#6b7280',
-                borderTop: '1px solid #e5e7eb'
-            }}>
+            
+            <div style={{ backgroundColor: '#f9fafb', padding: '8px', textAlign: 'center', fontSize: '11px', color: '#6b7280', borderTop: '1px solid #e5e7eb' }}>
                 DaNang EventMap © 2026. All rights reserved.
             </div>
+
+            {/* ============ MODALS ============ */}
+            <ChangePasswordModal 
+                isOpen={showChangePassword}
+                onClose={() => setShowChangePassword(false)}
+                hasPassword={userData?.has_password} 
+                onSuccess={() => setShowChangePassword(false)}
+            />
+
+            <EditProfileModal 
+                isOpen={showEditProfile}
+                onClose={() => setShowEditProfile(false)}
+                currentUsername={userData?.username || ''}
+                currentAvatar={userData?.avatar_url || ''}
+                onSuccess={() => fetchProfile()} 
+            />
         </div>
     );
 }
