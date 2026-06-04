@@ -9,19 +9,35 @@ import { TOTP_CODE_LENGTH } from '../../config/auth';
 const Verify2FA: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuthStore();
+  
+  // States cơ bản
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [tempToken, setTempToken] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
 
+  // States xử lý chặn nhập sai nhiều lần
+  const [retryCount, setRetryCount] = useState(0);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const MAX_RETRIES = 5;
+
   useEffect(() => {
-    // Get temp token and email from localStorage
+    // Lấy data từ localStorage
     const storedTempToken = localStorage.getItem('temp_token');
     const storedEmail = localStorage.getItem('pending_user_email');
+    const tokenExpiry = localStorage.getItem('temp_token_expiry');
 
+    // Kiểm tra token có tồn tại không
     if (!storedTempToken) {
       toast.error('Phiên hết hạn, vui lòng đăng nhập lại');
-      navigate('/login');
+      handleBackToLogin();
+      return;
+    }
+
+    // Kiểm tra token có bị quá hạn không (Nếu bạn có lưu temp_token_expiry)
+    if (tokenExpiry && new Date() > new Date(tokenExpiry)) {
+      toast.error('Phiên xác thực 2FA đã hết hạn');
+      handleBackToLogin();
       return;
     }
 
@@ -29,9 +45,39 @@ const Verify2FA: React.FC = () => {
     setEmail(storedEmail);
   }, [navigate]);
 
-  const handleVerify2FA = async () => {
-    if (!code || code.length !== TOTP_CODE_LENGTH) {
-      toast.error(`Vui lòng nhập mã ${TOTP_CODE_LENGTH} chữ số`);
+  // Hook theo dõi số lần nhập sai
+  useEffect(() => {
+    if (retryCount >= MAX_RETRIES) {
+      setIsBlocked(true);
+      toast.error('Quá nhiều lần nhập sai. Vui lòng đăng nhập lại.');
+      
+      // Đợi 2 giây để user đọc thông báo rồi đá về trang Login
+      const timer = setTimeout(() => {
+        handleBackToLogin();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [retryCount]);
+
+  const handleBackToLogin = () => {
+    setRetryCount(0);
+    setIsBlocked(false);
+    localStorage.removeItem('temp_token');
+    localStorage.removeItem('pending_user_email');
+    localStorage.removeItem('temp_token_expiry');
+    navigate('/login');
+  };
+
+  const handleVerify2FA = async (completedCode?: string | React.MouseEvent) => {
+    if (isBlocked) return;
+
+    // Ưu tiên lấy mã truyền trực tiếp (khi auto-submit), nếu không có mới lấy State (khi user tự bấm nút)
+    const finalCode = typeof completedCode === 'string' ? completedCode : code;
+
+    // Validate logic
+    if (!finalCode || finalCode.length !== TOTP_CODE_LENGTH || !/^\d{6}$/.test(finalCode)) {
+      toast.error(`Vui lòng nhập đúng mã ${TOTP_CODE_LENGTH} chữ số`);
       return;
     }
 
@@ -43,25 +89,34 @@ const Verify2FA: React.FC = () => {
     setIsLoading(true);
     try {
       const result = await authService.verify2FA({
-        code,
+        code: finalCode,
         temp_token: tempToken
       });
 
-      if (result.success) {
+      if (result?.success && result?.access_token && result?.user) {
         login(result.user, result.access_token);
         
         // Clear storage
         localStorage.removeItem('temp_token');
         localStorage.removeItem('pending_user_email');
+        localStorage.removeItem('temp_token_expiry');
 
         toast.success('Xác minh 2FA thành công!');
         navigate('/dashboard');
+      } else {
+        throw new Error(result?.error?.message || 'Xác minh 2FA thất bại');
       }
     } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.error?.message || 'Xác minh 2FA thất bại';
-      toast.error(errorMessage);
-      setCode('');
+      if (error.response?.status === 401) {
+        toast.error('Phiên đã hết hạn, vui lòng đăng nhập lại');
+        handleBackToLogin();
+      } else {
+        // Gom chung các lỗi 400 hoặc lỗi mạng vào đây để tăng retry count
+        const errorMsg = error.response?.data?.error?.message || error.message || 'Mã OTP không chính xác';
+        toast.error(errorMsg);
+        setRetryCount(prev => prev + 1);
+        setCode(''); // Reset lại ô input để user nhập lại
+      }
     } finally {
       setIsLoading(false);
     }
@@ -83,15 +138,29 @@ const Verify2FA: React.FC = () => {
 
         {/* Email Display */}
         {email && (
-          <div className="bg-blue-50 p-4 rounded-lg mb-8">
+          <div className="bg-blue-50 p-4 rounded-lg mb-6">
             <p className="text-sm text-center text-gray-700">
               Đang xác minh cho: <span className="font-bold">{email}</span>
             </p>
           </div>
         )}
 
+        {/* Cảnh báo số lần thử */}
+        {retryCount > 0 && !isBlocked && (
+          <div className="text-center text-sm font-medium text-amber-600 bg-amber-50 p-2 rounded-lg mb-6 border border-amber-200">
+            ⚠️ Nhập sai: Bạn còn {MAX_RETRIES - retryCount} lần thử
+          </div>
+        )}
+
+        {/* Cảnh báo bị khóa */}
+        {isBlocked && (
+          <div className="text-center text-sm font-medium text-red-600 bg-red-50 p-3 rounded-lg mb-6 border border-red-200">
+            🚫 Đang chuyển hướng về trang đăng nhập...
+          </div>
+        )}
+
         {/* Code Input */}
-        <div className="mb-8">
+        <div className="mb-8 pointer-events-auto" style={{ opacity: isBlocked ? 0.5 : 1, pointerEvents: isBlocked ? 'none' : 'auto' }}>
           <label className="block text-sm font-medium text-gray-700 mb-4 text-center">
             Mã xác thực (6 chữ số)
           </label>
@@ -104,16 +173,16 @@ const Verify2FA: React.FC = () => {
         </div>
 
         {/* Info */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-          <p className="text-sm text-amber-800">
-            💡 Mở ứng dụng Google Authenticator, Microsoft Authenticator hoặc ứng dụng tương tự để lấy mã xác thực 6 chữ số.
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-800">
+            💡 Mở ứng dụng Google Authenticator hoặc Microsoft Authenticator để lấy mã xác thực.
           </p>
         </div>
 
         {/* Verify Button */}
         <button
           onClick={handleVerify2FA}
-          disabled={isLoading || code.length !== TOTP_CODE_LENGTH}
+          disabled={isLoading || isBlocked || code.length !== TOTP_CODE_LENGTH}
           className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition mb-4"
         >
           {isLoading ? 'Đang xác minh...' : 'Xác minh'}
@@ -122,8 +191,9 @@ const Verify2FA: React.FC = () => {
         {/* Back to Login */}
         <div className="text-center">
           <button
-            onClick={() => navigate('/login')}
-            className="text-gray-600 hover:text-gray-900 text-sm font-medium"
+            onClick={handleBackToLogin}
+            disabled={isLoading || isBlocked}
+            className="text-gray-600 hover:text-gray-900 text-sm font-medium disabled:opacity-50"
           >
             ← Quay lại đăng nhập
           </button>

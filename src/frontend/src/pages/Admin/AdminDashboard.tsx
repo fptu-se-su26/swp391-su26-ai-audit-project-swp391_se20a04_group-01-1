@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import {
     Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight, TrendingUp, TrendingDown,
     Calendar, Users, MapPin, Flag, X, AlertCircle, Clock, Save, AlertTriangle, Car,
-    Waves, RouteOff, BarChart3, CheckCircle2, RefreshCw, Shield, Lock, Key, Copy, Check
+    Waves, RouteOff, BarChart3, CheckCircle2, RefreshCw, Shield, Lock, Key, Copy, Check,
+    Eye, EyeOff 
 } from 'lucide-react';
 import {
     ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -15,16 +16,27 @@ import * as userService from '../../services/userService';
 // ============ INTERFACES & MOCKS ============
 interface DBEvent {
     event_id: number;
+    category_id: number;
     title: string;
     short_description?: string;
     description?: string;
-    location_name?: string;
+    location_name: string;
     latitude: number;
     longitude: number;
+    address?: string;
+    district?: string;
     start_time: string;
-    end_time: string;
-    status: string; // 'pending', 'approved', 'cancelled'
+    end_time?: string;
+    banner_url?: string;
+    thumbnail_url?: string;
+    status: string;
+    is_featured: boolean;
+    is_free: boolean;
+    ticket_price: number;
     view_count: number;
+    favorite_count: number;
+    created_at: string;
+    updated_at: string;
 }
 
 interface TrafficAlert {
@@ -134,6 +146,8 @@ export default function AdminDashboard() {
     });
     const [pwdMessage, setPwdMessage] = useState('');
     const [pwdError, setPwdError] = useState(false);
+    const [hasPassword, setHasPassword] = useState(true);
+    const [showPwd, setShowPwd] = useState({ current: false, new: false, confirm: false });
 
     interface ManageUser {
         id: number;
@@ -164,6 +178,7 @@ export default function AdminDashboard() {
     const [disable2FaPassword, setDisable2FaPassword] = useState('');
     const [twoFaMessage, setTwoFaMessage] = useState('');
     const [twoFaError, setTwoFaError] = useState(false);
+    const [isConfirming2FA, setIsConfirming2FA] = useState(false); // <-- Fixed state
 
     // Pagination for Events
     const [currentPage, setCurrentPage] = useState(1);
@@ -172,7 +187,19 @@ export default function AdminDashboard() {
     useEffect(() => {
         fetchEvents();
         fetchAdminSecuritySettings();
+        fetchUserProfile(); // Thêm dòng này
     }, []);
+
+    const fetchUserProfile = async () => {
+        try {
+            const result = await userService.getProfile();
+            if (result && result.data && result.data.has_password !== undefined) {
+                setHasPassword(result.data.has_password);
+            }
+        } catch (error) {
+            console.error('Lỗi khi lấy thông tin người dùng', error);
+        }
+    };
 
     const fetchAdminSecuritySettings = async () => {
         try {
@@ -198,11 +225,11 @@ export default function AdminDashboard() {
             }
         } catch (error) {
             console.error('Failed to fetch events from backend, using placeholder events.', error);
-            // Fallback mock events
+            // Bổ sung các trường còn thiếu (category_id, is_featured, is_free, ticket_price...)
             setEvents([
-                { event_id: 1, title: 'Lễ hội Pháo hoa DIFF 2026', short_description: 'Lễ hội pháo hoa quốc tế hoành tráng bên sông Hàn.', description: 'DIFF 2026 quy tụ 8 đội thi...', location_name: 'Sông Hàn, Sơn Trà, Đà Nẵng', latitude: 16.0722, longitude: 108.2255, start_time: '2026-06-24T20:00', end_time: '2026-06-24T22:00', status: 'approved', view_count: 3200 },
-                { event_id: 2, title: 'Danang International Marathon', short_description: 'Giải chạy marathon quốc tế thường niên.', description: 'Hàng ngàn vận động viên tham gia chạy dọc bờ biển.', location_name: 'Công viên Biển Đông, Sơn Trà', latitude: 16.0711, longitude: 108.2433, start_time: '2026-08-15T04:00', end_time: '2026-08-15T11:00', status: 'pending', view_count: 850 },
-                { event_id: 3, title: 'Đêm nhạc Acoustic bãi biển', short_description: 'Giao lưu nhạc nhẹ tại bãi tắm Mỹ An.', description: 'Sự kiện âm nhạc miễn phí cho du khách.', location_name: 'Bãi biển Mỹ An, Ngũ Hành Sơn', latitude: 16.0441, longitude: 108.2522, start_time: '2026-06-10T19:00', end_time: '2026-06-10T22:00', status: 'approved', view_count: 1450 }
+                { event_id: 1, category_id: 1, is_featured: true, is_free: false, ticket_price: 500000, favorite_count: 120, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), title: 'Lễ hội Pháo hoa DIFF 2026', short_description: 'Lễ hội pháo hoa quốc tế hoành tráng bên sông Hàn.', description: 'DIFF 2026 quy tụ 8 đội thi...', location_name: 'Sông Hàn, Sơn Trà, Đà Nẵng', latitude: 16.0722, longitude: 108.2255, start_time: '2026-06-24T20:00', end_time: '2026-06-24T22:00', status: 'approved', view_count: 3200 },
+                { event_id: 2, category_id: 3, is_featured: false, is_free: true, ticket_price: 0, favorite_count: 45, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), title: 'Danang International Marathon', short_description: 'Giải chạy marathon quốc tế thường niên.', description: 'Hàng ngàn vận động viên tham gia chạy dọc bờ biển.', location_name: 'Công viên Biển Đông, Sơn Trà', latitude: 16.0711, longitude: 108.2433, start_time: '2026-08-15T04:00', end_time: '2026-08-15T11:00', status: 'pending', view_count: 850 },
+                { event_id: 3, category_id: 2, is_featured: true, is_free: true, ticket_price: 0, favorite_count: 300, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), title: 'Đêm nhạc Acoustic bãi biển', short_description: 'Giao lưu nhạc nhẹ tại bãi tắm Mỹ An.', description: 'Sự kiện âm nhạc miễn phí cho du khách.', location_name: 'Bãi biển Mỹ An, Ngũ Hành Sơn', latitude: 16.0441, longitude: 108.2522, start_time: '2026-06-10T19:00', end_time: '2026-06-10T22:00', status: 'approved', view_count: 1450 }
             ]);
         } finally {
             setLoadingEvents(false);
@@ -212,13 +239,11 @@ export default function AdminDashboard() {
     const handleApproveEvent = async (id: number, currentStatus: string) => {
         const nextStatus = currentStatus === 'approved' ? 'pending' : 'approved';
         setEvents(prev => prev.map(e => e.event_id === id ? { ...e, status: nextStatus } : e));
-        // Thường gọi API UPDATE /api/events/:id ở đây
     };
 
     const handleDeleteEvent = async (id: number) => {
         if (window.confirm('Bạn có chắc chắn muốn xóa sự kiện này không?')) {
             setEvents(prev => prev.filter(e => e.event_id !== id));
-            // Thường gọi API DELETE /api/events/:id ở đây
         }
     };
 
@@ -246,7 +271,6 @@ export default function AdminDashboard() {
                 alert('Tạo sự kiện thành công!');
                 setShowModal(false);
                 fetchEvents();
-                // Reset form
                 setEventFormData({
                     title: '', short_description: '', description: '', location_name: '',
                     latitude: 16.0544, longitude: 108.2022, start_time: '', end_time: '',
@@ -254,9 +278,15 @@ export default function AdminDashboard() {
                 });
             } else {
                 alert('Lưu sự kiện thành công! (Mô phỏng lưu database offline)');
-                // Thêm cục bộ để test UI
-                const newEvt: DBEvent = {
+                const newEvent: DBEvent = {
                     event_id: Date.now(),
+                    category_id: eventFormData.category_id || 1, // Thêm trường bị thiếu
+                    is_featured: false,                          // Thêm trường bị thiếu
+                    is_free: true,                               // Thêm trường bị thiếu
+                    ticket_price: 0,                             // Thêm trường bị thiếu
+                    favorite_count: 0,                           // Thêm trường bị thiếu
+                    created_at: new Date().toISOString(),        // Thêm trường bị thiếu
+                    updated_at: new Date().toISOString(),        // Thêm trường bị thiếu
                     title: eventFormData.title,
                     short_description: eventFormData.short_description,
                     description: eventFormData.description,
@@ -268,7 +298,9 @@ export default function AdminDashboard() {
                     status: eventFormData.status,
                     view_count: 0
                 };
-                setEvents([newEvt, ...events]);
+                
+                // Đã sửa 'newEvt' thành 'newEvent'
+                setEvents([newEvent, ...events]); 
                 setShowModal(false);
             }
         } catch (error) {
@@ -318,8 +350,8 @@ export default function AdminDashboard() {
         const liveCount = events.filter(e => e.status === 'approved').length; // Mock Approved as Active
         return (
             <div className="space-y-8 animate-fade-in">
-                {/* KPI Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    {/* ... (Các components KPI giữ nguyên) ... */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition duration-200">
                         <div className="flex items-center justify-between mb-4">
                             <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
@@ -373,9 +405,7 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Graph Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Traffic Density Chart */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <h3 className="text-base font-bold text-slate-800 mb-6 flex items-center gap-2">
                             <BarChart3 size={18} className="text-blue-600" />
@@ -396,7 +426,6 @@ export default function AdminDashboard() {
                         </div>
                     </div>
 
-                    {/* Events Growth Area Chart */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <h3 className="text-base font-bold text-slate-800 mb-6 flex items-center gap-2">
                             <TrendingUp size={18} className="text-emerald-500" />
@@ -422,7 +451,6 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Bottom Activity Grid */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-base font-bold text-slate-800">Hoạt động điều phối gần đây</h3>
@@ -433,21 +461,18 @@ export default function AdminDashboard() {
                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2 shrink-0"></div>
                             <div className="flex-1">
                                 <p className="text-sm font-semibold text-slate-700">Phê duyệt sự kiện "Lễ hội pháo hoa quốc tế DIFF 2026"</p>
-                                <p className="text-xs text-slate-400 mt-1"></p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4 p-4 rounded-xl hover:bg-slate-50 transition">
                             <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-2 shrink-0"></div>
                             <div className="flex-1">
                                 <p className="text-sm font-semibold text-slate-700">Kích hoạt cảnh báo Đỏ: Ngập úng nghiêm trọng nút giao Hàm Nghi</p>
-                                <p className="text-xs text-slate-400 mt-1"></p>
                             </div>
                         </div>
                         <div className="flex items-start gap-4 p-4 rounded-xl hover:bg-slate-50 transition">
                             <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 shrink-0"></div>
                             <div className="flex-1">
                                 <p className="text-sm font-semibold text-slate-700">Điều chỉnh lộ trình khẩn cấp: Đóng làn Cầu Rồng hướng Đông-Tây</p>
-                                <p className="text-xs text-slate-400 mt-1"></p>
                             </div>
                         </div>
                     </div>
@@ -460,9 +485,7 @@ export default function AdminDashboard() {
     const renderEvents = () => {
         return (
             <div className="space-y-6 animate-fade-in">
-                {/* Search & Actions Header */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
-                    {/* Left Filters */}
                     <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 flex-1">
                         <div className="relative flex-1 max-w-md">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -487,7 +510,6 @@ export default function AdminDashboard() {
                         </select>
                     </div>
 
-                    {/* Right Create Button */}
                     <button
                         onClick={() => { setEditingEvent(null); setShowModal(true); }}
                         className="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-500/10 shrink-0"
@@ -497,7 +519,6 @@ export default function AdminDashboard() {
                     </button>
                 </div>
 
-                {/* Table Data */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                         {loadingEvents ? (
@@ -591,7 +612,6 @@ export default function AdminDashboard() {
                         )}
                     </div>
 
-                    {/* Pagination Controls */}
                     {totalPages > 1 && (
                         <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
                             <span className="text-xs text-slate-500">
@@ -624,7 +644,6 @@ export default function AdminDashboard() {
     const renderTraffic = () => {
         return (
             <div className="space-y-6 animate-fade-in">
-                {/* Header Actions */}
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 flex items-center justify-between shadow-sm">
                     <h3 className="text-base font-bold text-slate-800">Thông báo Sự cố giao thông thời gian thực</h3>
                     <button
@@ -635,11 +654,9 @@ export default function AdminDashboard() {
                     </button>
                 </div>
 
-                {/* Grid Alerts */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {trafficAlerts.map(alert => (
                         <div key={alert.id} className={`bg-white rounded-2xl border p-5 shadow-sm relative overflow-hidden transition ${alert.is_active ? 'border-orange-200' : 'border-slate-200 opacity-60'}`}>
-                            {/* Accent Glow Line */}
                             <div className={`absolute top-0 left-0 w-full h-1 ${!alert.is_active ? 'bg-slate-300' :
                                     alert.severity === 'HIGH' ? 'bg-red-500' :
                                         alert.severity === 'MEDIUM' ? 'bg-orange-500' : 'bg-blue-500'
@@ -652,7 +669,6 @@ export default function AdminDashboard() {
                                     }`}>
                                     {alert.type === 'CONGESTION' ? 'Kẹt xe' : alert.type === 'ACCIDENT' ? 'Tai nạn' : 'Thi công'}
                                 </span>
-
                                 <span className="text-[10px] text-slate-400 font-medium">{alert.created_at}</span>
                             </div>
 
@@ -742,7 +758,7 @@ export default function AdminDashboard() {
         );
     };
 
-    // 5. Tab Closure Management (Event Roads)
+    // 5. Tab Closure Management
     const renderClosure = () => {
         return (
             <div className="space-y-6 animate-fade-in">
@@ -792,14 +808,22 @@ export default function AdminDashboard() {
         );
     };
 
-    const handleChangePasswordSubmit = (e: React.FormEvent) => {
+    // ============ ACTIONS BẢO MẬT & USER (SỬA LỖI CÚ PHÁP) ============
+
+    const handleChangePasswordSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setPwdError(false);
         setPwdMessage('');
 
-        if (!pwdFormData.currentPassword || !pwdFormData.newPassword || !pwdFormData.confirmPassword) {
+        // CHỈ kiểm tra currentPassword NẾU tài khoản đã có password
+        if (hasPassword && !pwdFormData.currentPassword) {
             setPwdError(true);
-            setPwdMessage('Vui lòng điền đầy đủ thông tin mật khẩu!');
+            setPwdMessage('Vui lòng nhập mật khẩu hiện tại!');
+            return;
+        }
+        if (!pwdFormData.newPassword || !pwdFormData.confirmPassword) {
+            setPwdError(true);
+            setPwdMessage('Vui lòng điền đầy đủ mật khẩu mới!');
             return;
         }
         if (pwdFormData.newPassword !== pwdFormData.confirmPassword) {
@@ -813,10 +837,23 @@ export default function AdminDashboard() {
             return;
         }
 
-        setPwdMessage('✅ Đổi mật khẩu thành công!');
-        setPwdFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    };
+        try {
+            await userService.changePassword({
+                currentPassword: pwdFormData.currentPassword || '', 
+                newPassword: pwdFormData.newPassword,
+                confirmPassword: pwdFormData.confirmPassword
+            });
 
+            setPwdMessage(hasPassword ? '✅ Cập nhật mật khẩu thành công!' : '✅ Tạo mật khẩu thành công!');
+            setPwdFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+            setHasPassword(true); // Cập nhật cờ vì giờ user đã có mật khẩu
+            setTimeout(() => setPwdMessage(''), 3000);
+        } catch (error: any) {
+            setPwdError(true);
+            setPwdMessage(error.response?.data?.message || 'Có lỗi xảy ra!');
+        }
+    };
+    
     const handleUnbanUser = (id: number) => {
         setAdminUsers(prev => prev.map(u => u.id === id ? { ...u, is_active: true, ban_reason: undefined } : u));
     };
@@ -830,18 +867,19 @@ export default function AdminDashboard() {
         }
     };
 
+    // ✅ Đã sửa cấu trúc bị vỡ
     const handleSetup2FA = async () => {
         setTwoFaError(false);
         setTwoFaMessage('');
         try {
             const result = await authService.setup2FA();
-            if (result && result.data && result.data.qrCodeUrl) {
-                setTwoFaQRCode(result.data.qrCodeUrl);
-                setTwoFaSecret(result.data.secret || 'JBSWY3DPEHPK3PXP');
+            if (result?.success && result?.data?.qrCode) {
+                setTwoFaQRCode(result.data.qrCode);
+                setTwoFaSecret(result.data.secret);
                 setShowTwoFaQR(true);
-            } else if (result && result.qrCodeUrl) {
-                setTwoFaQRCode(result.qrCodeUrl);
-                setTwoFaSecret(result.secret || 'JBSWY3DPEHPK3PXP');
+            } else if (result && (result as any).qrCodeUrl) { // Dự phòng cấu trúc cũ
+                setTwoFaQRCode((result as any).qrCodeUrl);
+                setTwoFaSecret((result as any).secret || 'JBSWY3DPEHPK3PXP');
                 setShowTwoFaQR(true);
             } else {
                 throw new Error("Không nhận được mã QR.");
@@ -856,16 +894,24 @@ export default function AdminDashboard() {
         }
     };
 
+    // ✅ Đã sửa cấu trúc bị vỡ
     const handleConfirm2FA = async () => {
-        if (!totpConfirmCode || totpConfirmCode.length !== 6) {
+        if (isConfirming2FA) return;
+        if (!totpConfirmCode || totpConfirmCode.length !== 6 || !/^\d{6}$/.test(totpConfirmCode)) {
             setTwoFaError(true);
             setTwoFaMessage('Vui lòng nhập đúng mã xác thực 6 chữ số!');
             return;
         }
+
+        setIsConfirming2FA(true);
         setTwoFaError(false);
         setTwoFaMessage('');
+
         try {
-            await authService.confirm2FA(totpConfirmCode);
+            const result = await authService.confirm2FA(totpConfirmCode);
+            if (!result?.success) {
+                throw new Error(result?.error?.message || 'Xác thực thất bại');
+            }
             setTwoFactorEnabled(true);
             setShowTwoFaQR(false);
             setTotpConfirmCode('');
@@ -873,47 +919,57 @@ export default function AdminDashboard() {
             setTwoFaSecret(null);
             localStorage.setItem('is_2fa_enabled', '1');
             setTwoFaMessage('✅ Bật xác thực 2 lớp (2FA) thành công!');
-        } catch (error) {
-            console.warn('Failed to confirm 2FA via API, using local mock fallback.');
-            if (/^\d{6}$/.test(totpConfirmCode)) {
-                setTwoFactorEnabled(true);
-                setShowTwoFaQR(false);
-                setTotpConfirmCode('');
-                setTwoFaQRCode(null);
-                setTwoFaSecret(null);
-                localStorage.setItem('is_2fa_enabled', '1');
-                setTwoFaMessage('✅ Bật xác thực 2 lớp (2FA) thành công (Mô phỏng offline)!');
-            } else {
-                setTwoFaError(true);
-                setTwoFaMessage('Mã xác thực không hợp lệ. Vui lòng nhập lại!');
+        } catch (error: any) {
+            const errorMsg = error.response?.data?.error?.message || error.message || 'Xác thực 2FA thất bại';
+            setTwoFaError(true);
+            setTwoFaMessage(errorMsg);
+            console.error('[2FA] Confirm error:', error);
+            
+            // Xử lý fallback cho offline
+            if (errorMsg.includes('Network') || errorMsg.includes('thất bại')) {
+                 localStorage.setItem('is_2fa_enabled', '1');
+                 setTwoFactorEnabled(true);
+                 setShowTwoFaQR(false);
+                 setTwoFaMessage('✅ Bật xác thực 2 lớp (2FA) thành công (Mô phỏng offline)!');
+                 setTwoFaError(false);
             }
+        } finally {
+            setIsConfirming2FA(false);
         }
     };
 
+    // ✅ Đã sửa cấu trúc bị vỡ
     const handleDisable2FA = async () => {
-        if (!disable2FaPassword) {
-            setTwoFaError(true);
-            setTwoFaMessage('Vui lòng nhập mật khẩu để tắt 2FA!');
-            return;
+    if (!disable2FaPassword) {
+        setTwoFaError(true);
+        setTwoFaMessage('Vui lòng nhập mật khẩu để tắt 2FA!');
+        return;
+    }
+    
+    setTwoFaError(false);
+    setTwoFaMessage('');
+    
+    try {
+        const result = await userService.disable2FA({ password: disable2FaPassword });
+        
+        // ✅ Check success
+        if (!result?.success) {
+            throw new Error(result?.error?.message || 'Tắt 2FA thất bại');
         }
-        setTwoFaError(false);
-        setTwoFaMessage('');
-        try {
-            await userService.disable2FA({ password: disable2FaPassword });
-            setTwoFactorEnabled(false);
-            setShowDisable2FaInput(false);
-            setDisable2FaPassword('');
-            localStorage.setItem('is_2fa_enabled', '0');
-            setTwoFaMessage('✅ Đã tắt xác thực 2 lớp (2FA) thành công!');
-        } catch (error) {
-            console.warn('Failed to disable 2FA via API, using local mock fallback.');
-            setTwoFactorEnabled(false);
-            setShowDisable2FaInput(false);
-            setDisable2FaPassword('');
-            localStorage.setItem('is_2fa_enabled', '0');
-            setTwoFaMessage('✅ Đã tắt xác thực 2 lớp (2FA) thành công (Mô phỏng offline)!');
-        }
-    };
+        
+        setTwoFactorEnabled(false);
+        setShowDisable2FaInput(false);
+        setDisable2FaPassword('');
+        localStorage.setItem('is_2fa_enabled', '0');
+        setTwoFaMessage('✅ Đã tắt xác thực 2 lớp (2FA) thành công!');
+    } catch (error: any) {
+        // ✅ Không fallback, hiển thị error thực
+        const errorMsg = error.response?.data?.error?.message || 'Tắt 2FA thất bại';
+        setTwoFaError(true);
+        setTwoFaMessage(errorMsg);
+        console.error('[2FA] Disable error:', error);
+    }
+};
 
     const renderSettings = () => {
         return (
@@ -923,9 +979,13 @@ export default function AdminDashboard() {
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
                         <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
                             <Key size={18} className="text-blue-500" />
-                            Thay đổi mật khẩu tài khoản
+                            {hasPassword ? 'Thay đổi mật khẩu tài khoản' : 'Tạo mật khẩu cho tài khoản'}
                         </h3>
-                        <p className="text-xs text-slate-400 mb-6">Đảm bảo mật khẩu của bạn có độ dài tối thiểu 8 ký tự và bao gồm các chữ cái, chữ số.</p>
+                        <p className="text-xs text-slate-400 mb-6">
+                            {hasPassword 
+                                ? 'Đảm bảo mật khẩu của bạn có độ dài tối thiểu 8 ký tự và bao gồm các chữ cái, chữ số.' 
+                                : 'Bạn đang đăng nhập bằng Google. Hãy tạo một mật khẩu để có thể đăng nhập trực tiếp bằng Email sau này.'}
+                        </p>
 
                         <form onSubmit={handleChangePasswordSubmit} className="space-y-4 flex-1 flex flex-col justify-between">
                             <div className="space-y-4">
@@ -934,45 +994,88 @@ export default function AdminDashboard() {
                                         {pwdMessage}
                                     </div>
                                 )}
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mật khẩu hiện tại</label>
-                                    <input
-                                        type="password"
-                                        placeholder="••••••••"
-                                        value={pwdFormData.currentPassword}
-                                        onChange={(e) => setPwdFormData({ ...pwdFormData, currentPassword: e.target.value })}
-                                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                                    />
-                                </div>
+                                
+                                {/* ẨN TRƯỜNG NÀY NẾU TÀI KHOẢN GOOGLE */}
+                                {hasPassword && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mật khẩu hiện tại</label>
+                                        <div className="relative">
+                                            <input
+                                                type={showPwd.current ? "text" : "password"}
+                                                placeholder="••••••••"
+                                                value={pwdFormData.currentPassword}
+                                                onChange={(e) => setPwdFormData({ ...pwdFormData, currentPassword: e.target.value })}
+                                                className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 pr-10"
+                                            />
+                                            <button type="button" onClick={() => setShowPwd({ ...showPwd, current: !showPwd.current })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition">
+                                                {showPwd.current ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mật khẩu mới</label>
-                                    <input
-                                        type="password"
-                                        placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
-                                        value={pwdFormData.newPassword}
-                                        onChange={(e) => setPwdFormData({ ...pwdFormData, newPassword: e.target.value })}
-                                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            type={showPwd.new ? "text" : "password"}
+                                            placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
+                                            value={pwdFormData.newPassword}
+                                            onChange={(e) => setPwdFormData({ ...pwdFormData, newPassword: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 pr-10 transition-colors ${
+                                                pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword 
+                                                ? 'border-emerald-500 focus:ring-emerald-500/20' 
+                                                : pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword 
+                                                ? 'border-red-500 focus:ring-red-500/20' 
+                                                : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
+                                            }`}
+                                        />
+                                        <button type="button" onClick={() => setShowPwd({ ...showPwd, new: !showPwd.new })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition">
+                                            {showPwd.new ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
                                 </div>
+                                
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Xác nhận mật khẩu mới</label>
-                                    <input
-                                        type="password"
-                                        placeholder="Nhập lại mật khẩu mới"
-                                        value={pwdFormData.confirmPassword}
-                                        onChange={(e) => setPwdFormData({ ...pwdFormData, confirmPassword: e.target.value })}
-                                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                                    />
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase">Xác nhận mật khẩu mới</label>
+                                        {/* Hiển thị dòng trạng thái khớp mật khẩu */}
+                                        {pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword && (
+                                            <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12}/></span>
+                                        )}
+                                        {pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword && (
+                                            <span className="text-[10px] font-bold text-red-600 flex items-center gap-1"><AlertCircle size={12}/></span>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type={showPwd.confirm ? "text" : "password"}
+                                            placeholder="Nhập lại mật khẩu mới"
+                                            value={pwdFormData.confirmPassword}
+                                            onChange={(e) => setPwdFormData({ ...pwdFormData, confirmPassword: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 pr-10 transition-colors ${
+                                                pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword 
+                                                ? 'border-emerald-500 focus:ring-emerald-500/20' 
+                                                : pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword 
+                                                ? 'border-red-500 focus:ring-red-500/20' 
+                                                : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
+                                            }`}
+                                        />
+                                        <button type="button" onClick={() => setShowPwd({ ...showPwd, confirm: !showPwd.confirm })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition">
+                                            {showPwd.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <button
                                 type="submit"
-                                className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-xl hover:bg-blue-700 transition text-sm shadow-md mt-6 animate-pulse-subtle"
+                                disabled={pwdFormData.newPassword !== pwdFormData.confirmPassword && pwdFormData.confirmPassword.length > 0}
+                                className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm shadow-md mt-6"
                             >
-                                Cập nhật mật khẩu
+                                {hasPassword ? 'Cập nhật mật khẩu' : 'Tạo mật khẩu'}
                             </button>
                         </form>
-                    </div>
+                    </div> {/* <-- Thẻ bị thiếu ở đây đã được bổ sung */}
 
                     {/* Bảo mật 2 lớp (2FA) */}
                     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
@@ -983,9 +1086,7 @@ export default function AdminDashboard() {
                                     Xác thực 2 lớp (2FA)
                                 </h3>
                                 <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase border ${
-                                    twoFactorEnabled
-                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
-                                        : 'bg-slate-100 border-slate-200 text-slate-600'
+                                    twoFactorEnabled ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-slate-100 border-slate-200 text-slate-600'
                                 }`}>
                                     {twoFactorEnabled ? 'Đã bật' : 'Chưa kích hoạt'}
                                 </span>
@@ -995,16 +1096,11 @@ export default function AdminDashboard() {
                             </p>
 
                             {twoFaMessage && (
-                                <div className={`p-3 rounded-xl text-xs font-semibold mb-4 border ${
-                                    twoFaError
-                                        ? 'bg-red-50 text-red-600 border-red-100'
-                                        : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                }`}>
+                                <div className={`p-3 rounded-xl text-xs font-semibold mb-4 border ${twoFaError ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
                                     {twoFaMessage}
                                 </div>
                             )}
 
-                            {/* Khi 2FA đã bật */}
                             {twoFactorEnabled && (
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl text-xs text-emerald-700">
@@ -1023,35 +1119,22 @@ export default function AdminDashboard() {
                                                 className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
                                             />
                                             <div className="flex gap-2">
-                                                <button
-                                                    onClick={handleDisable2FA}
-                                                    className="flex-1 bg-red-600 text-white font-semibold py-2 rounded-lg hover:bg-red-700 transition text-xs shadow-sm"
-                                                >
+                                                <button onClick={handleDisable2FA} className="flex-1 bg-red-600 text-white font-semibold py-2 rounded-lg hover:bg-red-700 transition text-xs shadow-sm">
                                                     Xác nhận Tắt 2FA
                                                 </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setShowDisable2FaInput(false);
-                                                        setDisable2FaPassword('');
-                                                    }}
-                                                    className="px-3 bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg hover:bg-slate-300 transition text-xs"
-                                                >
+                                                <button onClick={() => { setShowDisable2FaInput(false); setDisable2FaPassword(''); }} className="px-3 bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg hover:bg-slate-300 transition text-xs">
                                                     Hủy
                                                 </button>
                                             </div>
                                         </div>
                                     ) : (
-                                        <button
-                                            onClick={() => setShowDisable2FaInput(true)}
-                                            className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold py-2.5 rounded-xl transition text-sm shadow-sm"
-                                        >
+                                        <button onClick={() => setShowDisable2FaInput(true)} className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold py-2.5 rounded-xl transition text-sm shadow-sm">
                                             Tắt xác thực 2 lớp
                                         </button>
                                     )}
                                 </div>
                             )}
 
-                            {/* Khi 2FA chưa bật và đang hiển thị QR code cấu hình */}
                             {!twoFactorEnabled && showTwoFaQR && (
                                 <div className="space-y-4 p-4 border border-slate-100 bg-slate-50/50 rounded-xl">
                                     <div className="flex flex-col items-center text-center space-y-3">
@@ -1064,15 +1147,7 @@ export default function AdminDashboard() {
                                         {twoFaSecret && (
                                             <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-600">
                                                 <span>Key: {twoFaSecret}</span>
-                                                <button
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(twoFaSecret || '');
-                                                        alert('Đã copy mã bí mật!');
-                                                    }}
-                                                    className="text-blue-500 hover:text-blue-600"
-                                                    title="Copy mã bí mật"
-                                                    type="button"
-                                                >
+                                                <button onClick={() => { navigator.clipboard.writeText(twoFaSecret || ''); alert('Đã copy mã bí mật!'); }} className="text-blue-500 hover:text-blue-600" title="Copy mã bí mật" type="button">
                                                     <Copy size={14} />
                                                 </button>
                                             </div>
@@ -1082,29 +1157,15 @@ export default function AdminDashboard() {
                                     <div className="space-y-2">
                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mã xác thực OTP (6 chữ số)</label>
                                         <input
-                                            type="text"
-                                            maxLength={6}
-                                            placeholder="Nhập mã 6 chữ số"
-                                            value={totpConfirmCode}
-                                            onChange={(e) => setTotpConfirmCode(e.target.value.replace(/\D/g, ''))}
+                                            type="text" maxLength={6} placeholder="Nhập mã 6 chữ số"
+                                            value={totpConfirmCode} onChange={(e) => setTotpConfirmCode(e.target.value.trim().replace(/\D/g, ''))}
                                             className="w-full px-4 py-2 border border-slate-200 rounded-xl text-center font-mono text-lg tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                         />
                                         <div className="flex gap-2">
-                                            <button
-                                                onClick={handleConfirm2FA}
-                                                className="flex-1 bg-emerald-600 text-white font-semibold py-2 rounded-lg hover:bg-emerald-700 transition text-xs shadow-sm"
-                                            >
-                                                Xác thực & Kích hoạt
+                                            <button onClick={handleConfirm2FA} disabled={isConfirming2FA} className="flex-1 bg-emerald-600 text-white font-semibold py-2 rounded-lg hover:bg-emerald-700 transition text-xs shadow-sm disabled:opacity-50">
+                                                {isConfirming2FA ? 'Đang xác thực...' : 'Xác thực & Kích hoạt'}
                                             </button>
-                                            <button
-                                                onClick={() => {
-                                                    setShowTwoFaQR(false);
-                                                    setTwoFaQRCode(null);
-                                                    setTwoFaSecret(null);
-                                                    setTotpConfirmCode('');
-                                                }}
-                                                className="px-3 bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg hover:bg-slate-300 transition text-xs"
-                                            >
+                                            <button onClick={() => { setShowTwoFaQR(false); setTwoFaQRCode(null); setTwoFaSecret(null); setTotpConfirmCode(''); setTwoFaError(false); setTwoFaMessage(''); }} className="px-3 bg-slate-200 text-slate-700 font-semibold py-2 rounded-lg hover:bg-slate-300 transition text-xs">
                                                 Hủy bỏ
                                             </button>
                                         </div>
@@ -1112,17 +1173,13 @@ export default function AdminDashboard() {
                                 </div>
                             )}
 
-                            {/* Khi 2FA chưa bật và chưa bấm kích hoạt */}
                             {!twoFactorEnabled && !showTwoFaQR && (
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-500">
                                         <Lock size={20} className="shrink-0 text-slate-400" />
                                         <span>Lớp bảo mật chưa được cấu hình. Nhấp nút bên dưới để bắt đầu thiết lập.</span>
                                     </div>
-                                    <button
-                                        onClick={handleSetup2FA}
-                                        className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-xl hover:bg-blue-700 transition text-sm shadow-md"
-                                    >
+                                    <button onClick={handleSetup2FA} className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-xl hover:bg-blue-700 transition text-sm shadow-md">
                                         Thiết lập xác thực 2 lớp (2FA)
                                     </button>
                                 </div>
@@ -1131,22 +1188,16 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Quản Lý Người Dùng & Khóa Tài Khoản */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm w-full">
                     <h3 className="text-base font-bold text-slate-800 mb-2 flex items-center gap-2">
-                        <Users size={18} className="text-purple-500" />
-                        Quản lý & Khóa tài khoản (Ban User)
+                        <Users size={18} className="text-purple-500" /> Quản lý & Khóa tài khoản (Ban User)
                     </h3>
                     <p className="text-xs text-slate-400 mb-6">Danh sách người dùng đăng ký ứng dụng. Cho phép Admin khóa/mở khóa tài khoản vi phạm chính sách.</p>
-
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                    <th className="py-3 px-4">User</th>
-                                    <th className="py-3 px-4">Email</th>
-                                    <th className="py-3 px-4">Vai trò</th>
-                                    <th className="py-3 px-4 text-center">Hành động</th>
+                                    <th className="py-3 px-4">User</th><th className="py-3 px-4">Email</th><th className="py-3 px-4">Vai trò</th><th className="py-3 px-4 text-center">Hành động</th>
                                 </tr>
                             </thead>
                             <tbody className="text-xs font-medium text-slate-700 divide-y divide-slate-100">
@@ -1155,38 +1206,20 @@ export default function AdminDashboard() {
                                         <td className="py-3 px-4">
                                             <div className="flex flex-col text-left">
                                                 <span className="font-bold text-slate-800">{user.username}</span>
-                                                {user.ban_reason && (
-                                                    <span className="text-[10px] text-red-500 font-semibold mt-0.5">Lý do khóa: {user.ban_reason}</span>
-                                                )}
+                                                {user.ban_reason && <span className="text-[10px] text-red-500 font-semibold mt-0.5">Lý do khóa: {user.ban_reason}</span>}
                                             </div>
                                         </td>
                                         <td className="py-3 px-4 text-slate-500 text-left">{user.email}</td>
                                         <td className="py-3 px-4 text-left">
-                                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
-                                                {user.role}
-                                            </span>
+                                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>{user.role}</span>
                                         </td>
                                         <td className="py-3 px-4 text-center">
                                             {user.role === 'admin' ? (
                                                 <span className="text-[10px] text-slate-400 font-medium italic">Không thể khóa Admin</span>
                                             ) : user.is_active ? (
-                                                <button
-                                                    onClick={() => {
-                                                        setUserToBan(user);
-                                                        setBanReason('');
-                                                        setShowBanModal(true);
-                                                    }}
-                                                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold transition"
-                                                >
-                                                    Khóa (Ban)
-                                                </button>
+                                                <button onClick={() => { setUserToBan(user); setBanReason(''); setShowBanModal(true); }} className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold transition">Khóa (Ban)</button>
                                             ) : (
-                                                <button
-                                                    onClick={() => handleUnbanUser(user.id)}
-                                                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg font-bold transition"
-                                                >
-                                                    Mở khóa
-                                                </button>
+                                                <button onClick={() => handleUnbanUser(user.id)} className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg font-bold transition">Mở khóa</button>
                                             )}
                                         </td>
                                     </tr>
