@@ -35,7 +35,8 @@ export const updateProfile = async (data: UpdateProfileData) => {
  * Change password
  */
 export const changePassword = async (data: ChangePasswordData) => {
-  const response = await api.put(API_ENDPOINTS.CHANGE_PASSWORD, data);
+  // ✅ Đã cập nhật trỏ đúng tới API mới tạo
+  const response = await api.put('/user/change-password', data);
   return response.data;
 };
 
@@ -51,6 +52,7 @@ export const getSecuritySettings = async () => {
  * Disable 2FA
  */
 export const disable2FA = async (data: DisableTwoFAData) => {
-  const response = await api.delete(API_ENDPOINTS.DISABLE_2FA, { data });
+  // ✅ Trỏ đúng tới API tắt 2FA
+  const response = await api.delete('/auth/disable-2fa', { data });
   return response.data;
 };
