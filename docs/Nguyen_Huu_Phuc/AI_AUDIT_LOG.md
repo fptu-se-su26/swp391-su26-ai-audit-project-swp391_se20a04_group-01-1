@@ -118,12 +118,14 @@ Em đã chỉnh sửa lại lại một số layout ở phần giao diện để
 
 | Loại minh chứng | Nội dung |
 |---|---|
-| Link commit |  |
-| File liên quan |  |
-| Screenshot |  |
+| Link commit | https://github.com/fptu-se-su26/swp391-su26-ai-audit-project-swp391_se20a04_group-01-1/tree/feature/de190462_update_MapBox_API |
+| File liên quan ||
+| Screenshot |  ![Ảnh AI gợi ý thiết kế database](./images/database.png)  ![Ảnh AI gợi ý thiết kế folder và cấu trúc dự án](./images/structurefolder.png)    ![Ảnh AI gợi ý giao diện](./images/homepage.png)    |
 | Kết quả chạy/test |  |
 | Link video demo |  |
 | Ghi chú khác |  |
+
+
 
 #### 4.6. Nhận xét cá nhân/nhóm
 
@@ -139,11 +141,11 @@ Em đã học được các bước để xây dựng hệ thống map fullstack
 
 | Nội dung | Thông tin |
 |---|---|
-| Ngày sử dụng |  |
-| Công cụ AI | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác |
+| Ngày sử dụng |  26/05/2026|
+| Công cụ AI | ChatGPT / Gemini / Antigravity |
 | Mục đích sử dụng |  |
-| Phần việc liên quan | Requirement / Design / Database / Frontend / Backend / Testing / Debug / Report / Presentation / Other |
-| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung |
+| Phần việc liên quan | Frontend / Backend  |
+| Mức độ sử dụng | Hỗ trợ nhiều |
 
 #### 4.1. Prompt đã sử dụng
 
