@@ -125,10 +125,10 @@ app.post("/api/auth/setup-2fa", authenticateToken, async (req, res) => {
         const secret = speakeasy.generateSecret({
             name: `DN-Pulse (${req.user.email})`
         });
-        
+
         // ✅ Chỉ trả về QR và secret, cho frontend chứa tạm thời
         const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
-        
+
         res.json({
             success: true,
             data: {
@@ -146,24 +146,24 @@ app.post("/api/auth/setup-2fa", authenticateToken, async (req, res) => {
 app.post("/api/auth/confirm-2fa", authenticateToken, async (req, res) => {
     try {
         const { code, secret } = req.body;  // ← Frontend gửi secret tạm thời
-        
+
         // ✅ Validate code format
         if (!code || !/^\d{6}$/.test(code)) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mã 2FA phải là 6 chữ số!" } 
+            return res.status(400).json({
+                success: false,
+                error: { message: "Mã 2FA phải là 6 chữ số!" }
             });
         }
-        
+
         if (!secret) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Secret không hợp lệ!" } 
+            return res.status(400).json({
+                success: false,
+                error: { message: "Secret không hợp lệ!" }
             });
         }
-        
+
         const pool = await poolPromise;
-        
+
         // ✅ Verify code với secret tạm thời
         const verified = speakeasy.totp.verify({
             secret: secret,  // ← Secret từ frontend
@@ -171,21 +171,21 @@ app.post("/api/auth/confirm-2fa", authenticateToken, async (req, res) => {
             token: code,
             window: 1
         });
-        
+
         if (verified !== true) {
             console.warn(`[2FA SECURITY] Failed 2FA confirmation for user: ${req.user.id}`);
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mã xác thực không đúng!" } 
+            return res.status(400).json({
+                success: false,
+                error: { message: "Mã xác thực không đúng!" }
             });
         }
-        
+
         // ✅ Chỉ lưu secret vào DB khi xác thực thành công
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
             .input("secret", sql.NVarChar, secret)
             .query("UPDATE Users SET two_factor_secret = @secret, is_2fa_enabled = 1 WHERE user_id = @user_id");
-        
+
         console.log(`[2FA SECURITY] 2FA enabled for user: ${req.user.id}`);
         res.json({ success: true, message: "Kích hoạt 2FA thành công!" });
     } catch (error) {
@@ -198,52 +198,52 @@ app.post("/api/auth/confirm-2fa", authenticateToken, async (req, res) => {
 app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
     try {
         const { password } = req.body;
-        
+
         // ✅ Validate password
         if (!password) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mật khẩu là bắt buộc!" } 
+            return res.status(400).json({
+                success: false,
+                error: { message: "Mật khẩu là bắt buộc!" }
             });
         }
-        
+
         const pool = await poolPromise;
         const result = await pool.request()
             .input("user_id", sql.Int, req.user.id)
             .query("SELECT password_hash FROM Users WHERE user_id = @user_id");
-        
+
         // ✅ Check user tồn tại
         const user = result.recordset[0];
         if (!user) {
             console.warn(`[2FA] User not found: ${req.user.id}`);
-            return res.status(401).json({ 
-                success: false, 
-                error: { message: "Người dùng không tồn tại!" } 
+            return res.status(401).json({
+                success: false,
+                error: { message: "Người dùng không tồn tại!" }
             });
         }
-        
+
         // ✅ Verify password
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             console.warn(`[2FA SECURITY] Failed password verification for disable-2fa: ${req.user.id}`);
-            return res.status(401).json({ 
-                success: false, 
-                error: { message: "Mật khẩu không chính xác!" } 
+            return res.status(401).json({
+                success: false,
+                error: { message: "Mật khẩu không chính xác!" }
             });
         }
-        
+
         // ✅ Tắt 2FA
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
             .query("UPDATE Users SET is_2fa_enabled = 0, two_factor_secret = NULL WHERE user_id = @user_id");
-        
+
         console.log(`[2FA SECURITY] 2FA disabled for user: ${req.user.id}`);
         res.json({ success: true, message: "Tắt 2FA thành công!" });
     } catch (error) {
         console.error("[2FA] Disable error:", error);
-        res.status(500).json({ 
-            success: false, 
-            error: { message: "Lỗi tắt 2FA!" } 
+        res.status(500).json({
+            success: false,
+            error: { message: "Lỗi tắt 2FA!" }
         });
     }
 });
@@ -251,7 +251,7 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
 app.post("/api/auth/verify-2fa", async (req, res) => {
     try {
         const { code, temp_token } = req.body;
-        
+
         if (!code || !temp_token) {
             return res.status(400).json({ success: false, error: { message: "Mã 2FA và token là bắt buộc!" } });
         }
@@ -268,7 +268,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
         const result = await pool.request()
             .input("user_id", sql.Int, decoded.id)
             .query("SELECT user_id, username, email, role, two_factor_secret FROM Users WHERE user_id = @user_id");
-        
+
         const user = result.recordset[0];
         if (!user) {
             console.warn(`[2FA SECURITY] User not found for 2FA verification: ${decoded.id}`);
@@ -323,7 +323,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
 app.post("/api/auth/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        
+
         if (!email || !password) {
             return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu!' });
         }
@@ -350,10 +350,10 @@ app.post("/api/auth/login", async (req, res) => {
         const userDb = await pool.request()
             .input('user_id', sql.Int, user.user_id)
             .query('SELECT is_2fa_enabled, role FROM Users WHERE user_id = @user_id');
-        
+
         const dbUser = userDb.recordset[0];
         const is2FA = dbUser?.is_2fa_enabled;
-        const userRole = dbUser?.role; 
+        const userRole = dbUser?.role;
 
         if (userRole === 'admin' && is2FA) {
             const tempToken = jwt.sign(
@@ -408,7 +408,7 @@ app.get("/api/user/profile", authenticateToken, async (req, res) => {
         }
 
         const user = result.recordset[0];
-        
+
         // SỬA TẠI ĐÂY: Thêm cờ has_password
         const formattedUser = {
             user_id: user.user_id,
@@ -437,7 +437,7 @@ app.put("/api/user/change-password", authenticateToken, async (req, res) => {
         }
 
         const pool = await poolPromise;
-        
+
         // 1. Lấy mật khẩu hiện tại của user từ Database
         const result = await pool.request()
             .input("user_id", sql.Int, req.user.id)
@@ -454,7 +454,7 @@ app.put("/api/user/change-password", authenticateToken, async (req, res) => {
             if (!currentPassword) {
                 return res.status(400).json({ message: "Vui lòng nhập mật khẩu hiện tại!" });
             }
-            
+
             const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
             if (!isMatch) {
                 return res.status(400).json({ message: "Mật khẩu hiện tại không chính xác!" });
@@ -818,6 +818,91 @@ app.post("/api/events", async (req, res) => {
     }
 });
 
+// ============ FLOOD ZONES ============
+app.get("/api/flood-zones", async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query("SELECT * FROM FloodZones where is_active = 1 ");
+
+        res.json({
+            message: "Lấy dữ liệu vùng ngập lụt thành công",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lỗi lấy dữ liệu FloodZones:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// ============ POIs (Points of Interest) ============
+
+// GET /api/pois - Lấy danh sách tất cả POIs (có thể lọc theo category)
+app.get("/api/pois", async (req, res) => {
+    try {
+        const { category_id } = req.query;
+        const pool = await poolPromise;
+
+        let query = `
+            SELECT 
+                p.poi_id,
+                p.name,
+                p.latitude,
+                p.longitude,
+                p.address,
+                p.description,
+                p.image_url,
+                p.website_url,
+                p.phone_number,
+                p.rating,
+                p.is_featured,
+                p.is_active,
+                c.name AS category_name,
+                c.icon AS category_icon,
+                c.color_code AS category_color
+            FROM POIs p
+            LEFT JOIN POIsCategories c ON p.category_id = c.id
+            WHERE p.is_active = 1
+        `;
+
+        const request = pool.request();
+
+        if (category_id) {
+            query += ` AND p.category_id = @category_id`;
+            request.input("category_id", sql.Int, parseInt(category_id));
+        }
+
+        query += ` ORDER BY p.is_featured DESC, p.rating DESC`;
+
+        const result = await request.query(query);
+
+        res.json({
+            message: "Lấy danh sách POI thành công!",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lỗi lấy dữ liệu POIs:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// GET /api/poi-categories - Lấy danh sách tất cả POI categories
+app.get("/api/poi-categories", async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(
+            "SELECT id, name, icon, color_code, description FROM POIsCategories ORDER BY id"
+        );
+
+        res.json({
+            message: "Lấy danh sách POI categories thành công!",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lỗi lấy dữ liệu POIsCategories:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
 // ============ ĐĂNG NHẬP GOOGLE ============
 
 app.post("/api/auth/google", async (req, res) => {
@@ -852,7 +937,7 @@ app.post("/api/auth/google", async (req, res) => {
                 .request()
                 .input("email", sql.NVarChar, email.toLowerCase())
                 .query("SELECT * FROM Users WHERE LOWER(email) = LOWER(@email)");
-            
+
             user = result.recordset[0];
             if (!user) return res.status(500).json({ message: "Không thể tạo người dùng mới!" });
             console.log(`[AUTH] New Google user created: ${email}`);

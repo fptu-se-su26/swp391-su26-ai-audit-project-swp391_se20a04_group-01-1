@@ -106,3 +106,11 @@ export default apiClient;
 export const eventAPI = {
     getAllEvents: () => apiClient.get('/events'),
 };
+
+// ============ POI API ============
+export const poiAPI = {
+    getAllPOIs: (categoryId?: number) =>
+        apiClient.get('/pois', { params: categoryId ? { category_id: categoryId } : {} }),
+    getCategories: () =>
+        apiClient.get('/poi-categories'),
+};
