@@ -1,0 +1,37 @@
+name: Deploy Frontend to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # Tự động deploy mỗi khi push code lên nhánh main
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: |
+          cd src/frontend
+          npm ci
+
+      - name: Build Project
+        run: |
+          cd src/frontend
+          npm run build
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: src/frontend/dist # Nơi chứa code sau khi build của Vite
+          branch: gh-pages # Code đã build sẽ tự động được đẩy lên nhánh này để chạy Pages
