@@ -21,8 +21,6 @@ const filterCategories = [
     { id: 'atm', label: 'ATM', icon: DollarSign },
 ];
 
-
-
 const mockAlerts = [
     { id: 1, type: 'flood', title: 'Ngập lụt', content: 'Đường Nguyễn Văn Linh đang có nguy cơ ngập cao, mức nước dự báo 20–30cm. Tránh di chuyển qua khu vực này.', location: 'Nguyễn Văn Linh, Hải Châu', time: 'Vừa cập nhật' },
     { id: 2, type: 'block', title: 'Cấm đường', content: 'Đường Trần Hưng Đạo bị cấm từ 18:00–23:00 do sự kiện DIFF 2026. Lưu ý lộ trình thay thế qua Hùng Vương.', location: 'Trần Hưng Đạo, Hải Châu', time: 'Có hiệu lực từ 18:00' },
@@ -62,7 +60,6 @@ export default function Home() {
     } | null>(null);
     const [loadingRoute, setLoadingRoute] = useState(false);
 
-
     // Thêm các biến state cho tìm kiếm 2 điểm, hoán đổi và đổi phương tiện di chuyển
     const mapRef = useRef<MapRef>(null);
     const [origin, setOrigin] = useState<{ lng: number; lat: number; label: string } | null>(null);
@@ -73,6 +70,7 @@ export default function Home() {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [loadingSearch, setLoadingSearch] = useState(false);
     const [travelMode, setTravelMode] = useState<'driving' | 'walking' | 'cycling'>('driving');
+
     // ✅ HÀM: Lấy tọa độ GPS của người dùng hiện tại
     const handleGetCurrentLocation = () => {
         if (navigator.geolocation) {
@@ -91,6 +89,7 @@ export default function Home() {
                         label: 'Vị trí của bạn'
                     });
                     setOriginQuery('Vị trí của bạn');
+                    
                     // Kéo camera bản đồ di chuyển mượt mà về tọa độ này
                     mapRef.current?.flyTo({
                         center: [loc.lng, loc.lat],
@@ -175,7 +174,6 @@ export default function Home() {
         setDestinationQuery(tempOriginQuery);
     };
 
-
     // Cập nhật Effect chỉ đường để hỗ trợ đổi phương tiện di chuyển
     useEffect(() => {
         if (!origin || !destination) return;
@@ -194,6 +192,7 @@ export default function Home() {
                         totalTimeMin: Math.round(route.duration / 60),
                         coordinates: route.geometry.coordinates
                     });
+                    
                     // Căn chỉnh camera hiển thị đầy đủ tuyến đường đi
                     const coords = route.geometry.coordinates;
                     if (coords.length > 0) {
@@ -278,13 +277,6 @@ export default function Home() {
         setMapControls(prev => ({ ...prev, [controlName]: !prev[controlName] }));
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-    };
-
     // ================= GIAO DIỆN MÀN HÌNH CHÍNH BẢN ĐỒ =================
     return (
         <div className="w-full h-screen relative bg-slate-100 overflow-hidden font-sans select-none">
@@ -292,7 +284,7 @@ export default function Home() {
             {/* ✅ BẢN ĐỒ MAPBOX ĐÃ ĐƯỢC TÍCH HỢP */}
             <div className="absolute inset-0 z-0">
                 <Map
-                    ref={mapRef} // <-- Gắn ref
+                    ref={mapRef}
                     initialViewState={{
                         longitude: 108.2022,
                         latitude: 16.0544,
@@ -334,7 +326,7 @@ export default function Home() {
                 </Map>
             </div>
 
-            {/* ================= BAR TRÊN CÙNG ================= */}
+            {/* ================= BAR TRÊN CÙNG (HEADER) ================= */}
             <div className="absolute top-6 left-6 right-6 z-10 flex items-center justify-between gap-4 pointer-events-none">
 
                 <div className="relative pointer-events-auto">
@@ -410,6 +402,7 @@ export default function Home() {
                         </div>
                     )}
 
+                    {/* Danh sách gợi ý */}
                     {showSuggestions && suggestions.length > 0 && (
                         <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
                             {suggestions.map((item: any) => (
@@ -429,7 +422,10 @@ export default function Home() {
                     )}
                 </div>
 
+                {/* ============ CỤM NÚT TRÊN CÙNG BÊN PHẢI ============ */}
                 <div className="flex items-center gap-3 shrink-0 pointer-events-auto relative">
+                    
+                    {/* 1. NÚT THÔNG BÁO (LUÔN HIỆN) */}
                     <div className="relative">
                         <button
                             onClick={() => setShowNotificationModal(!showNotificationModal)}
@@ -461,6 +457,7 @@ export default function Home() {
                         )}
                     </div>
 
+                    {/* 2. NÚT TRANG QUẢN TRỊ (CHỈ HIỆN VỚI ADMIN) */}
                     {userRole === 'admin' && (
                         <button
                             onClick={() => navigate('/admin/dashboard')}
@@ -471,39 +468,18 @@ export default function Home() {
                         </button>
                     )}
 
-                    <button
-                        onClick={() => navigate('/profile')}
-                        className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all"
-                    >
-                        <User size={18} />
-                    </button>
+                    {/* 3. NÚT TRANG CÁ NHÂN (ẨN VỚI ADMIN, CHỈ HIỆN VỚI USER) */}
+                    {userRole !== 'admin' && (
+                        <button
+                            onClick={() => navigate('/profile')}
+                            className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all"
+                            title="Hồ sơ cá nhân"
+                        >
+                            <User size={18} />
+                        </button>
+                    )}
                 </div>
             </div>
-
-            {/* ================= SIDEBAR TRÁI: SỰ KIỆN =================
-            <div className="absolute top-[88px] left-6 z-10 w-72 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col max-h-[calc(100vh-120px)]">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3 border-b border-slate-100 pb-2">
-                    Sự kiện
-                </div>
-                <div className="flex flex-col gap-3 overflow-y-auto pr-1 scrollbar-none">
-                    {mockEvents.map((event) => (
-                        <div key={event.id} className="flex gap-2.5 p-2 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer border border-transparent hover:border-slate-100">
-                            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center text-white font-extrabold text-[8px] relative shrink-0 shadow-sm">
-                                <span>DN MAP</span>
-                                <span className={`absolute -top-1 -left-1 px-1.5 py-0.5 rounded-[4px] text-[7px] font-black text-white ${event.isLive ? 'bg-red-500 animate-pulse' : 'bg-amber-500'
-                                    }`}>
-                                    {event.status}
-                                </span>
-                            </div>
-                            <div className="flex flex-col justify-center min-w-0 flex-1">
-                                <h3 className="text-[11px] font-bold text-slate-900 line-clamp-2 leading-tight">{event.title}</h3>
-                                <p className="text-[10px] text-slate-500 mt-1">🕒 {event.time}</p>
-                                <p className="text-[10px] text-slate-400 truncate">📍 {event.location}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div> */}
 
             {/* ================= CỤM CÔNG CỤ BẢN ĐỒ GÓC PHẢI (MAP CONTROLS) ================= */}
             <div className="absolute right-6 bottom-32 flex flex-col gap-3 z-10 pointer-events-none">
@@ -514,7 +490,7 @@ export default function Home() {
                         Vị trí
                     </span>
                     <button
-                        onClick={handleGetCurrentLocation} // ✅ Đã map chức năng lấy vị trí vào đây
+                        onClick={handleGetCurrentLocation}
                         className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
                     >
                         <Navigation size={18} className="rotate-45 -ml-1 -mt-1" />
@@ -562,10 +538,6 @@ export default function Home() {
                         <CloudRain size={18} />
                     </button>
                 </div>
-
-                {/* Dải phân cách mỏng trước khi đến cụm Zoom */}
-                <div className="h-1"></div>
-
             </div>
 
             {/* ================= POPUP GIỮA MÀN HÌNH ================= */}
@@ -603,38 +575,35 @@ export default function Home() {
                 </div>
             )}
 
-            {/* CẬP NHẬT PANEL HIỂN THỊ CHI TIẾT ĐƯỜNG ĐI ĐỂ THÊM BỘ CHỌN CHẾ ĐỘ DI CHUYỂN */}
+            {/* PANEL HIỂN THỊ CHI TIẾT ĐƯỜNG ĐI */}
             {routeData && (
                 <div className="absolute bottom-10 left-6 z-10 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
 
-                    {/* Bộ chọn phương tiện di chuyển (Travel Mode Selector) */}
                     <div className="flex gap-2 mb-3 bg-slate-50 p-1 rounded-xl">
                         <button
                             onClick={() => setTravelMode('driving')}
                             className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'driving' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
                                 }`}
                         >
-                            <Car size={13} />
-                            Lái xe
+                            <Car size={13} /> Lái xe
                         </button>
                         <button
                             onClick={() => setTravelMode('walking')}
                             className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'walking' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
                                 }`}
                         >
-                            <Footprints size={13} />
-                            Đi bộ
+                            <Footprints size={13} /> Đi bộ
                         </button>
                         <button
                             onClick={() => setTravelMode('cycling')}
                             className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'cycling' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
                                 }`}
                         >
-                            <Bike size={13} />
-                            Xe đạp
+                            <Bike size={13} /> Xe đạp
                         </button>
                     </div>
+                    
                     <div className="flex justify-between items-center bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                         <div>
                             <p className="text-[10px] text-slate-400 font-semibold">KHOẢNG CÁCH</p>
@@ -645,6 +614,7 @@ export default function Home() {
                             <p className="text-lg font-black text-blue-600">{routeData.totalTimeMin} phút</p>
                         </div>
                     </div>
+                    
                     <button
                         onClick={() => {
                             setRouteData(null);

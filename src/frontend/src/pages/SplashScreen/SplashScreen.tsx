@@ -57,7 +57,7 @@ export default function SplashScreen() {
                     key={index}
                     className={`absolute inset-0 w-full h-full bg-cover bg-center transition-all duration-[1500ms] ease-in-out ${index === currentSlide ? 'opacity-100 scale-110' : 'opacity-0 scale-100'
                         }`}
-                    style={{ backgroundImage: `url(${img})` }}
+                    style={{ backgroundImage: `url(${img.img})` }} 
                 />
             ))}
 

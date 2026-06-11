@@ -1,9 +1,9 @@
-import axios, { AxiosInstance, AxiosError, AxiosResponse } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import API_BASE_URL from '../config/api';
 
-// Create axios instance
+// Tạo instance axios
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -11,13 +11,20 @@ const api: AxiosInstance = axios.create({
   }
 });
 
-// Request interceptor - Add token to headers
+// Request interceptor - Tự động gắn Token và xử lý đường dẫn
 api.interceptors.request.use(
   (config) => {
+    // 1. Gắn Token nếu có
     const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // 2. Chống trùng lặp /api/api/: Nếu URL có bắt đầu bằng /api, loại bỏ nó để tránh trùng với baseURL
+    if (config.url && config.url.startsWith('/api')) {
+      config.url = config.url.replace('/api', '');
+    }
+
     return config;
   },
   (error) => {
@@ -25,28 +32,29 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor - Handle errors
+// Response interceptor - Xử lý lỗi tập trung
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     const authStore = useAuthStore.getState();
 
     if (error.response?.status === 401) {
-      // Token expired or invalid
-      authStore.logout();
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('userRole');
-      window.location.href = '/login';
-      toast.error('Phiên đăng nhập đã hết hạn');
+      // Chỉ logout khi token thật sự hết hạn hoặc invalid (401), 
+      // không logout khi do nhập sai mật khẩu hiện tại (chúng ta sẽ dùng 400 cho lỗi đó ở server)
+      const errorMessage = (error.response.data as any)?.message || '';
+      
+      if (errorMessage !== "Mật khẩu hiện tại không chính xác!") {
+        authStore.logout();
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        toast.error('Phiên đăng nhập đã hết hạn');
+      }
     } else if (error.response?.status === 403) {
       toast.error('Bạn không có quyền truy cập');
     } else if (error.response?.status === 429) {
-      // Rate limited
-      const retryAfter = error.response.headers['retry-after'];
-      toast.error(`Quá nhiều lần yêu cầu. Vui lòng thử lại sau ${retryAfter} giây`);
+      toast.error('Quá nhiều yêu cầu, vui lòng thử lại sau.');
     }
 
     return Promise.reject(error);

@@ -8,15 +8,18 @@ import {
     Settings,
     LogOut,
     AlertTriangle,
-    Home
+    Home,
+    Users // 1. ĐÃ THÊM IMPORT ICON USERS TẠI ĐÂY
 } from 'lucide-react';
 
+// 2. ĐÃ THÊM MỤC 'users' VÀO DANH SÁCH MENU
 const MENU_ITEMS = [
     { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard },
     { id: 'traffic', label: 'Giao thông', icon: Car },
     { id: 'events', label: 'Sự kiện', icon: CalendarDays, count: 12 },
     { id: 'flood', label: 'Ngập lụt', icon: Waves, count: 2 },
     { id: 'closure', label: 'Cấm đường', icon: RouteOff, count: 5 },
+    { id: 'users', label: 'Quản lý tài khoản', icon: Users }, // <--- MỤC MỚI
     { id: 'settings', label: 'Cài đặt', icon: Settings },
 ];
 

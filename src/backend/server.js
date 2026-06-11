@@ -45,7 +45,28 @@ const isValidPassword = (password) => {
     return password && password.length >= 6;
 };
 
-// ✅ Hàm format ngày tháng chính xác (Fix lỗi UTC)
+// ================= CHECK BAN STATUS =================
+
+const checkBanStatus = (user) => {
+    if (!user) {
+        return {
+            banned: false
+        };
+    }
+
+    if (user.is_active === 0 || user.is_active === false) {
+        return {
+            banned: true,
+            message: `Tài khoản đã bị khóa! Lý do: ${user.ban_reason || "Vi phạm chính sách."}`
+        };
+    }
+
+    return {
+        banned: false
+    };
+};
+
+// Hàm format ngày tháng chính xác (Fix lỗi UTC)
 const formatDateTime = (dateObj) => {
     if (!dateObj) return null;
     try {
@@ -83,18 +104,19 @@ app.post("/api/auth/register", async (req, res) => {
             return res.status(400).json({ message: "Username phải có ít nhất 3 ký tự!" });
         }
 
-        const pool = await poolPromise;
-        const checkExist = await pool
-            .request()
-            .input("email", sql.NVarChar, email.toLowerCase())
-            .input("username", sql.NVarChar, trimmedUsername)
-            .query(
-                "SELECT user_id FROM Users WHERE LOWER(email) = LOWER(@email) OR LOWER(username) = LOWER(@username)",
-            );
+        // Thay thế đoạn kiểm tra trùng lặp trong hàm Đăng ký (Register)
+const pool = await poolPromise;
+const checkExist = await pool
+    .request()
+    .input("email", sql.NVarChar, email.toLowerCase())
+    .query(
+        // CHỈ KIỂM TRA EMAIL TRÙNG LẶP, BỎ KIỂM TRA USERNAME
+        "SELECT user_id FROM Users WHERE LOWER(email) = LOWER(@email)"
+    );
 
-        if (checkExist.recordset.length > 0) {
-            return res.status(400).json({ message: "Email hoặc Username đã được sử dụng!" });
-        }
+if (checkExist.recordset.length > 0) {
+    return res.status(400).json({ message: "Email này đã được đăng ký!" });
+}
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
@@ -121,23 +143,28 @@ app.post("/api/auth/register", async (req, res) => {
 // POST /api/auth/setup-2fa
 app.post("/api/auth/setup-2fa", authenticateToken, async (req, res) => {
     try {
-        // Sinh secret (không lưu vào DB)
+        const userEmail = req.user.email || "admin@danang.gov.vn"; 
+
         const secret = speakeasy.generateSecret({
-            name: `DN-Pulse (${req.user.email})`
+            length: 20, 
+            name: `DanangSmart:${userEmail}`,
+            issuer: "DanangSmart" 
         });
+
+        console.log("👉 Secret Base32 chuẩn gửi về Frontend:", secret.base32); 
+        console.log("👉 URL tạo mã QR:", secret.otpauth_url);
         
-        // ✅ Chỉ trả về QR và secret, cho frontend chứa tạm thời
         const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
         
         res.json({
             success: true,
             data: {
                 qrCode: qrCodeUrl,
-                secret: secret.base32
-                // ⚠️ Không lưu vào DB ở đây!
+                secret: secret.base32 
             }
         });
     } catch (error) {
+        console.error("Lỗi sập hệ thống tại setup-2fa:", error);
         res.status(500).json({ success: false, error: { message: error.message } });
     }
 });
@@ -145,52 +172,45 @@ app.post("/api/auth/setup-2fa", authenticateToken, async (req, res) => {
 // POST /api/auth/confirm-2fa
 app.post("/api/auth/confirm-2fa", authenticateToken, async (req, res) => {
     try {
-        const { code, secret } = req.body;  // ← Frontend gửi secret tạm thời
-        
-        // ✅ Validate code format
+        const { code, secret } = req.body;
+        console.log("🔍 [DEBUG] Code nhận được:", code);
+    console.log("🔍 [DEBUG] Secret nhận được:", secret);
+        // 1. Validate đầu vào (Đã làm tốt)
         if (!code || !/^\d{6}$/.test(code)) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mã 2FA phải là 6 chữ số!" } 
-            });
+            return res.status(400).json({ success: false, error: { message: "Mã 2FA phải là 6 chữ số!" } });
         }
         
-        if (!secret) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Secret không hợp lệ!" } 
-            });
+        // 2. Clean secret (Đảm bảo loại bỏ khoảng trắng dư thừa)
+        const cleanSecret = secret ? secret.trim() : null;
+        if (!cleanSecret) {
+            return res.status(400).json({ success: false, error: { message: "Secret không hợp lệ!" } });
         }
         
         const pool = await poolPromise;
         
-        // ✅ Verify code với secret tạm thời
+        // 3. Sử dụng 'verified' để kiểm tra
         const verified = speakeasy.totp.verify({
-            secret: secret,  // ← Secret từ frontend
+            secret: cleanSecret, // Sử dụng bản đã trim()
             encoding: "base32",
             token: code,
-            window: 1
+            window: 1 // Tăng lên window: 2 nếu vẫn thấy lỗi mã sai do lệch giờ
         });
         
-        if (verified !== true) {
-            console.warn(`[2FA SECURITY] Failed 2FA confirmation for user: ${req.user.id}`);
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mã xác thực không đúng!" } 
-            });
+        if (!verified) {
+            console.warn(`[2FA SECURITY] Failed 2FA for user: ${req.user.id}`);
+            return res.status(400).json({ success: false, error: { message: "Mã OTP không chính xác!" } });
         }
         
-        // ✅ Chỉ lưu secret vào DB khi xác thực thành công
+        // 4. Update Database
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
-            .input("secret", sql.NVarChar, secret)
+            .input("secret", sql.NVarChar, cleanSecret)
             .query("UPDATE Users SET two_factor_secret = @secret, is_2fa_enabled = 1 WHERE user_id = @user_id");
         
-        console.log(`[2FA SECURITY] 2FA enabled for user: ${req.user.id}`);
         res.json({ success: true, message: "Kích hoạt 2FA thành công!" });
     } catch (error) {
         console.error("[2FA] Confirm error:", error);
-        res.status(500).json({ success: false, error: { message: error.message } });
+        res.status(500).json({ success: false, error: { message: "Lỗi hệ thống!" } });
     }
 });
 
@@ -199,7 +219,6 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
     try {
         const { password } = req.body;
         
-        // ✅ Validate password
         if (!password) {
             return res.status(400).json({ 
                 success: false, 
@@ -212,7 +231,6 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
             .input("user_id", sql.Int, req.user.id)
             .query("SELECT password_hash FROM Users WHERE user_id = @user_id");
         
-        // ✅ Check user tồn tại
         const user = result.recordset[0];
         if (!user) {
             console.warn(`[2FA] User not found: ${req.user.id}`);
@@ -222,7 +240,6 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ Verify password
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             console.warn(`[2FA SECURITY] Failed password verification for disable-2fa: ${req.user.id}`);
@@ -232,7 +249,6 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ Tắt 2FA
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
             .query("UPDATE Users SET is_2fa_enabled = 0, two_factor_secret = NULL WHERE user_id = @user_id");
@@ -245,6 +261,58 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
             success: false, 
             error: { message: "Lỗi tắt 2FA!" } 
         });
+    }
+});
+
+// ============ ĐỔI / TẠO MẬT KHẨU ============
+app.put("/api/user/change-password", authenticateToken, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!isValidPassword(newPassword)) {
+            return res.status(400).json({ message: "Mật khẩu mới phải có ít nhất 6 ký tự!" });
+        }
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("user_id", sql.Int, req.user.id)
+            .query("SELECT password_hash FROM Users WHERE user_id = @user_id");
+
+        const user = result.recordset[0];
+        if (!user) {
+            return res.status(404).json({ message: "Người dùng không tồn tại!" });
+        }
+
+        // Xử lý kiểm tra mật khẩu hiện tại nếu user ĐÃ CÓ mật khẩu (không phải Google tạo lần đầu)
+        if (user.password_hash) {
+            if (!currentPassword) {
+                return res.status(400).json({ message: "Vui lòng nhập mật khẩu hiện tại!" });
+            }
+            if (currentPassword === newPassword) {
+                return res.status(400).json({ message: "Mật khẩu mới phải khác mật khẩu hiện tại!" });
+            }
+
+            const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+            if (!isMatch) {
+                console.warn(`[AUTH SECURITY] Failed change-password attempt for user: ${req.user.id}`);
+                // ✅ SỬ DỤNG MÃ 400 (Thay vì 401) ĐỂ KHÔNG BỊ AXIOS ĐÁ VĂNG RA TRANG LOGIN
+                return res.status(400).json({ message: "Mật khẩu hiện tại không chính xác!" });
+            }
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await pool.request()
+            .input("user_id", sql.Int, req.user.id)
+            .input("password_hash", sql.NVarChar, hashedPassword)
+            .query("UPDATE Users SET password_hash = @password_hash WHERE user_id = @user_id");
+
+        console.log(`[AUTH] Password changed/created for user: ${req.user.id}`);
+        res.json({ message: user.password_hash ? "Đổi mật khẩu thành công!" : "Tạo mật khẩu thành công!" });
+    } catch (error) {
+        console.error("Change password error:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
@@ -283,7 +351,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
             secret: user.two_factor_secret,
             encoding: "base32",
             token: code,
-            window: 1
+            window: 2
         });
 
         if (verified !== true) {
@@ -293,7 +361,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
 
         console.log(`[2FA SECURITY] Successful 2FA verification for user: ${user.user_id}`);
 
-        // ✅ Cập nhật last_login_at
+        // Cập nhật last_login_at
         await pool.request()
             .input("user_id", sql.Int, user.user_id)
             .query("UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id");
@@ -319,97 +387,105 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
 });
 
 // ============ ĐĂNG NHẬP ============
-
 app.post("/api/auth/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        
+
         if (!email || !password) {
-            return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu!' });
+            return res.status(400).json({ message: "Vui lòng nhập email và mật khẩu!" });
         }
+
         if (!isValidEmail(email)) {
-            return res.status(400).json({ message: 'Email không hợp lệ!' });
+            return res.status(400).json({ message: "Email không hợp lệ!" });
         }
 
         const pool = await poolPromise;
-        const result = await pool.request()
-            .input('email', sql.NVarChar, email.toLowerCase())
-            .query('SELECT user_id, username, email, password_hash, role FROM Users WHERE LOWER(email) = LOWER(@email)');
+
+        const result = await pool
+            .request()
+            .input("email", sql.NVarChar, email.toLowerCase())
+            .query(`
+                SELECT user_id, username, email, password_hash, role, is_active, ban_reason
+                FROM Users
+                WHERE LOWER(email)=LOWER(@email)
+            `);
 
         const user = result.recordset[0];
+
         if (!user) {
-            return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác!' });
+            return res.status(401).json({ message: "Email hoặc mật khẩu không chính xác!" });
+        }
+
+        const banCheck = checkBanStatus(user);
+
+        if (banCheck.banned) {
+            return res.status(403).json({ message: banCheck.message });
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
+
         if (!isMatch) {
-            console.warn(`[AUTH] Failed login attempt for: ${email}`);
-            return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác!' });
+            return res.status(401).json({ message: "Email hoặc mật khẩu không chính xác!" });
         }
 
         const userDb = await pool.request()
-            .input('user_id', sql.Int, user.user_id)
-            .query('SELECT is_2fa_enabled, role FROM Users WHERE user_id = @user_id');
-        
-        const dbUser = userDb.recordset[0];
-        const is2FA = dbUser?.is_2fa_enabled;
-        const userRole = dbUser?.role; 
+            .input("user_id", sql.Int, user.user_id)
+            .query(`SELECT is_2fa_enabled, role FROM Users WHERE user_id=@user_id`);
 
-        if (userRole === 'admin' && is2FA) {
+        const dbUser = userDb.recordset[0];
+
+        if (dbUser?.role === "admin" && dbUser?.is_2fa_enabled) {
             const tempToken = jwt.sign(
                 { id: user.user_id, email: user.email, temp: true },
                 process.env.JWT_SECRET,
-                { expiresIn: '5m' }
+                { expiresIn: "5m" }
             );
-            console.log(`[AUTH] Admin login requires 2FA: ${email}`);
+
             return res.json({ requires2FA: true, tempToken, email: user.email });
         }
 
-        // ✅ Phục hồi lại code cập nhật last_login_at cho user thường
         await pool.request()
-            .input('user_id', sql.Int, user.user_id)
-            .query('UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id');
+            .input("user_id", sql.Int, user.user_id)
+            .query(`UPDATE Users SET last_login_at=GETDATE() WHERE user_id=@user_id`);
 
         const token = jwt.sign(
             { id: user.user_id, email: user.email, username: user.username, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '1d' }
+            { expiresIn: "1d" }
         );
 
-        console.log(`[AUTH] Successful login: ${email}`);
         res.json({
             token,
             role: user.role,
-            user: { id: user.user_id, username: user.username, email: user.email, role: user.role }
+            user: {
+                id: user.user_id,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
         });
+
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: 'Lỗi server', error: error.message });
+        console.error(error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
 // ============ PROTECTED ROUTES ============
 
-// ✅ GET /api/user/profile - Lấy thông tin user
 app.get("/api/user/profile", authenticateToken, async (req, res) => {
     try {
         const pool = await poolPromise;
-
-        // SỬA TẠI ĐÂY: Thêm password_hash vào SELECT
         const result = await pool
             .request()
             .input("user_id", sql.Int, req.user.id)
-            .query(
-                "SELECT user_id, username, email, role, created_at, last_login_at, password_hash FROM Users WHERE user_id = @user_id",
-            );
+            .query("SELECT user_id, username, email, role, created_at, last_login_at, password_hash FROM Users WHERE user_id = @user_id");
 
         if (result.recordset.length === 0) {
             return res.status(404).json({ message: "Người dùng không tồn tại!" });
         }
 
         const user = result.recordset[0];
-        
-        // SỬA TẠI ĐÂY: Thêm cờ has_password
         const formattedUser = {
             user_id: user.user_id,
             username: user.username,
@@ -417,7 +493,7 @@ app.get("/api/user/profile", authenticateToken, async (req, res) => {
             role: user.role,
             created_at: formatDateTime(user.created_at),
             last_login_at: user.last_login_at ? formatDateTime(user.last_login_at) : "Chưa đăng nhập",
-            has_password: user.password_hash ? true : false // Trả về true nếu đã có mật khẩu
+            has_password: user.password_hash ? true : false
         };
 
         res.json({ message: "Lấy dữ liệu thành công!", data: formattedUser });
@@ -427,78 +503,101 @@ app.get("/api/user/profile", authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ PUT /api/user/change-password - Đổi mật khẩu hoặc tạo mật khẩu mới cho Google User
-app.put("/api/user/change-password", authenticateToken, async (req, res) => {
+// ============ CẬP NHẬT HỒ SƠ ============
+app.put("/api/user/profile", authenticateToken, async (req, res) => {
     try {
-        const { currentPassword, newPassword } = req.body;
+        const body = req.body || {};
+        const username = body.username; 
 
-        if (!newPassword || newPassword.length < 8) {
-            return res.status(400).json({ message: "Mật khẩu mới phải có ít nhất 8 ký tự!" });
+        if (!username || username.trim() === '') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Tên hiển thị không được để trống!" 
+            });
         }
 
         const pool = await poolPromise;
-        
-        // 1. Lấy mật khẩu hiện tại của user từ Database
-        const result = await pool.request()
-            .input("user_id", sql.Int, req.user.id)
-            .query("SELECT password_hash FROM Users WHERE user_id = @user_id");
+        const trimmedUsername = username.trim();
 
-        const user = result.recordset[0];
-        if (!user) {
-            return res.status(404).json({ message: "Không tìm thấy người dùng!" });
-        }
-
-        // 2. PHÂN LOẠI NGƯỜI DÙNG
-        // Nếu user ĐÃ CÓ mật khẩu (tài khoản thường) -> BẮT BUỘC kiểm tra currentPassword
-        if (user.password_hash) {
-            if (!currentPassword) {
-                return res.status(400).json({ message: "Vui lòng nhập mật khẩu hiện tại!" });
-            }
-            
-            const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-            if (!isMatch) {
-                return res.status(400).json({ message: "Mật khẩu hiện tại không chính xác!" });
-            }
-        }
-        // Nếu user CHƯA CÓ mật khẩu (Tài khoản Google) -> Bỏ qua bước kiểm tra mật khẩu cũ
-
-        // 3. Mã hóa mật khẩu mới và lưu vào DB
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-
+        // Cập nhật tên thẳng vào Database (Không cần kiểm tra trùng lặp nữa)
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
-            .input("password_hash", sql.NVarChar, hashedPassword)
-            .query("UPDATE Users SET password_hash = @password_hash WHERE user_id = @user_id");
+            .input("username", sql.NVarChar, trimmedUsername)
+            .query(`
+                UPDATE Users 
+                SET username = @username 
+                WHERE user_id = @user_id
+            `);
 
-        res.json({ message: "Cập nhật mật khẩu thành công!" });
+        res.json({ success: true, message: "Cập nhật hồ sơ thành công!" });
     } catch (error) {
-        console.error("Change password error:", error);
+        console.error("❌ Lỗi cập nhật hồ sơ:", error);
+        res.status(500).json({ success: false, message: "Lỗi hệ thống khi cập nhật", error: error.message });
+    }
+});
+
+// ============ ADMIN ROUTES ============
+
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Truy cập bị từ chối: Cần quyền Admin!' });
+    }
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT user_id, username, email, role, is_active, ban_reason, created_at, last_login_at
+            FROM Users
+            ORDER BY created_at DESC
+        `);
+        res.json({ message: "Lấy danh sách người dùng thành công!", data: result.recordset });
+    } catch (error) {
+        console.error("Admin get users error:", error);
         res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
-app.put("/api/user/profile", authenticateToken, async (req, res) => {
+app.put('/api/admin/users/:id/ban', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Truy cập bị từ chối!' });
+    }
     try {
-        const { username } = req.body;
-        const userId = req.user.id;
-
-        if (!username) return res.status(400).json({ message: "Vui lòng nhập username!" });
-        const trimmedUsername = username.trim();
-        if (trimmedUsername.length < 3) return res.status(400).json({ message: "Username phải có ít nhất 3 ký tự!" });
-
         const pool = await poolPromise;
-        await pool
-            .request()
-            .input("user_id", sql.Int, userId)
-            .input("username", sql.NVarChar, trimmedUsername)
-            .query("UPDATE Users SET username = @username WHERE user_id = @user_id");
+        
+        // ÉP KIỂU ID SANG SỐ (INTEGER) TẠI ĐÂY
+        const userId = parseInt(req.params.id, 10);
+        
+        if (isNaN(userId)) {
+            return res.status(400).json({ message: "ID người dùng không hợp lệ!" });
+        }
 
-        console.log(`[USER] Profile updated for user: ${userId}`);
-        res.json({ message: "Cập nhật profile thành công!" });
+        const result = await pool.request()
+            .input('ban_reason', sql.NVarChar, req.body.ban_reason || 'Vi phạm chính sách')
+            .input('user_id', sql.Int, userId) // Sử dụng biến đã ép kiểu
+            .query('UPDATE Users SET is_active = 0, ban_reason = @ban_reason WHERE user_id = @user_id');
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ message: "Không tìm thấy người dùng này." });
+        }
+
+        res.json({ message: "Đã khóa tài khoản thành công" });
     } catch (error) {
-        console.error("Update profile error:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        console.error("❌ LỖI SQL KHI KHÓA TÀI KHOẢN:", error);
+        res.status(500).json({ message: "Lỗi hệ thống", error: error.message });
+    }
+});
+
+app.put('/api/admin/users/:id/unban', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Truy cập bị từ chối: Cần quyền Admin!' });
+    }
+    try {
+        const pool = await poolPromise;
+        await pool.request()
+            .input('user_id', sql.Int, req.params.id)
+            .query('UPDATE users SET is_active = 1, ban_reason = NULL WHERE user_id = @user_id');
+        res.json({ message: "Đã mở khóa tài khoản" });
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi máy chủ" });
     }
 });
 
@@ -666,7 +765,7 @@ app.post('/api/auth/resend-otp', async (req, res) => {
 
 // ============ EVENTS ============
 
-app.post("/api/events", async (req, res) => {
+app.post("/api/events", authenticateToken, async (req, res) => {
     try {
         const { Title, TimeRange, EventDate, Location, Status, IsLive, CrowdLevel, Description } = req.body;
 
@@ -738,86 +837,6 @@ app.get("/api/events", async (req, res) => {
     }
 });
 
-// POST /api/events
-app.post("/api/events", async (req, res) => {
-    try {
-        const {
-            title,
-            short_description,
-            description,
-            location_name,
-            latitude,
-            longitude,
-            address,
-            district,
-            start_time,
-            end_time,
-            banner_url,
-            thumbnail_url,
-            status,
-            category_id,
-            is_featured,
-            is_free,
-            ticket_price,
-            organizer_name,
-            contact_email,
-            website_url
-        } = req.body;
-
-        // ✅ Validate required fields
-        if (!title || !start_time || !location_name) {
-            return res.status(400).json({ message: "Thiếu thông tin bắt buộc!" });
-        }
-
-        const pool = await poolPromise;
-        await pool
-            .request()
-            .input("category_id", sql.Int, category_id || 1)
-            .input("created_by", sql.Int, req.user?.id || 1)
-            .input("title", sql.NVarChar, title)
-            .input("short_description", sql.NVarChar, short_description || null)
-            .input("description", sql.NVarChar, description || null)
-            .input("location_name", sql.NVarChar, location_name)
-            .input("latitude", sql.Decimal, latitude || 0)
-            .input("longitude", sql.Decimal, longitude || 0)
-            .input("address", sql.NVarChar, address || null)
-            .input("district", sql.NVarChar, district || null)
-            .input("start_time", sql.DateTime, start_time)
-            .input("end_time", sql.DateTime, end_time || null)
-            .input("banner_url", sql.NVarChar, banner_url || null)
-            .input("thumbnail_url", sql.NVarChar, thumbnail_url || null)
-            .input("status", sql.NVarChar, status || "pending")
-            .input("is_featured", sql.Bit, is_featured ? 1 : 0)
-            .input("is_free", sql.Bit, is_free ? 1 : 0)
-            .input("ticket_price", sql.Decimal, ticket_price || 0)
-            .input("organizer_name", sql.NVarChar, organizer_name || null)
-            .input("contact_email", sql.NVarChar, contact_email || null)
-            .input("website_url", sql.NVarChar, website_url || null)
-            .query(`
-                INSERT INTO Events (
-                    category_id, created_by, title, short_description, description,
-                    location_name, latitude, longitude, address, district,
-                    start_time, end_time, banner_url, thumbnail_url, status,
-                    is_featured, is_free, ticket_price, organizer_name, contact_email,
-                    website_url, created_at, updated_at
-                )
-                VALUES (
-                    @category_id, @created_by, @title, @short_description, @description,
-                    @location_name, @latitude, @longitude, @address, @district,
-                    @start_time, @end_time, @banner_url, @thumbnail_url, @status,
-                    @is_featured, @is_free, @ticket_price, @organizer_name, @contact_email,
-                    @website_url, GETDATE(), GETDATE()
-                )
-            `);
-
-        console.log(`[EVENTS] New event created: ${title}`);
-        res.status(201).json({ message: "Lưu sự kiện thành công!" });
-    } catch (error) {
-        console.error("Add event error:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
-});
-
 // ============ ĐĂNG NHẬP GOOGLE ============
 
 app.post("/api/auth/google", async (req, res) => {
@@ -836,7 +855,11 @@ app.post("/api/auth/google", async (req, res) => {
         let result = await pool
             .request()
             .input("email", sql.NVarChar, email.toLowerCase())
-            .query("SELECT * FROM Users WHERE LOWER(email) = LOWER(@email)");
+            .query(`
+                SELECT user_id, username, email, role, password_hash, is_active, ban_reason
+                FROM Users
+                WHERE LOWER(email)=LOWER(@email)
+            `);
 
         let user = result.recordset[0];
 
@@ -859,8 +882,13 @@ app.post("/api/auth/google", async (req, res) => {
         } else {
             console.log(`[AUTH] Google user login: ${email}`);
         }
+        
+        const banCheck = checkBanStatus(user);
+        if (banCheck.banned) {
+            return res.status(403).json({ message: banCheck.message });
+        }
 
-        // ✅ Phục hồi lại code cập nhật last_login_at cho Google Login
+        // Cập nhật last_login_at cho Google Login
         await pool.request()
             .input("user_id", sql.Int, user.user_id)
             .query("UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id");

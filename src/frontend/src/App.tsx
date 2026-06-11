@@ -9,9 +9,12 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage/LandingPage';
 import ForgotPassword from './pages/Login/ForgotPassword';
 
+// 1. THÊM IMPORT NÀY VÀO TRÊN CÙNG:
+import Verify2FA from './pages/Auth/Verify2FA'; 
 
 export default function App() {
     const token = localStorage.getItem('token');
+    const userRole = localStorage.getItem('userRole');
 
     return (
         <Router>
@@ -22,6 +25,8 @@ export default function App() {
 
                 <Route path="/forgot-password" element={<ForgotPassword />} />
 
+                {/* 2. THÊM ĐOẠN ROUTE NÀY VÀO ĐÂY */}
+                <Route path="/verify-2fa" element={<Verify2FA />} />
 
                 <Route path="/dashboard" element={
                     <ProtectedRoute>
@@ -30,12 +35,16 @@ export default function App() {
                 } />
 
                 <Route path="/profile" element={
-                    <ProtectedRoute>
-                        <ProfilePage />
-                    </ProtectedRoute>
-                } />
+    <ProtectedRoute>
+        {userRole === 'admin' ? (
+            <Navigate to="/admin/dashboard?tab=settings" replace />
+        ) : (
+            <ProfilePage />
+        )}
+    </ProtectedRoute>
+} />
 
-                {/*     {/* 5. Trang Dashboard của Admin (Được bảo vệ bằng ProtectedRoute) */}
+                {/* {/* 5. Trang Dashboard của Admin (Được bảo vệ bằng ProtectedRoute) */}
                 <Route
                     path="/admin/dashboard"
                     element={
