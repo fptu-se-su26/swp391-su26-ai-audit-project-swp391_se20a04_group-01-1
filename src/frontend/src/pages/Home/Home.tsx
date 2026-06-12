@@ -3,6 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import Map, { NavigationControl, Marker, Source, Layer, MapRef } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
+// NEW CODE: Chức năng hiển thị đường ngập lụt - Import component hiển thị lớp ngập lụt
+// import FloodLayer from '../../components/FloodLayer';
+// NEW CODE: Flood zone feature - Import component hiển thị lớp vùng ngập lụt mới
+import FloodZoneLayer from '../../components/FloodZoneLayer';
+
+// NEW CODE: Flood route avoidance feature - Tiện ích kiểm tra né ngập
+// import { findSafeRoute } from '../../utils/floodRouteUtils';
+// import { floodedRoads } from '../../data/floodData';
+// FIX: Avoid flooded zones when calculating route
+import { findSafeRoute as findSafeRouteZone, findFloodZoneContainingPoint, isPointInsideFloodZone } from '../../utils/floodZoneRouteUtils';
+import { floodZones } from '../../data/floodZones';
+
 import {
     Search, Navigation, Bell, User, LogOut, ArrowLeft, Settings,
     ShieldAlert, Ban, CloudRain, Compass, Utensils, Hotel,
@@ -54,6 +66,7 @@ export default function Home() {
 
     // ✅ CÁC STATE CỦA MAPBOX VÀ CHỈ ĐƯỜNG
     const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
+    const [origin, setOrigin] = useState<{ lng: number; lat: number; label: string } | null>(null);
     const [destination, setDestination] = useState<{ lng: number; lat: number; label: string } | null>(null);
     const [routeData, setRouteData] = useState<{
         totalDistanceKm: number;
@@ -62,10 +75,73 @@ export default function Home() {
     } | null>(null);
     const [loadingRoute, setLoadingRoute] = useState(false);
 
+    // NEW CODE: Flood route avoidance feature - Trạng thái cảnh báo khi tìm đường đi né ngập
+    const [routeAlertMessage, setRouteAlertMessage] = useState<string | null>(null);
+
+    // NEW CODE: Flood zone selection confirmation - State lưu danh sách ID vùng ngập đã được người dùng xác nhận đi vào
+    const [confirmedFloodZoneIds, setConfirmedFloodZoneIds] = useState<string[]>([]);
+
+    // NEW CODE: Flood zone confirmation and route avoidance - Dọn dẹp xác nhận không còn liên quan
+    useEffect(() => {
+        if (confirmedFloodZoneIds.length === 0) return;
+        
+        const newConfirmedIds = confirmedFloodZoneIds.filter(id => {
+            const zone = floodZones.find(z => z.id === id);
+            if (!zone) return false;
+            
+            const originInside = origin ? isPointInsideFloodZone([origin.lng, origin.lat], zone) : false;
+            const destInside = destination ? isPointInsideFloodZone([destination.lng, destination.lat], zone) : false;
+            
+            return originInside || destInside;
+        });
+
+        if (newConfirmedIds.length !== confirmedFloodZoneIds.length) {
+            setConfirmedFloodZoneIds(newConfirmedIds);
+        }
+    }, [origin, destination, confirmedFloodZoneIds]);
+
+    // NEW CODE: Flood zone selection confirmation - Kiểm tra địa điểm người dùng chọn có nằm trong vùng ngập > 10cm không
+    const validateLocation = (
+        lng: number,
+        lat: number,
+        label: string,
+        type: 'origin' | 'destination',
+        onApproved: () => void,
+        onRejected: () => void
+    ) => {
+        if (!mapControls.flood) {
+            onApproved();
+            return;
+        }
+
+        const zone = findFloodZoneContainingPoint([lng, lat], floodZones);
+        if (zone && zone.depthCm > 10) {
+            if (!confirmedFloodZoneIds.includes(zone.id)) {
+                const confirmed = window.confirm(
+                    `Địa điểm bạn chọn đang nằm trong vùng ngập ${zone.depthCm}cm. Bạn có chắc chắn muốn đi vào khu vực ngập lụt này không?`
+                );
+                if (confirmed) {
+                    setConfirmedFloodZoneIds((prev) => [...prev, zone.id]);
+                    onApproved();
+                } else {
+                    alert("Bạn đã hủy chọn địa điểm trong vùng ngập. Vui lòng chọn địa điểm khác an toàn hơn.");
+                    onRejected();
+                }
+            } else {
+                onApproved();
+            }
+        } else if (zone && zone.depthCm <= 10) {
+            // Hiển thị cảnh báo nhẹ trong console
+            console.log(`[FloodCheck] Địa điểm này đang ngập khoảng ${zone.depthCm}cm nhưng vẫn có thể di chuyển.`);
+            onApproved();
+        } else {
+            onApproved();
+        }
+    };
+
 
     // Thêm các biến state cho tìm kiếm 2 điểm, hoán đổi và đổi phương tiện di chuyển
     const mapRef = useRef<MapRef>(null);
-    const [origin, setOrigin] = useState<{ lng: number; lat: number; label: string } | null>(null);
     const [originQuery, setOriginQuery] = useState('');
     const [destinationQuery, setDestinationQuery] = useState('');
     const [activeInputField, setActiveInputField] = useState<'origin' | 'destination' | null>(null);
@@ -84,19 +160,28 @@ export default function Home() {
                     };
                     setUserLocation(loc);
 
-                    // Mặc định thiết lập Điểm đi (origin) là Vị trí hiện tại của bạn
-                    setOrigin({
-                        lng: loc.lng,
-                        lat: loc.lat,
-                        label: 'Vị trí của bạn'
-                    });
-                    setOriginQuery('Vị trí của bạn');
-                    // Kéo camera bản đồ di chuyển mượt mà về tọa độ này
-                    mapRef.current?.flyTo({
-                        center: [loc.lng, loc.lat],
-                        zoom: 15,
-                        duration: 1500 // thời gian di chuyển (ms)
-                    });
+                    // NEW CODE: Flood zone selection confirmation
+                    validateLocation(
+                        loc.lng, loc.lat, 'Vị trí của bạn', 'origin',
+                        () => {
+                            setOrigin({
+                                lng: loc.lng,
+                                lat: loc.lat,
+                                label: 'Vị trí của bạn'
+                            });
+                            setOriginQuery('Vị trí của bạn');
+                            // Kéo camera bản đồ di chuyển mượt mà về tọa độ này
+                            mapRef.current?.flyTo({
+                                center: [loc.lng, loc.lat],
+                                zoom: 15,
+                                duration: 1500 // thời gian di chuyển (ms)
+                            });
+                        },
+                        () => {
+                            setOrigin(null);
+                            setOriginQuery('');
+                        }
+                    );
                 },
                 (error) => {
                     alert("Không thể lấy vị trí hiện tại. Vui lòng cho phép quyền truy cập GPS.");
@@ -109,8 +194,18 @@ export default function Home() {
     // ✅ HÀM: Chọn điểm đến khi click lên bản đồ
     const handleMapClick = (event: any) => {
         const { lng, lat } = event.lngLat;
-        setDestination({ lng, lat, label: `Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}` });
-        setDestinationQuery(`Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}`);
+        // NEW CODE: Flood zone selection confirmation
+        validateLocation(
+            lng, lat, `Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}`, 'destination',
+            () => {
+                setDestination({ lng, lat, label: `Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}` });
+                setDestinationQuery(`Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}`);
+            },
+            () => {
+                setDestination(null);
+                setDestinationQuery('');
+            }
+        );
     };
 
     // Xử lý tự động tìm gợi ý địa điểm (Auto-complete)
@@ -147,21 +242,37 @@ export default function Home() {
     const handleSelectSuggestion = (item: any) => {
         const [lng, lat] = item.center;
         const fullName = item.place_name_vi || item.place_name;
-        if (activeInputField === 'origin') {
-            setOrigin({ lng, lat, label: fullName });
-            setOriginQuery(fullName);
-        } else {
-            setDestination({ lng, lat, label: fullName });
-            setDestinationQuery(fullName);
-        }
+        // NEW CODE: Flood zone selection confirmation
+        validateLocation(
+            lng, lat, fullName, activeInputField || 'destination',
+            () => {
+                if (activeInputField === 'origin') {
+                    setOrigin({ lng, lat, label: fullName });
+                    setOriginQuery(fullName);
+                } else {
+                    setDestination({ lng, lat, label: fullName });
+                    setDestinationQuery(fullName);
+                }
 
-        setShowSuggestions(false);
-        // Di chuyển camera bản đồ đến điểm vừa chọn
-        mapRef.current?.flyTo({
-            center: [lng, lat],
-            zoom: 15,
-            duration: 1200
-        });
+                setShowSuggestions(false);
+                // Di chuyển camera bản đồ đến điểm vừa chọn
+                mapRef.current?.flyTo({
+                    center: [lng, lat],
+                    zoom: 15,
+                    duration: 1200
+                });
+            },
+            () => {
+                if (activeInputField === 'origin') {
+                    setOrigin(null);
+                    setOriginQuery('');
+                } else {
+                    setDestination(null);
+                    setDestinationQuery('');
+                }
+                setShowSuggestions(false);
+            }
+        );
     };
 
     // Hàm đảo ngược lộ trình (Hoán đổi Điểm xuất phát và Đích đến)
@@ -176,54 +287,80 @@ export default function Home() {
     };
 
 
-    // Cập nhật Effect chỉ đường để hỗ trợ đổi phương tiện di chuyển
+    // NEW CODE: Flood route avoidance feature - Tìm đường đi và tự động né tránh các đoạn đường ngập lụt
     useEffect(() => {
         if (!origin || !destination) return;
         const getShortestRoute = async () => {
             setLoadingRoute(true);
             try {
                 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+                // Thêm alternatives=true để lấy các tuyến đường gợi ý thay thế
                 const response = await fetch(
-                    `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&access_token=${mapboxToken}`
+                    `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&access_token=${mapboxToken}`
                 );
                 const data = await response.json();
                 if (response.ok && data.routes && data.routes.length > 0) {
-                    const route = data.routes[0];
-                    setRouteData({
-                        totalDistanceKm: parseFloat((route.distance / 1000).toFixed(2)),
-                        totalTimeMin: Math.round(route.duration / 60),
-                        coordinates: route.geometry.coordinates
-                    });
-                    // Căn chỉnh camera hiển thị đầy đủ tuyến đường đi
-                    const coords = route.geometry.coordinates;
-                    if (coords.length > 0) {
-                        let minLng = coords[0][0], maxLng = coords[0][0];
-                        let minLat = coords[0][1], maxLat = coords[0][1];
-                        for (const c of coords) {
-                            if (c[0] < minLng) minLng = c[0];
-                            if (c[0] > maxLng) maxLng = c[0];
-                            if (c[1] < minLat) minLat = c[1];
-                            if (c[1] > maxLat) maxLat = c[1];
-                        }
+                    let selectedRoute = data.routes[0];
+                    let alertMsg: string | null = null;
 
-                        mapRef.current?.fitBounds(
-                            [[minLng, minLat], [maxLng, maxLat]],
-                            { padding: 80, duration: 1500 }
+                    if (mapControls.flood) {
+                        // FIX: Avoid flood zones deeper than 10cm when routing
+                        const result = await findSafeRouteZone(
+                            data.routes,
+                            floodZones,
+                            origin,
+                            destination,
+                            travelMode,
+                            mapboxToken,
+                            confirmedFloodZoneIds
                         );
+                        selectedRoute = result.selectedRoute;
+                        alertMsg = result.alertMsg;
+                    }
+
+                    setRouteAlertMessage(alertMsg);
+                    if (selectedRoute) {
+                        setRouteData({
+                            totalDistanceKm: parseFloat((selectedRoute.distance / 1000).toFixed(2)),
+                            totalTimeMin: Math.round(selectedRoute.duration / 60),
+                            coordinates: selectedRoute.geometry.coordinates
+                        });
+                        // Căn chỉnh camera hiển thị đầy đủ tuyến đường đi
+                        const coords = selectedRoute.geometry.coordinates;
+                        if (coords.length > 0) {
+                            let minLng = coords[0][0], maxLng = coords[0][0];
+                            let minLat = coords[0][1], maxLat = coords[0][1];
+                            for (const c of coords) {
+                                if (c[0] < minLng) minLng = c[0];
+                                if (c[0] > maxLng) maxLng = c[0];
+                                if (c[1] < minLat) minLat = c[1];
+                                if (c[1] > maxLat) maxLat = c[1];
+                            }
+
+                            mapRef.current?.fitBounds(
+                                [[minLng, minLat], [maxLng, maxLat]],
+                                { padding: 80, duration: 1500 }
+                            );
+                        }
+                    } else {
+                        // FIX: Select shortest route among safe alternatives - Clear route if no safe route found
+                        setRouteData(null);
                     }
                 } else {
                     alert('Không tìm thấy đường đi thích hợp cho phương tiện này!');
                     setRouteData(null);
+                    setRouteAlertMessage(null);
                 }
             } catch (err) {
                 console.error("Lỗi kết nối API đường đi Mapbox:", err);
                 setRouteData(null);
+                setRouteAlertMessage(null);
             } finally {
                 setLoadingRoute(false);
             }
         };
         getShortestRoute();
-    }, [origin, destination, travelMode]);
+    }, [origin, destination, travelMode, mapControls.flood, confirmedFloodZoneIds]);
 
     // ✅ Dựng cấu trúc GeoJSON cho đường đi
     const geojsonData: any = routeData ? {
@@ -275,7 +412,14 @@ export default function Home() {
     };
 
     const toggleMapControl = (controlName: keyof typeof mapControls) => {
-        setMapControls(prev => ({ ...prev, [controlName]: !prev[controlName] }));
+        setMapControls(prev => {
+            const newValue = !prev[controlName];
+            // NEW CODE: Flood zone selection confirmation - Reset confirmed flood zones when turning off flood layer
+            if (controlName === 'flood' && !newValue) {
+                setConfirmedFloodZoneIds([]);
+            }
+            return { ...prev, [controlName]: newValue };
+        });
     };
 
     const handleLogout = () => {
@@ -331,6 +475,9 @@ export default function Home() {
                             <Layer {...routeLayerStyle} />
                         </Source>
                     )}
+
+                    {/* NEW CODE: Flood zone feature */}
+                    {mapControls.flood && <FloodZoneLayer />}
                 </Map>
             </div>
 
@@ -604,9 +751,21 @@ export default function Home() {
             )}
 
             {/* CẬP NHẬT PANEL HIỂN THỊ CHI TIẾT ĐƯỜNG ĐI ĐỂ THÊM BỘ CHỌN CHẾ ĐỘ DI CHUYỂN */}
-            {routeData && (
+            {/* FIX: Select shortest route among safe alternatives - Show panel if either routeData or alert message exists */}
+            {(routeData || routeAlertMessage) && (
                 <div className="absolute bottom-10 left-6 z-10 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4">
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
+
+                    {/* NEW CODE: Flood route avoidance feature - Cảnh báo né tránh ngập lụt */}
+                    {routeAlertMessage && (
+                        <div className={`text-[10px] font-bold px-3 py-2 rounded-xl mb-3 border whitespace-pre-line ${
+                            routeAlertMessage.includes('an toàn') 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' 
+                                : 'bg-amber-50 text-amber-700 border-amber-200/50'
+                        }`}>
+                            {routeAlertMessage}
+                        </div>
+                    )}
 
                     {/* Bộ chọn phương tiện di chuyển (Travel Mode Selector) */}
                     <div className="flex gap-2 mb-3 bg-slate-50 p-1 rounded-xl">
@@ -635,16 +794,18 @@ export default function Home() {
                             Xe đạp
                         </button>
                     </div>
-                    <div className="flex justify-between items-center bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                        <div>
-                            <p className="text-[10px] text-slate-400 font-semibold">KHOẢNG CÁCH</p>
-                            <p className="text-lg font-black text-slate-800">{routeData.totalDistanceKm} km</p>
+                    {routeData && (
+                        <div className="flex justify-between items-center bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                            <div>
+                                <p className="text-[10px] text-slate-400 font-semibold">KHOẢNG CÁCH</p>
+                                <p className="text-lg font-black text-slate-800">{routeData.totalDistanceKm} km</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] text-slate-400 font-semibold">THỜI GIAN DỰ KIẾN</p>
+                                <p className="text-lg font-black text-blue-600">{routeData.totalTimeMin} phút</p>
+                            </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[10px] text-slate-400 font-semibold">THỜI GIAN DỰ KIẾN</p>
-                            <p className="text-lg font-black text-blue-600">{routeData.totalTimeMin} phút</p>
-                        </div>
-                    </div>
+                    )}
                     <button
                         onClick={() => {
                             setRouteData(null);
@@ -652,6 +813,9 @@ export default function Home() {
                             setOrigin(null);
                             setOriginQuery('');
                             setDestinationQuery('');
+                            setRouteAlertMessage(null); // NEW CODE: Reset cảnh báo lộ trình né ngập khi xóa đường đi
+                            // NEW CODE: Flood zone selection confirmation - Reset confirmed flood zones
+                            setConfirmedFloodZoneIds([]);
                         }}
                         className="mt-3 w-full bg-slate-100 text-slate-600 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
                     >
