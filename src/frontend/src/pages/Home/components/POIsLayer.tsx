@@ -1,8 +1,8 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/mapbox';
 import POIPopup, { POIData } from './POIPopup';
 
-// ✅ Mapping filter ID → tên category trong database
+// ✅ Mapping filter ID → tên category trong database (GIỮ NGUYÊN NHƯ FOLDER SWP391)
 const FILTER_TO_CATEGORY: Record<string, string> = {
     'attractions': 'Điểm tham quan',
     'restaurants': 'Nhà hàng',
@@ -30,15 +30,14 @@ export default function POIsLayer({
     const { current: map } = useMap();
 
     // ✅ Chuyển đổi dữ liệu POIs thành GeoJSON FeatureCollection
-    // Lọc theo selectedFilter nếu có
     const poisGeoJSON = useMemo(() => {
-        []
-        let filteredPois = pois;
+        // Đã xóa dấu [] thừa gây lỗi
+        let filteredPois = pois || [];
 
         // Lọc theo category khi user chọn filter
         if (selectedFilter && FILTER_TO_CATEGORY[selectedFilter]) {
             const categoryName = FILTER_TO_CATEGORY[selectedFilter];
-            filteredPois = pois.filter(poi => poi.category_name === categoryName);
+            filteredPois = filteredPois.filter(poi => poi.category_name === categoryName);
         }
 
         return {
@@ -58,7 +57,6 @@ export default function POIsLayer({
                     category_name: poi.category_name,
                     category_icon: poi.category_icon,
                     category_color: poi.category_color,
-                    // Mapbox cần color dạng string để dùng trong paint
                     color: poi.category_color || '#6366F1'
                 },
                 geometry: {
@@ -107,7 +105,7 @@ export default function POIsLayer({
             const props = features[0].properties;
             if (!props) return;
 
-            // Ngăn sự kiện click lan sang bản đồ (tránh đặt destination)
+            // Ngăn sự kiện click lan sang bản đồ
             event.originalEvent?.stopPropagation();
 
             const geometry = features[0].geometry as any;
@@ -135,13 +133,9 @@ export default function POIsLayer({
     React.useEffect(() => {
         if (!map) return;
 
-        // Click cluster → zoom
         map.on('click', 'poi-clusters', handleClusterClick);
-
-        // Click điểm đơn → popup
         map.on('click', 'poi-unclustered-point', handlePointClick);
 
-        // Đổi cursor khi hover
         map.on('mouseenter', 'poi-clusters', () => {
             map.getCanvas().style.cursor = 'pointer';
         });
@@ -165,12 +159,10 @@ export default function POIsLayer({
         };
     }, [map, handleClusterClick, handlePointClick]);
 
-    // Nếu không có data thì không render gì
-    if (!pois || pois.length === 0) return null;
+    // ĐÃ XÓA DÒNG if (!pois) return null; ĐỂ TRÁNH LỖI MẤT KẾT NỐI CLICK CỦA MAPBOX
 
     return (
         <>
-            {/* ✅ GeoJSON Source với Clustering */}
             <Source
                 id="pois-source"
                 type="geojson"
@@ -187,15 +179,15 @@ export default function POIsLayer({
                     paint={{
                         'circle-color': [
                             'step', ['get', 'point_count'],
-                            '#51bbd6',   // < 10 điểm: xanh nhạt
-                            10, '#f1f075', // 10-30 điểm: vàng
-                            30, '#f28cb1'  // > 30 điểm: hồng
+                            '#51bbd6',   // < 10 điểm
+                            10, '#f1f075', // 10-30 điểm
+                            30, '#f28cb1'  // > 30 điểm
                         ],
                         'circle-radius': [
                             'step', ['get', 'point_count'],
-                            18,          // < 10: bán kính 18
-                            10, 24,      // 10-30: bán kính 24
-                            30, 32       // > 30: bán kính 32
+                            18,          
+                            10, 24,      
+                            30, 32       
                         ],
                         'circle-stroke-width': 3,
                         'circle-stroke-color': '#ffffff',
@@ -218,7 +210,7 @@ export default function POIsLayer({
                     }}
                 />
 
-                {/* Layer 3: Điểm đơn lẻ (Unclustered) */}
+                {/* Layer 3: Điểm đơn lẻ */}
                 <Layer
                     id="poi-unclustered-point"
                     type="circle"
@@ -232,7 +224,7 @@ export default function POIsLayer({
                     }}
                 />
 
-                {/* Layer 4: Viền sáng cho điểm nổi bật (Featured) */}
+                {/* Layer 4: Viền sáng cho điểm nổi bật */}
                 <Layer
                     id="poi-featured-glow"
                     type="circle"

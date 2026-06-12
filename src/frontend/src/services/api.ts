@@ -52,7 +52,9 @@ apiClient.interceptors.response.use(
 );
 
 // ============ FORGOT PASSWORD API ============
-
+export const poiAPI = {
+    getAllPOIs: () => apiClient.get('/pois'),
+};
 export const forgotPasswordAPI = {
     sendOtp: (email: string) =>
         apiClient.post('/auth/forgot-password', { email }),

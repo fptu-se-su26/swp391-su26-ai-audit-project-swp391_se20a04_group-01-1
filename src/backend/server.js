@@ -11,7 +11,14 @@ const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
 
 const app = express();
-app.use(cors());
+
+// Cấu hình CORS cho phép Frontend ở cổng 5173 truy cập
+app.use(cors({
+    origin: "http://localhost:5173", 
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true
+}));
+
 app.use(express.json());
 
 // ============ MIDDLEWARE & UTILS ============
@@ -109,6 +116,7 @@ const pool = await poolPromise;
 const checkExist = await pool
     .request()
     .input("email", sql.NVarChar, email.toLowerCase())
+            .input("username", sql.NVarChar, trimmedUsername)
     .query(
         // CHỈ KIỂM TRA EMAIL TRÙNG LẶP, BỎ KIỂM TRA USERNAME
         "SELECT user_id FROM Users WHERE LOWER(email) = LOWER(@email)"
@@ -207,7 +215,8 @@ app.post("/api/auth/confirm-2fa", authenticateToken, async (req, res) => {
             .input("secret", sql.NVarChar, cleanSecret)
             .query("UPDATE Users SET two_factor_secret = @secret, is_2fa_enabled = 1 WHERE user_id = @user_id");
         
-        res.json({ success: true, message: "Kích hoạt 2FA thành công!" });
+        console.log(`[2FA SECURITY] 2FA enabled for user: ${req.user.id}`);
+        res.json({ success: true, message: "K├¡ch hoß║ít 2FA th├ánh c├┤ng!" });
     } catch (error) {
         console.error("[2FA] Confirm error:", error);
         res.status(500).json({ success: false, error: { message: "Lỗi hệ thống!" } });
@@ -351,7 +360,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
             secret: user.two_factor_secret,
             encoding: "base32",
             token: code,
-            window: 2
+            window: 1
         });
 
         if (verified !== true) {
@@ -425,35 +434,39 @@ app.post("/api/auth/login", async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password_hash);
 
         if (!isMatch) {
-            return res.status(401).json({ message: "Email hoặc mật khẩu không chính xác!" });
+            console.warn(`[AUTH] Failed login attempt for: ${email}`);
+            return res.status(401).json({ message: 'Email hoß║╖c mß║¡t khß║⌐u kh├┤ng ch├¡nh x├íc!' });
         }
 
         const userDb = await pool.request()
-            .input("user_id", sql.Int, user.user_id)
-            .query(`SELECT is_2fa_enabled, role FROM Users WHERE user_id=@user_id`);
+            .input('user_id', sql.Int, user.user_id)
+            .query('SELECT is_2fa_enabled, role FROM Users WHERE user_id = @user_id');
 
         const dbUser = userDb.recordset[0];
+        const is2FA = dbUser?.is_2fa_enabled;
+        const userRole = dbUser?.role;
 
-        if (dbUser?.role === "admin" && dbUser?.is_2fa_enabled) {
+        if (userRole === 'admin' && is2FA) {
             const tempToken = jwt.sign(
                 { id: user.user_id, email: user.email, temp: true },
                 process.env.JWT_SECRET,
-                { expiresIn: "5m" }
+                { expiresIn: '5m' }
             );
-
+            console.log(`[AUTH] Admin login requires 2FA: ${email}`);
             return res.json({ requires2FA: true, tempToken, email: user.email });
         }
 
         await pool.request()
-            .input("user_id", sql.Int, user.user_id)
-            .query(`UPDATE Users SET last_login_at=GETDATE() WHERE user_id=@user_id`);
+            .input('user_id', sql.Int, user.user_id)
+            .query('UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id');
 
         const token = jwt.sign(
             { id: user.user_id, email: user.email, username: user.username, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "1d" }
+            { expiresIn: '1d' }
         );
 
+        console.log(`[AUTH] Successful login: ${email}`);
         res.json({
             token,
             role: user.role,
@@ -586,18 +599,27 @@ app.put('/api/admin/users/:id/ban', authenticateToken, async (req, res) => {
     }
 });
 
-app.put('/api/admin/users/:id/unban', authenticateToken, async (req, res) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ message: 'Truy cập bị từ chối: Cần quyền Admin!' });
-    }
+app.put("/api/user/profile", authenticateToken, async (req, res) => {
     try {
+        const { username } = req.body;
+        const userId = req.user.id;
+
+        if (!username) return res.status(400).json({ message: "Vui l├▓ng nhß║¡p username!" });
+        const trimmedUsername = username.trim();
+        if (trimmedUsername.length < 3) return res.status(400).json({ message: "Username phß║úi c├│ ├¡t nhß║Ñt 3 k├╜ tß╗▒!" });
+
         const pool = await poolPromise;
-        await pool.request()
-            .input('user_id', sql.Int, req.params.id)
-            .query('UPDATE users SET is_active = 1, ban_reason = NULL WHERE user_id = @user_id');
-        res.json({ message: "Đã mở khóa tài khoản" });
+        await pool
+            .request()
+            .input("user_id", sql.Int, userId)
+            .input("username", sql.NVarChar, trimmedUsername)
+            .query("UPDATE Users SET username = @username WHERE user_id = @user_id");
+
+        console.log(`[USER] Profile updated for user: ${userId}`);
+        res.json({ message: "Cß║¡p nhß║¡t profile th├ánh c├┤ng!" });
     } catch (error) {
-        res.status(500).json({ message: "Lỗi máy chủ" });
+        console.error("Update profile error:", error);
+        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
     }
 });
 
@@ -837,7 +859,172 @@ app.get("/api/events", async (req, res) => {
     }
 });
 
-// ============ ĐĂNG NHẬP GOOGLE ============
+// POST /api/events
+app.post("/api/events", async (req, res) => {
+    try {
+        const {
+            title,
+            short_description,
+            description,
+            location_name,
+            latitude,
+            longitude,
+            address,
+            district,
+            start_time,
+            end_time,
+            banner_url,
+            thumbnail_url,
+            status,
+            category_id,
+            is_featured,
+            is_free,
+            ticket_price,
+            organizer_name,
+            contact_email,
+            website_url
+        } = req.body;
+
+        // Γ£à Validate required fields
+        if (!title || !start_time || !location_name) {
+            return res.status(400).json({ message: "Thiß║┐u th├┤ng tin bß║»t buß╗Öc!" });
+        }
+
+        const pool = await poolPromise;
+        await pool
+            .request()
+            .input("category_id", sql.Int, category_id || 1)
+            .input("created_by", sql.Int, req.user?.id || 1)
+            .input("title", sql.NVarChar, title)
+            .input("short_description", sql.NVarChar, short_description || null)
+            .input("description", sql.NVarChar, description || null)
+            .input("location_name", sql.NVarChar, location_name)
+            .input("latitude", sql.Decimal, latitude || 0)
+            .input("longitude", sql.Decimal, longitude || 0)
+            .input("address", sql.NVarChar, address || null)
+            .input("district", sql.NVarChar, district || null)
+            .input("start_time", sql.DateTime, start_time)
+            .input("end_time", sql.DateTime, end_time || null)
+            .input("banner_url", sql.NVarChar, banner_url || null)
+            .input("thumbnail_url", sql.NVarChar, thumbnail_url || null)
+            .input("status", sql.NVarChar, status || "pending")
+            .input("is_featured", sql.Bit, is_featured ? 1 : 0)
+            .input("is_free", sql.Bit, is_free ? 1 : 0)
+            .input("ticket_price", sql.Decimal, ticket_price || 0)
+            .input("organizer_name", sql.NVarChar, organizer_name || null)
+            .input("contact_email", sql.NVarChar, contact_email || null)
+            .input("website_url", sql.NVarChar, website_url || null)
+            .query(`
+                INSERT INTO Events (
+                    category_id, created_by, title, short_description, description,
+                    location_name, latitude, longitude, address, district,
+                    start_time, end_time, banner_url, thumbnail_url, status,
+                    is_featured, is_free, ticket_price, organizer_name, contact_email,
+                    website_url, created_at, updated_at
+                )
+                VALUES (
+                    @category_id, @created_by, @title, @short_description, @description,
+                    @location_name, @latitude, @longitude, @address, @district,
+                    @start_time, @end_time, @banner_url, @thumbnail_url, @status,
+                    @is_featured, @is_free, @ticket_price, @organizer_name, @contact_email,
+                    @website_url, GETDATE(), GETDATE()
+                )
+            `);
+
+        console.log(`[EVENTS] New event created: ${title}`);
+        res.status(201).json({ message: "L╞░u sß╗▒ kiß╗çn th├ánh c├┤ng!" });
+    } catch (error) {
+        console.error("Add event error:", error);
+        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+    }
+});
+
+// ============ FLOOD ZONES ============
+app.get("/api/flood-zones", async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query("SELECT * FROM FloodZones where is_active = 1 ");
+
+        res.json({
+            message: "Lß║Ñy dß╗» liß╗çu v├╣ng ngß║¡p lß╗Ñt th├ánh c├┤ng",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lß╗ùi lß║Ñy dß╗» liß╗çu FloodZones:", error);
+        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+    }
+});
+
+// ============ POIs (Points of Interest) ============
+
+// GET /api/pois - Lß║Ñy danh s├ích tß║Ñt cß║ú POIs (c├│ thß╗â lß╗ìc theo category)
+app.get("/api/pois", async (req, res) => {
+    try {
+        const { category_id } = req.query;
+        const pool = await poolPromise;
+
+        let query = `
+            SELECT 
+                p.poi_id,
+                p.name,
+                p.latitude,
+                p.longitude,
+                p.address,
+                p.description,
+                p.image_url,
+                p.website_url,
+                p.phone_number,
+                p.rating,
+                p.is_featured,
+                p.is_active,
+                c.name AS category_name,
+                c.icon AS category_icon,
+                c.color_code AS category_color
+            FROM POIs p
+            LEFT JOIN POIsCategories c ON p.category_id = c.id
+            WHERE p.is_active = 1
+        `;
+
+        const request = pool.request();
+
+        if (category_id) {
+            query += ` AND p.category_id = @category_id`;
+            request.input("category_id", sql.Int, parseInt(category_id));
+        }
+
+        query += ` ORDER BY p.is_featured DESC, p.rating DESC`;
+
+        const result = await request.query(query);
+
+        res.json({
+            message: "Lß║Ñy danh s├ích POI th├ánh c├┤ng!",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lß╗ùi lß║Ñy dß╗» liß╗çu POIs:", error);
+        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+    }
+});
+
+// GET /api/poi-categories - Lß║Ñy danh s├ích tß║Ñt cß║ú POI categories
+app.get("/api/poi-categories", async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(
+            "SELECT id, name, icon, color_code, description FROM POIsCategories ORDER BY id"
+        );
+
+        res.json({
+            message: "Lß║Ñy danh s├ích POI categories th├ánh c├┤ng!",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lß╗ùi lß║Ñy dß╗» liß╗çu POIsCategories:", error);
+        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+    }
+});
+
+// ============ ─É─éNG NHß║¼P GOOGLE ============
 
 app.post("/api/auth/google", async (req, res) => {
     const { token } = req.body;
