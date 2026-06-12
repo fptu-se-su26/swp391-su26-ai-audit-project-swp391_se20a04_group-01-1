@@ -216,7 +216,7 @@ app.post("/api/auth/confirm-2fa", authenticateToken, async (req, res) => {
             .query("UPDATE Users SET two_factor_secret = @secret, is_2fa_enabled = 1 WHERE user_id = @user_id");
         
         console.log(`[2FA SECURITY] 2FA enabled for user: ${req.user.id}`);
-        res.json({ success: true, message: "K├¡ch hoß║ít 2FA th├ánh c├┤ng!" });
+        res.json({ success: true, message: "Kích hoạt 2FA thành công!" });
     } catch (error) {
         console.error("[2FA] Confirm error:", error);
         res.status(500).json({ success: false, error: { message: "Lỗi hệ thống!" } });
@@ -435,7 +435,7 @@ app.post("/api/auth/login", async (req, res) => {
 
         if (!isMatch) {
             console.warn(`[AUTH] Failed login attempt for: ${email}`);
-            return res.status(401).json({ message: 'Email hoß║╖c mß║¡t khß║⌐u kh├┤ng ch├¡nh x├íc!' });
+            return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác!' });
         }
 
         const userDb = await pool.request()
@@ -604,9 +604,9 @@ app.put("/api/user/profile", authenticateToken, async (req, res) => {
         const { username } = req.body;
         const userId = req.user.id;
 
-        if (!username) return res.status(400).json({ message: "Vui l├▓ng nhß║¡p username!" });
+        if (!username) return res.status(400).json({ message: "Vui lòng nhập username!" });
         const trimmedUsername = username.trim();
-        if (trimmedUsername.length < 3) return res.status(400).json({ message: "Username phß║úi c├│ ├¡t nhß║Ñt 3 k├╜ tß╗▒!" });
+        if (trimmedUsername.length < 3) return res.status(400).json({ message: "Username phải có ít nhất 3 ký tự!" });
 
         const pool = await poolPromise;
         await pool
@@ -616,10 +616,10 @@ app.put("/api/user/profile", authenticateToken, async (req, res) => {
             .query("UPDATE Users SET username = @username WHERE user_id = @user_id");
 
         console.log(`[USER] Profile updated for user: ${userId}`);
-        res.json({ message: "Cß║¡p nhß║¡t profile th├ánh c├┤ng!" });
+        res.json({ message: "Cập nhật profile thành công!" });
     } catch (error) {
         console.error("Update profile error:", error);
-        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
@@ -887,7 +887,7 @@ app.post("/api/events", async (req, res) => {
 
         // Γ£à Validate required fields
         if (!title || !start_time || !location_name) {
-            return res.status(400).json({ message: "Thiß║┐u th├┤ng tin bß║»t buß╗Öc!" });
+            return res.status(400).json({ message: "Thiếu thông tin bắt buộc!" });
         }
 
         const pool = await poolPromise;
@@ -932,10 +932,10 @@ app.post("/api/events", async (req, res) => {
             `);
 
         console.log(`[EVENTS] New event created: ${title}`);
-        res.status(201).json({ message: "L╞░u sß╗▒ kiß╗çn th├ánh c├┤ng!" });
+        res.status(201).json({ message: "Lưu sự kiện thành công!" });
     } catch (error) {
         console.error("Add event error:", error);
-        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
@@ -946,18 +946,18 @@ app.get("/api/flood-zones", async (req, res) => {
         const result = await pool.request().query("SELECT * FROM FloodZones where is_active = 1 ");
 
         res.json({
-            message: "Lß║Ñy dß╗» liß╗çu v├╣ng ngß║¡p lß╗Ñt th├ánh c├┤ng",
+            message: "Lấy dữ liệu vùng ngập lụt thành công",
             data: result.recordset
         });
     } catch (error) {
-        console.error("Lß╗ùi lß║Ñy dß╗» liß╗çu FloodZones:", error);
-        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+        console.error("Lỗi lấy dữ liệu FloodZones:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
 // ============ POIs (Points of Interest) ============
 
-// GET /api/pois - Lß║Ñy danh s├ích tß║Ñt cß║ú POIs (c├│ thß╗â lß╗ìc theo category)
+// GET /api/pois - Lấy danh sách tất cả POIs (có thể lọc theo category)
 app.get("/api/pois", async (req, res) => {
     try {
         const { category_id } = req.query;
@@ -997,16 +997,16 @@ app.get("/api/pois", async (req, res) => {
         const result = await request.query(query);
 
         res.json({
-            message: "Lß║Ñy danh s├ích POI th├ánh c├┤ng!",
+            message: "Lấy danh sách POI thành công!",
             data: result.recordset
         });
     } catch (error) {
-        console.error("Lß╗ùi lß║Ñy dß╗» liß╗çu POIs:", error);
-        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+        console.error("Lỗi lấy dữ liệu POIs:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
-// GET /api/poi-categories - Lß║Ñy danh s├ích tß║Ñt cß║ú POI categories
+// GET /api/poi-categories - Lấy danh sách tất cả POI categories
 app.get("/api/poi-categories", async (req, res) => {
     try {
         const pool = await poolPromise;
@@ -1015,16 +1015,16 @@ app.get("/api/poi-categories", async (req, res) => {
         );
 
         res.json({
-            message: "Lß║Ñy danh s├ích POI categories th├ánh c├┤ng!",
+            message: "Lấy danh sách POI categories thành công!",
             data: result.recordset
         });
     } catch (error) {
-        console.error("Lß╗ùi lß║Ñy dß╗» liß╗çu POIsCategories:", error);
-        res.status(500).json({ message: "Lß╗ùi server", error: error.message });
+        console.error("Lỗi lấy dữ liệu POIsCategories:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
-// ============ ─É─éNG NHß║¼P GOOGLE ============
+// ============ ĐĂNG NHẬP GOOGLE ============
 
 app.post("/api/auth/google", async (req, res) => {
     const { token } = req.body;
