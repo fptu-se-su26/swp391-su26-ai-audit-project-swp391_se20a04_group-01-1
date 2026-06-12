@@ -46,21 +46,20 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
         try {
             const token = localStorage.getItem('token');
             
-            // Dùng FormData để gửi cả Text và File
-            const formData = new FormData();
-            formData.append('username', username);
-            if (avatarFile) {
-                formData.append('avatar', avatarFile);
-            }
+            // ✅ SỬA Ở ĐÂY: Dùng object JSON thông thường thay vì FormData
+            const payload = {
+                username: username
+                // Tạm thời chưa gửi avatarFile vì Backend chưa cấu hình thư viện nhận File (như multer).
+                // Ảnh vẫn có thể xem trước ở Frontend, nhưng chỉ có tên là được lưu vào Database.
+            };
 
             const response = await fetch('http://localhost:5001/api/user/profile', {
                 method: 'PUT',
                 headers: {
+                    'Content-Type': 'application/json', // ✅ BẮT BUỘC CÓ DÒNG NÀY
                     'Authorization': `Bearer ${token}`
-                    // LƯU Ý QUAN TRỌNG: Tuyệt đối KHÔNG set 'Content-Type' ở đây khi dùng FormData
-                    // Trình duyệt sẽ tự động thêm Content-Type: multipart/form-data kèm theo boundary
                 },
-                body: formData
+                body: JSON.stringify(payload) // ✅ Ép kiểu sang chuỗi JSON
             });
 
             const data = await response.json();
@@ -117,6 +116,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
                                 onChange={handleFileChange}
                             />
                         </label>
+                        <span style={{fontSize: '10px', color: '#9ca3af', marginTop: '4px'}}>
+                            (Tạm thời tính năng lưu ảnh đang vô hiệu hóa)
+                        </span>
                     </div>
 
                     <div style={{ marginBottom: '24px' }}>

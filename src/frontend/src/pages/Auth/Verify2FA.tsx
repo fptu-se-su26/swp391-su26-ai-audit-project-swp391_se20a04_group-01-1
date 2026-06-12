@@ -94,6 +94,12 @@ const Verify2FA: React.FC = () => {
       });
 
       if (result?.success && result?.access_token && result?.user) {
+        
+        // 1. THÊM BA DÒNG NÀY: Lưu dữ liệu để ProtectedRoute nhận diện được bạn đã đăng nhập
+        localStorage.setItem("token", result.access_token);
+        localStorage.setItem("userRole", result.user.role);
+        localStorage.setItem("user", JSON.stringify(result.user));
+
         login(result.user, result.access_token);
         
         // Clear storage
@@ -102,7 +108,14 @@ const Verify2FA: React.FC = () => {
         localStorage.removeItem('temp_token_expiry');
 
         toast.success('Xác minh 2FA thành công!');
-        navigate('/dashboard');
+        
+        // 2. SỬA ĐOẠN ĐIỀU HƯỚNG: Phân luồng cho Admin và User
+        if (result.user.role === "admin") {
+          window.location.href = "/admin/dashboard";
+        } else {
+          window.location.href = "/dashboard";
+        }
+        
       } else {
         throw new Error(result?.error?.message || 'Xác minh 2FA thất bại');
       }

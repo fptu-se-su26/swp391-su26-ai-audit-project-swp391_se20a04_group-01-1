@@ -17,12 +17,18 @@ const OTPInput: React.FC<OTPInputProps> = ({
   const [otp, setOTP] = useState<string[]>(Array(length).fill(''));
   const inputRefs = useRef<(HTMLInputElement | null)[]>(Array(length).fill(null));
 
+  // ĐÃ SỬA LỖI TẠI ĐÂY: Đảm bảo mảng luôn đủ số phần tử (length)
   useEffect(() => {
-    if (value.length > 0) {
-      const otpArray = value.split('').slice(0, length);
-      setOTP(otpArray);
-      inputRefs.current[otpArray.length]?.focus();
+    const newOTPArray = Array(length).fill(''); // Tạo mảng mặc định toàn chuỗi rỗng
+    
+    // Ghi đè các giá trị đã có từ prop `value` vào mảng
+    if (value) {
+      value.split('').slice(0, length).forEach((char, index) => {
+        newOTPArray[index] = char;
+      });
     }
+    
+    setOTP(newOTPArray);
   }, [value, length]);
 
   const handleChange = (index: number, inputValue: string) => {
@@ -70,11 +76,18 @@ const OTPInput: React.FC<OTPInputProps> = ({
     if (!/^\d+$/.test(pastedData)) return;
 
     const pastedOTP = pastedData.split('').slice(0, length);
-    setOTP(pastedOTP);
-    const otpString = pastedOTP.join('');
+    
+    // Đảm bảo mảng dán vào cũng đủ length
+    const paddedOTP = Array(length).fill('');
+    pastedOTP.forEach((char, index) => {
+      paddedOTP[index] = char;
+    });
+
+    setOTP(paddedOTP);
+    const otpString = paddedOTP.join('');
     onChange(otpString);
 
-    if (pastedOTP.every((digit) => digit !== '') && onComplete) {
+    if (paddedOTP.every((digit) => digit !== '') && onComplete) {
       onComplete(otpString);
     }
   };

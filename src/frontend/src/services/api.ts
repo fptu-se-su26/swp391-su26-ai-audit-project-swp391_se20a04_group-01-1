@@ -52,7 +52,9 @@ apiClient.interceptors.response.use(
 );
 
 // ============ FORGOT PASSWORD API ============
-
+export const poiAPI = {
+    getAllPOIs: () => apiClient.get('/pois'),
+};
 export const forgotPasswordAPI = {
     sendOtp: (email: string) =>
         apiClient.post('/auth/forgot-password', { email }),
@@ -106,11 +108,3 @@ export default apiClient;
 export const eventAPI = {
     getAllEvents: () => apiClient.get('/events'),
 };
-
-// ============ POI API ============
-export const poiAPI = {
-    getAllPOIs: (categoryId?: number) =>
-        apiClient.get('/pois', { params: categoryId ? { category_id: categoryId } : {} }),
-    getCategories: () =>
-        apiClient.get('/poi-categories'),
-};

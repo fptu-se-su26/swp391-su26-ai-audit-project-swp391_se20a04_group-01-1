@@ -4,18 +4,19 @@ import Map, { NavigationControl, Marker, Source, Layer, MapRef, Popup } from 're
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 import {
-    Search, Navigation, Bell, User, LogOut, ArrowLeft, Settings,
+    Search, Navigation, Bell, User, Settings,
     ShieldAlert, Ban, CloudRain, Compass, Utensils, Hotel,
-    Gamepad2, Landmark, DollarSign, ChevronRight,
+    Gamepad2, Landmark, DollarSign,
     Layers, TrendingUp,
     Car, Footprints, Bike, ArrowUpDown
 } from 'lucide-react';
 
 import POIsLayer from './components/POIsLayer';
-import { poiAPI } from '../../services/api';
+import { poiAPI } from '../../services/api'; // ✅ ĐÃ SỬA LỖI IMPORT TẠI ĐÂY
 import { POIData } from './components/POIPopup';
 import POIFeaturedSidebar from './components/POIFeaturedSidebar';
 
+// ✅ ĐÃ SỬA LẠI LỖI FONT CHỮ BỊ HỎNG
 const filterCategories = [
     { id: 'attractions', label: 'Điểm tham quan', icon: Compass },
     { id: 'restaurants', label: 'Nhà hàng', icon: Utensils },
@@ -25,20 +26,10 @@ const filterCategories = [
     { id: 'atm', label: 'ATM', icon: DollarSign },
 ];
 
-
-
 const mockAlerts = [
     { id: 1, type: 'flood', title: 'Ngập lụt', content: 'Đường Nguyễn Văn Linh đang có nguy cơ ngập cao, mức nước dự báo 20–30cm. Tránh di chuyển qua khu vực này.', location: 'Nguyễn Văn Linh, Hải Châu', time: 'Vừa cập nhật' },
     { id: 2, type: 'block', title: 'Cấm đường', content: 'Đường Trần Hưng Đạo bị cấm từ 18:00–23:00 do sự kiện DIFF 2026. Lưu ý lộ trình thay thế qua Hùng Vương.', location: 'Trần Hưng Đạo, Hải Châu', time: 'Có hiệu lực từ 18:00' },
     { id: 3, type: 'flood', title: 'Ngập lụt', content: 'Khu vực chân cầu Tuyên Sơn nước dâng nhanh do triều cường.', location: 'Chân cầu Tuyên Sơn', time: '10 phút trước' }
-];
-
-const mockEvents = [
-    { id: 1, title: 'Cầu Rồng Phun Lửa & Phun Nước', time: '21:00', location: 'Cầu Rồng', status: 'LIVE', isLive: true },
-    { id: 2, title: 'Lễ hội Ẩm thực Đà Nẵng 2026', time: '09:00', location: 'Quảng trường 29/3', status: 'LIVE', isLive: true },
-    { id: 3, title: 'DIFF 2026 – Lễ hội Pháo hoa Quốc tế Đà Nẵng', time: '24/05 – 07/06/2026', location: 'Cầu Rồng & Bờ sông Hàn', status: 'Sắp diễn ra', isLive: false },
-    { id: 4, title: 'Giải Chạy Biển Mỹ Khê 2026', time: 'Chủ Nhật 25/05/2026', location: 'Đường Võ Nguyên Giáp', status: 'Sắp diễn ra', isLive: false },
-    { id: 5, title: 'Triển lãm Công nghệ FPT University', time: '15/06/2026', location: 'FPT Complex, Ngũ Hành Sơn', status: 'Sắp diễn ra', isLive: false }
 ];
 
 export default function Home() {
@@ -48,7 +39,7 @@ export default function Home() {
     const [showNotificationModal, setShowNotificationModal] = useState(false);
     const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
     const [countdown, setCountdown] = useState(1);
-    
+
     // State lưu trữ dữ liệu ngập lụt
     const [floodZones, setFloodZones] = useState<any[]>([]);
     const [selectedFloodZone, setSelectedFloodZone] = useState<any | null>(null);
@@ -56,7 +47,6 @@ export default function Home() {
 
     // State lưu trữ POIs
     const [pois, setPois] = useState<POIData[]>([]);
-    // State lưu trữ POI đang chọn để hiển thị popup & liên kết với sidebar
     const [selectedPOI, setSelectedPOI] = useState<POIData | null>(null);
 
     // Di chuyển map đến POI và mở popup
@@ -69,14 +59,14 @@ export default function Home() {
         });
     };
 
-    // TRẠNG THÁI CHO THANH CÔNG CỤ BẢN ĐỒ GÓC PHẢI (Right Sidebar)
+    // TRẠNG THÁI CHO THANH CÔNG CỤ BẢN ĐỒ GÓC PHẢI
     const [mapControls, setMapControls] = useState({
         layers: true,
         traffic: true,
         flood: false
     });
 
-    // ✅ CÁC STATE CỦA MAPBOX VÀ CHỈ ĐƯỜNG
+    // CÁC STATE CỦA MAPBOX VÀ CHỈ ĐƯỜNG
     const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
     const [destination, setDestination] = useState<{ lng: number; lat: number; label: string } | null>(null);
     const [routeData, setRouteData] = useState<{
@@ -86,8 +76,6 @@ export default function Home() {
     } | null>(null);
     const [loadingRoute, setLoadingRoute] = useState(false);
 
-
-    // Thêm các biến state cho tìm kiếm 2 điểm, hoán đổi và đổi phương tiện di chuyển
     const mapRef = useRef<MapRef>(null);
     const [origin, setOrigin] = useState<{ lng: number; lat: number; label: string } | null>(null);
     const [originQuery, setOriginQuery] = useState('');
@@ -97,8 +85,9 @@ export default function Home() {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [loadingSearch, setLoadingSearch] = useState(false);
     const [travelMode, setTravelMode] = useState<'driving' | 'walking' | 'cycling'>('driving');
-    // ✅ HÀM: Lấy tọa độ GPS của người dùng hiện tại
-    const handleGetCurrentLocation = (showErrorAlert = true) => {
+
+    // ✅ HÀM: Lấy tọa độ GPS
+    const handleGetCurrentLocation = () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
@@ -108,25 +97,22 @@ export default function Home() {
                     };
                     setUserLocation(loc);
 
-                    // Mặc định thiết lập Điểm đi (origin) là Vị trí hiện tại của bạn
                     setOrigin({
                         lng: loc.lng,
                         lat: loc.lat,
                         label: 'Vị trí của bạn'
                     });
                     setOriginQuery('Vị trí của bạn');
-                    // Kéo camera bản đồ di chuyển mượt mà về tọa độ này
+                    
                     mapRef.current?.flyTo({
                         center: [loc.lng, loc.lat],
                         zoom: 15,
-                        duration: 1500 // thời gian di chuyển (ms)
+                        duration: 1500
                     });
                 },
                 (error) => {
-                    if (showErrorAlert) {
-                        alert("Không thể lấy vị trí hiện tại. Vui lòng cho phép quyền truy cập GPS.");
-                    }
-                    console.error("Lỗi lấy vị trí GPS:", error);
+                    alert("Không thể lấy vị trí hiện tại. Vui lòng cho phép quyền truy cập GPS.");
+                    console.error(error);
                 }
             );
         }
@@ -134,10 +120,8 @@ export default function Home() {
 
     // ✅ HÀM: Chọn điểm đến khi click lên bản đồ
     const handleMapClick = (event: any) => {
-        // ✅ Nếu đang mở POI Popup thì bỏ qua, KHÔNG set destination
         if (selectedPOI) return;
 
-        // Kiểm tra xem có click trúng flood zone hay không
         if (mapRef.current) {
             const features = mapRef.current.queryRenderedFeatures(event.point, {
                 layers: ['flood-zones-circle', 'flood-zones-fill']
@@ -149,16 +133,14 @@ export default function Home() {
                     lat: event.lngLat.lat,
                     properties: zone.properties
                 });
-                return; // Ngăn chặn set destination
+                return; 
             }
         }
-
         const { lng, lat } = event.lngLat;
         setDestination({ lng, lat, label: `Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}` });
         setDestinationQuery(`Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}`);
     };
 
-    // Xử lý tự động tìm gợi ý địa điểm (Auto-complete)
     useEffect(() => {
         const query = activeInputField === 'origin' ? originQuery : destinationQuery;
 
@@ -188,7 +170,6 @@ export default function Home() {
         return () => clearTimeout(delayDebounceFn);
     }, [originQuery, destinationQuery, activeInputField]);
 
-    // Xử lý khi click chọn một địa điểm gợi ý
     const handleSelectSuggestion = (item: any) => {
         const [lng, lat] = item.center;
         const fullName = item.place_name_vi || item.place_name;
@@ -201,7 +182,6 @@ export default function Home() {
         }
 
         setShowSuggestions(false);
-        // Di chuyển camera bản đồ đến điểm vừa chọn
         mapRef.current?.flyTo({
             center: [lng, lat],
             zoom: 15,
@@ -209,7 +189,6 @@ export default function Home() {
         });
     };
 
-    // Hàm đảo ngược lộ trình (Hoán đổi Điểm xuất phát và Đích đến)
     const handleSwapLocations = () => {
         if (!origin && !destination) return;
         const tempOrigin = origin;
@@ -220,8 +199,6 @@ export default function Home() {
         setDestinationQuery(tempOriginQuery);
     };
 
-
-    // Cập nhật Effect chỉ đường để hỗ trợ đổi phương tiện di chuyển
     useEffect(() => {
         if (!origin || !destination) return;
         const getShortestRoute = async () => {
@@ -239,7 +216,7 @@ export default function Home() {
                         totalTimeMin: Math.round(route.duration / 60),
                         coordinates: route.geometry.coordinates
                     });
-                    // Căn chỉnh camera hiển thị đầy đủ tuyến đường đi
+                    
                     const coords = route.geometry.coordinates;
                     if (coords.length > 0) {
                         let minLng = coords[0][0], maxLng = coords[0][0];
@@ -270,7 +247,6 @@ export default function Home() {
         getShortestRoute();
     }, [origin, destination, travelMode]);
 
-    // ✅ Dựng cấu trúc GeoJSON cho đường đi
     const geojsonData: any = routeData ? {
         type: 'Feature',
         properties: {},
@@ -280,7 +256,6 @@ export default function Home() {
         }
     } : null;
 
-    // ✅ Định nghĩa CSS Line của bản đồ
     const routeLayerStyle: any = {
         id: 'route-line',
         type: 'line',
@@ -289,7 +264,7 @@ export default function Home() {
             'line-cap': 'round'
         },
         paint: {
-            'line-color': '#2563eb', // Màu xanh lục chỉ đường
+            'line-color': '#2563eb',
             'line-width': 6,
             'line-opacity': 0.85
         }
@@ -313,10 +288,8 @@ export default function Home() {
 
     const handleFilterClick = (filterId: string) => {
         if (selectedFilter === filterId) {
-            // Bấm lần 2 → tắt filter
             setSelectedFilter(null);
         } else {
-            // Bấm filter mới → xóa marker/route hiện tại để sidebar hiện ra
             setSelectedFilter(filterId);
             setDestination(null);
             setDestinationQuery('');
@@ -330,14 +303,6 @@ export default function Home() {
         setMapControls(prev => ({ ...prev, [controlName]: !prev[controlName] }));
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-    };
-
-    // Lấy dữ liệu vùng ngập lụt từ Backend
     useEffect(() => {
         const fetchFloodZones = async () => {
             try {
@@ -353,7 +318,7 @@ export default function Home() {
         fetchFloodZones();
     }, []);
 
-    // Lấy dữ liệu POIs từ Backend
+    // ✅ ĐÃ SỬA LỖI ĐỂ TẢI ĐƯỢC DANH SÁCH POI
     useEffect(() => {
         const fetchPOIs = async () => {
             try {
@@ -368,12 +333,10 @@ export default function Home() {
         fetchPOIs();
     }, []);
 
-    // Tự động lấy vị trí hiện tại của người dùng khi khởi động Map
     useEffect(() => {
-        handleGetCurrentLocation(false);
+        handleGetCurrentLocation();
     }, []);
 
-    // Chuyển đổi dữ liệu ngập lụt sang định dạng Mapbox GeoJSON
     const floodGeoJSON: any = useMemo(() => {
         if (!floodZones || floodZones.length === 0) return null;
         return {
@@ -407,14 +370,11 @@ export default function Home() {
         };
     }, [floodZones]);
 
-    // ================= GIAO DIỆN MÀN HÌNH CHÍNH BẢN ĐỒ =================
     return (
         <div className="w-full h-screen relative bg-slate-100 overflow-hidden font-sans select-none">
-
-            {/* ✅ BẢN ĐỒ MAPBOX ĐÃ ĐƯỢC TÍCH HỢP */}
             <div className="absolute inset-0 z-0">
                 <Map
-                    ref={mapRef} // <-- Gắn ref
+                    ref={mapRef}
                     initialViewState={{
                         longitude: 108.2022,
                         latitude: 16.0544,
@@ -450,30 +410,26 @@ export default function Home() {
                 >
                     <NavigationControl position="bottom-right" showCompass={true} />
 
-                    {/* Marker: Chấm định vị vị trí hiện tại GPS */}
                     {userLocation && (
                         <Marker longitude={userLocation.lng} latitude={userLocation.lat} anchor="center">
                             <div className="w-4 h-4 bg-blue-600 border-2 border-white rounded-full shadow-lg animate-pulse" />
                         </Marker>
                     )}
-                    {/* Marker: Chấm xanh lá cây biểu diễn Điểm đi tùy chỉnh (nếu khác GPS) */}
+                    
                     {origin && userLocation && (origin.lng !== userLocation.lng || origin.lat !== userLocation.lat) && (
                         <Marker longitude={origin.lng} latitude={origin.lat} anchor="center">
                             <div className="w-4.5 h-4.5 bg-emerald-600 border-2 border-white rounded-full shadow-lg" />
                         </Marker>
                     )}
 
-                    {/* Marker: Ghim đỏ Điểm đến */}
                     {destination && (
                         <Marker longitude={destination.lng} latitude={destination.lat} anchor="bottom">
                             <div className="text-red-600 text-2xl animate-bounce">📍</div>
                         </Marker>
                     )}
 
-                    {/* VẼ ĐA GIÁC & ĐIỂM NGẬP LỤT */}
                     {mapControls.flood && floodGeoJSON && (
                         <Source id="flood-zones-source" type="geojson" data={floodGeoJSON}>
-                            {/* 1. LAYER VẼ ĐA GIÁC (Dành cho vùng rộng) */}
                             <Layer
                                 id="flood-zones-fill"
                                 type="fill"
@@ -483,8 +439,6 @@ export default function Home() {
                                     'fill-opacity': 0.45
                                 }}
                             />
-
-                            {/* 2. LAYER VẼ VÒNG TRÒN (Dành cho điểm ngập trên đường) */}
                             <Layer
                                 id="flood-zones-circle"
                                 type="circle"
@@ -502,7 +456,6 @@ export default function Home() {
                         </Source>
                     )}
 
-                    {/* POPUP THÔNG TIN KHI CLICK VÀO VÙNG NGẬP */}
                     {selectedFloodZone && mapControls.flood && (
                         <Popup
                             longitude={selectedFloodZone.lng}
@@ -515,7 +468,6 @@ export default function Home() {
                         >
                             <div className="p-2 w-52 text-slate-800 font-sans">
                                 <h3 className="font-bold text-[13px] mb-1.5 leading-tight">{selectedFloodZone.properties.name}</h3>
-
                                 <div className="flex items-center gap-1.5 mb-2">
                                     <span className="text-[11px] text-slate-500 font-semibold">Mức độ:</span>
                                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
@@ -527,32 +479,19 @@ export default function Home() {
                                          selectedFloodZone.properties.risk_level === 'Medium' ? 'Trung bình' : 'Thấp'}
                                     </span>
                                 </div>
-
                                 <p className="text-[11px] text-slate-600 leading-relaxed border-t border-slate-100 pt-1.5 pb-1.5">
                                     {selectedFloodZone.properties.description}
                                 </p>
-                                <div className="bg-slate-50 rounded p-1.5 mt-1 space-y-1 border border-slate-100">
-                                    <div className="text-[10px] text-slate-500 font-medium">
-                                        📍 <span className="text-slate-700 font-semibold">{selectedFloodZone.properties.district}</span>
-                                    </div>
-                                    {selectedFloodZone.properties.typical_flood_months && (
-                                        <div className="text-[10px] text-slate-500 font-medium">
-                                            📅 Tháng ngập: <span className="text-slate-700 font-semibold">{selectedFloodZone.properties.typical_flood_months}</span>
-                                        </div>
-                                    )}
-                                </div>
                             </div>
                         </Popup>
                     )}
 
-                    {/* Vẽ đường đi tìm được dạng GeoJSON */}
                     {geojsonData && (
                         <Source id="route-source" type="geojson" data={geojsonData}>
                             <Layer {...routeLayerStyle} />
                         </Source>
                     )}
 
-                    {/* ✅ Lớp hiển thị Điểm dịch vụ & Điểm tham quan (POIs) */}
                     <POIsLayer
                         pois={pois}
                         selectedFilter={selectedFilter}
@@ -574,15 +513,11 @@ export default function Home() {
                 </Map>
             </div>
 
-            {/* ================= BAR TRÊN CÙNG ================= */}
+            {/* HEADER TRÊN CÙNG */}
             <div className="absolute top-6 left-6 right-6 z-10 flex items-start justify-between gap-4 pointer-events-none">
-
-                {/* TRÁI: Ô TÌM KIẾM + ROUTE DETAILS + POI SIDEBAR */}
                 <div className="relative pointer-events-auto shrink-0 flex flex-col gap-2 max-h-[calc(100vh-80px)]">
-                    {/* Wrap ô search + gợi ý trong 1 div relative riêng */}
                     <div className="relative">
                         {!destination ? (
-                            // THANH TÌM KIẾM ĐƠN GIẢN
                             <div className="w-80 h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
                                 <Search className="text-blue-500 mr-2 shrink-0" size={18} />
                                 <input
@@ -601,10 +536,8 @@ export default function Home() {
                                 />
                             </div>
                         ) : (
-                            // PANEL CHỈ ĐƯỜNG 2 ĐIỂM
                             <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
                                 <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
-
                                 <div className="flex items-center gap-3 relative">
                                     <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
@@ -624,7 +557,6 @@ export default function Home() {
                                         className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
                                     />
                                 </div>
-
                                 <div className="flex items-center gap-3 relative">
                                     <span className="text-red-500 z-10 text-sm font-bold shrink-0">📍</span>
                                     <input
@@ -642,7 +574,6 @@ export default function Home() {
                                         className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
                                     />
                                 </div>
-
                                 <button
                                     onClick={handleSwapLocations}
                                     className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
@@ -652,10 +583,8 @@ export default function Home() {
                                 </button>
                             </div>
                         )}
-
-                        {/* GỢI Ý TÌM KIẾM – absolute ngay dưới ô search, đè lên các panel bên dưới */}
                         {showSuggestions && suggestions.length > 0 && (
-                            <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[100]">
+                            <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
                                 {suggestions.map((item: any) => (
                                     <button
                                         key={item.id}
@@ -673,36 +602,29 @@ export default function Home() {
                         )}
                     </div>
 
-                    {/* ✅ ROUTE DETAILS – xuất hiện ngay dưới ô tìm kiếm khi có lộ trình */}
                     {routeData && (
                         <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4">
                             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
-
-                            {/* Bộ chọn phương tiện di chuyển */}
                             <div className="flex gap-2 mb-3 bg-slate-50 p-1 rounded-xl">
                                 <button
                                     onClick={() => setTravelMode('driving')}
                                     className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'driving' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
                                 >
-                                    <Car size={13} />
-                                    Lái xe
+                                    <Car size={13} /> Lái xe
                                 </button>
                                 <button
                                     onClick={() => setTravelMode('walking')}
                                     className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'walking' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
                                 >
-                                    <Footprints size={13} />
-                                    Đi bộ
+                                    <Footprints size={13} /> Đi bộ
                                 </button>
                                 <button
                                     onClick={() => setTravelMode('cycling')}
                                     className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'cycling' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
                                 >
-                                    <Bike size={13} />
-                                    Xe đạp
+                                    <Bike size={13} /> Xe đạp
                                 </button>
                             </div>
-
                             <div className="flex justify-between items-center bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                                 <div>
                                     <p className="text-[10px] text-slate-400 font-semibold">KHOẢNG CÁCH</p>
@@ -713,7 +635,6 @@ export default function Home() {
                                     <p className="text-lg font-black text-blue-600">{routeData.totalTimeMin} phút</p>
                                 </div>
                             </div>
-
                             <button
                                 onClick={() => {
                                     setRouteData(null);
@@ -729,7 +650,6 @@ export default function Home() {
                         </div>
                     )}
 
-                    {/* ✅ POI SIDEBAR – chỉ hiện khi đang chọn một filter */}
                     {selectedFilter !== null && (
                         <POIFeaturedSidebar
                             pois={pois}
@@ -751,7 +671,7 @@ export default function Home() {
                     )}
                 </div>
 
-                {/* GIỮA: THANH BỘ LỌC CÁC ĐỊA ĐIỂM DỊCH VỤ & GIẢI TRÍ */}
+                {/* Giữa: Các nút Filters */}
                 <div className="flex-1 flex items-center justify-center gap-2 overflow-x-auto pb-1 scrollbar-none pointer-events-auto max-w-[calc(100vw-540px)]">
                     {filterCategories.map((cat) => {
                         const Icon = cat.icon;
@@ -773,7 +693,7 @@ export default function Home() {
                     })}
                 </div>
 
-                {/* PHẢI: CỤM NÚT THÔNG BÁO & USER */}
+                {/* Phải: Thông báo & Nút User / Admin */}
                 <div className="flex items-center gap-3 shrink-0 pointer-events-auto relative">
                     <div className="relative">
                         <button
@@ -816,81 +736,70 @@ export default function Home() {
                         </button>
                     )}
 
-                    <button
-                        onClick={() => navigate('/profile')}
-                        className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all"
-                    >
-                        <User size={18} />
-                    </button>
+                    {userRole !== 'admin' && (
+                        <button
+                            onClick={() => navigate('/profile')}
+                            className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all"
+                            title="Hồ sơ cá nhân"
+                        >
+                            <User size={18} />
+                        </button>
+                    )}
                 </div>
             </div>
 
-
-
-            {/* ================= CỤM CÔNG CỤ BẢN ĐỒ GÓC PHẢI (MAP CONTROLS) ================= */}
+            {/* MAP CONTROLS DƯỚI GÓC PHẢI */}
             <div className="absolute right-6 bottom-32 flex flex-col gap-3 z-10 pointer-events-none">
-
-                {/* Nút Vị Trí Hiện Tại */}
                 <div className="group relative pointer-events-auto flex justify-end items-center">
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Vị trí
                     </span>
                     <button
-                        onClick={() => handleGetCurrentLocation(true)} // ✅ Đã map chức năng lấy vị trí vào đây
+                        onClick={handleGetCurrentLocation}
                         className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
                     >
                         <Navigation size={18} className="rotate-45 -ml-1 -mt-1" />
                     </button>
                 </div>
 
-                {/* Nút Layer Bản Đồ */}
                 <div className="group relative pointer-events-auto flex justify-end items-center">
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Lớp
                     </span>
                     <button
                         onClick={() => toggleMapControl('layers')}
-                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.layers ? 'bg-purple-600 text-white border-purple-700' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'
-                            }`}
+                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.layers ? 'bg-purple-600 text-white border-purple-700' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
                     >
                         <Layers size={18} />
                     </button>
                 </div>
 
-                {/* Nút Tuyến Đường Giao Thông */}
                 <div className="group relative pointer-events-auto flex justify-end items-center">
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Giao thông
                     </span>
                     <button
                         onClick={() => toggleMapControl('traffic')}
-                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.traffic ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'
-                            }`}
+                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.traffic ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
                     >
                         <TrendingUp size={18} />
                     </button>
                 </div>
 
-                {/* Nút Hiển Thị Vùng Ngập Lụt */}
                 <div className="group relative pointer-events-auto flex justify-end items-center">
                     <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                         Ngập lụt
                     </span>
                     <button
                         onClick={() => toggleMapControl('flood')}
-                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.flood ? 'bg-blue-50 text-blue-500 border-blue-200' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'
-                            }`}
+                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.flood ? 'bg-blue-50 text-blue-500 border-blue-200' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
                     >
                         <CloudRain size={18} />
                     </button>
                 </div>
-
-                {/* Dải phân cách mỏng trước khi đến cụm Zoom */}
-                <div className="h-1"></div>
-
             </div>
 
-            {/* ================= POPUP GIỮA MÀN HÌNH ================= */}
+            {/* POPUP CẢNH BÁO */}
             {showAlertPopup && (
                 <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 w-[460px] bg-white rounded-2xl shadow-2xl border border-red-100 overflow-hidden shadow-danger">
                     <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 flex justify-between items-center">
@@ -924,7 +833,6 @@ export default function Home() {
                     </div>
                 </div>
             )}
-
         </div>
     );
 }
