@@ -71,7 +71,7 @@ const SecuritySettings: React.FC = () => {
 
     setIsConfirming(true);
     try {
-      const result = await authService.confirm2FA(confirmCode);
+      const result = await authService.confirm2FA(confirmCode, totpSecret || '');
 
       if (result.success) {
         toast.success('2FA đã được bật thành công!');
