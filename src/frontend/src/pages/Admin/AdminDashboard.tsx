@@ -12,6 +12,7 @@ import {
 import AdminLayout from '../../layouts/AdminLayout';
 import * as authService from '../../services/authService';
 import * as userService from '../../services/userService';
+import { eventAPI } from '../../services/api';
 import SettingsTab from './SettingsTab';
 import UsersTab from './UsersTab';
 import ClosureTab from './ClosureTab';
@@ -157,11 +158,8 @@ export default function AdminDashboard() {
     const fetchEvents = async () => {
         setLoadingEvents(true);
         try {
-            const response = await fetch('http://localhost:5001/api/events');
-            if (response.ok) {
-                const result = await response.json();
-                setEvents(result.data);
-            }
+            const response = await eventAPI.getAllEvents();
+            setEvents(response.data.data);
         } catch (error) {
             setEvents([
                 { event_id: 1, category_id: 1, is_featured: true, is_free: false, ticket_price: 500000, favorite_count: 120, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), title: 'Lễ hội Pháo hoa DIFF 2026', short_description: 'Lễ hội pháo hoa quốc tế hoành tráng bên sông Hàn.', description: 'DIFF 2026 quy tụ 8 đội thi...', location_name: 'Sông Hàn, Sơn Trà, Đà Nẵng', latitude: 16.0722, longitude: 108.2255, start_time: '2026-06-24T20:00', end_time: '2026-06-24T22:00', status: 'approved', view_count: 3200 }
@@ -173,33 +171,61 @@ export default function AdminDashboard() {
 
     const handleApproveEvent = async (id: number, currentStatus: string) => {
         const nextStatus = currentStatus === 'approved' ? 'pending' : 'approved';
-        setEvents(prev => prev.map(e => e.event_id === id ? { ...e, status: nextStatus } : e));
+        try {
+            const eventObj = events.find(e => e.event_id === id);
+            if (!eventObj) return;
+            await eventAPI.updateEvent(id, {
+                ...eventObj,
+                status: nextStatus
+            });
+            fetchEvents();
+        } catch (error) {
+            alert('Lỗi phê duyệt sự kiện.');
+        }
     };
 
     const handleDeleteEvent = async (id: number) => {
         if (window.confirm('Bạn có chắc chắn muốn xóa sự kiện này không?')) {
-            setEvents(prev => prev.filter(e => e.event_id !== id));
+            try {
+                await eventAPI.deleteEvent(id);
+                fetchEvents();
+            } catch (error) {
+                alert('Lỗi xóa sự kiện.');
+            }
         }
     };
 
     const handleCreateEvent = async (e: React.FormEvent) => {
         e.preventDefault();
-        const token = localStorage.getItem('token');
-        const url = editingEvent ? `http://localhost:5001/api/events/${editingEvent.event_id}` : 'http://localhost:5001/api/events';
-        const method = editingEvent ? 'PUT' : 'POST';
         try {
-            const response = await fetch(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ Title: eventFormData.title, Description: eventFormData.description, Location: eventFormData.location_name, EventDate: eventFormData.start_time.split('T')[0], Status: eventFormData.status })
-            });
-            if (response.ok) {
-                setShowModal(false);
-                setEditingEvent(null);
-                fetchEvents();
+            const body = {
+                title: eventFormData.title,
+                short_description: eventFormData.short_description,
+                description: eventFormData.description,
+                location_name: eventFormData.location_name,
+                latitude: eventFormData.latitude,
+                longitude: eventFormData.longitude,
+                start_time: eventFormData.start_time,
+                end_time: eventFormData.end_time || null,
+                status: eventFormData.status,
+                category_id: eventFormData.category_id || 1,
+                is_featured: editingEvent ? editingEvent.is_featured : false,
+                is_free: editingEvent ? editingEvent.is_free : true,
+                ticket_price: editingEvent ? editingEvent.ticket_price : 0,
+                banner_url: editingEvent ? editingEvent.banner_url : null,
+                thumbnail_url: editingEvent ? editingEvent.thumbnail_url : null
+            };
+
+            if (editingEvent) {
+                await eventAPI.updateEvent(editingEvent.event_id, body);
+            } else {
+                await eventAPI.createEvent(body);
             }
+            setShowModal(false);
+            setEditingEvent(null);
+            fetchEvents();
         } catch (error) {
-            alert('Lỗi kết nối máy chủ.');
+            alert('Lỗi kết nối máy chủ hoặc lưu sự kiện.');
         }
     };
 
