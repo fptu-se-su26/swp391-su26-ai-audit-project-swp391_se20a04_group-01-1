@@ -881,16 +881,19 @@ Viết tại đây...
 
 | Nội dung | Thông tin |
 |---|---|
-| Ngày sử dụng |  |
-| Công cụ AI | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác |
-| Mục đích sử dụng |  |
-| Phần việc liên quan | Requirement / Design / Database / Frontend / Backend / Testing / Debug / Report / Presentation / Other |
-| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung |
+| Ngày sử dụng | 15/06/2026 |
+| Công cụ AI | ChatGPT / Gemini |
+| Mục đích sử dụng | Thêm chức năng hiển thị và né vùng ngập lụt |
+| Phần việc liên quan | Design / Database / Frontend / Backend |
+| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều |
 
 #### 4.1. Prompt đã sử dụng
 
-```text
-Dán nguyên văn prompt đã hỏi AI tại đây.
+```
+Hiện tại đã hiện lên được cùng ngập lụt nhưng không bấm vào để dẫn đường được Yêu cầu: 
+1. Bấm vào vùng ngập dưới 10cm thì đề xuất đường bình thường 
+2. Bấm vào vùng ngập trên 10cm thì hiện thông báo hỏi ý kiến người dùng có chắc chắn muốn vào vùng nguy hiểm không? Nếu ok thì chỉ đường còn không thì trở lại màn hình chỉnh để chọn địa điểm khác 
+3. Nếu chọn đi vào vùng nguy hiểm nhưng trên đường đến thì cũng có 1 vùng ngập 10cm khác thì phải đề xuất đường tránh vùng ngập đó
 ```
 
 #### 4.2. Kết quả AI gợi ý
@@ -901,14 +904,256 @@ Viết tại đây...
 
 #### 4.3. Phần sinh viên/nhóm đã sử dụng từ AI
 
-```text
-Viết tại đây...
+```
+Đúng rồi, hiện tại bạn bấm vào vùng ngập chỉ mở popup, vì trong handleMapClick của bạn đang có đoạn:
+
+setSelectedFloodZone({
+    lng: event.lngLat.lng,
+    lat: event.lngLat.lat,
+    properties: zone.properties
+});
+return;
+
+Dòng return; làm cho code dừng lại, nên nó không set destination, không dẫn đường.
+
+Bạn sửa theo hướng sau.
+
+1. Thay toàn bộ handleMapClick hiện tại
+
+Tìm đoạn:
+
+const handleMapClick = (event: any) => {
+    if (selectedPOI) return;
+
+    if (mapRef.current) {
+        const features = mapRef.current.queryRenderedFeatures(event.point, {
+            layers: ['flood-zones-fill']
+        });
+        if (features && features.length > 0) {
+            const zone = features[0];
+            setSelectedFloodZone({
+                lng: event.lngLat.lng,
+                lat: event.lngLat.lat,
+                properties: zone.properties
+            });
+            return; 
+        }
+    }
+    const { lng, lat } = event.lngLat;
+    setDestination({ lng, lat, label: `Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}` });
+    setDestinationQuery(`Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}`);
+};
+
+Thay bằng đoạn này:
+
+const handleMapClick = (event: any) => {
+    if (selectedPOI) return;
+
+    const { lng, lat } = event.lngLat;
+
+    if (mapRef.current && mapControls.flood) {
+        const features = mapRef.current.queryRenderedFeatures(event.point, {
+            layers: ['flood-zones-fill']
+        });
+
+        if (features && features.length > 0) {
+            const feature = features[0];
+            const props = feature.properties || {};
+
+            const zoneId = String(props.id);
+            const zoneName = props.name || 'Vùng ngập';
+            const depthCm = Number(props.depthCm || 0);
+            const label = `${zoneName} - ngập ${depthCm}cm`;
+
+            setSelectedFloodZone({
+                lng,
+                lat,
+                properties: props
+            });
+
+            // Vùng ngập <= 10cm: cho chọn điểm đến bình thường
+            if (depthCm <= 10) {
+                setDestination({ lng, lat, label });
+                setDestinationQuery(label);
+
+                if (userLocation) {
+                    setOrigin({
+                        lng: userLocation.lng,
+                        lat: userLocation.lat,
+                        label: 'Vị trí của bạn'
+                    });
+                    setOriginQuery('Vị trí của bạn');
+                }
+
+                return;
+            }
+
+            // Vùng ngập > 10cm: hỏi xác nhận
+            const confirmed = window.confirm(
+                `Khu vực này đang ngập ${depthCm}cm, có thể nguy hiểm.\n\nBạn có chắc chắn muốn đi vào vùng ngập này không?`
+            );
+
+            if (confirmed) {
+                // Cho phép đi vào đúng vùng ngập user đã chọn
+                setConfirmedFloodZoneIds((prev) => {
+                    if (prev.includes(zoneId)) return prev;
+                    return [...prev, zoneId];
+                });
+
+                setDestination({ lng, lat, label });
+                setDestinationQuery(label);
+
+                if (userLocation) {
+                    setOrigin({
+                        lng: userLocation.lng,
+                        lat: userLocation.lat,
+                        label: 'Vị trí của bạn'
+                    });
+                    setOriginQuery('Vị trí của bạn');
+                }
+            } else {
+                // Không chọn điểm đến, để user chọn lại
+                setDestination(null);
+                setDestinationQuery('');
+                setRouteData(null);
+                setRouteAlertMessage(null);
+            }
+
+            return;
+        }
+    }
+
+    const label = `Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}`;
+
+    validateLocation(
+        lng,
+        lat,
+        label,
+        'destination',
+        () => {
+            setDestination({ lng, lat, label });
+            setDestinationQuery(label);
+
+            if (userLocation) {
+                setOrigin({
+                    lng: userLocation.lng,
+                    lat: userLocation.lat,
+                    label: 'Vị trí của bạn'
+                });
+                setOriginQuery('Vị trí của bạn');
+            }
+        },
+        () => {
+            setDestination(null);
+            setDestinationQuery('');
+        }
+    );
+};
+
+Đoạn này đáp ứng:
+
+<= 10cm  → chọn làm điểm đến và chỉ đường bình thường
+> 10cm   → hỏi xác nhận
+OK       → đặt điểm đến và chỉ đường
+Cancel   → không đặt điểm đến, cho chọn lại
+2. Sửa render layer để có depthCm trong properties
+
+Trong floodGeoJSON, đảm bảo properties có dòng này:
+
+depthCm: zone.depthCm,
+
+Đoạn đúng phải giống như này:
+
+properties: {
+    id: zone.id,
+    zone_id: zone.zone_id,
+    name: zone.name,
+    district: zone.district,
+    risk_level: zone.risk_level,
+    depthCm: zone.depthCm,
+    level: zone.level,
+    description: zone.description,
+    typical_flood_months: zone.typical_flood_months,
+    color:
+        zone.level === 'high'
+            ? '#ef4444'
+            : zone.level === 'medium'
+                ? '#f97316'
+                : '#eab308'
+},
+
+Nếu thiếu depthCm, khi click vào vùng ngập thì depthCm sẽ thành 0, điều kiện nguy hiểm sẽ không chạy đúng.
+
+3. Sửa useEffect tìm đường để chạy lại khi floodZones thay đổi
+
+Hiện tại effect tìm đường của bạn đang thiếu floodZones trong dependency.
+
+Tìm dòng cuối của effect tìm đường:
+
+}, [origin, destination, travelMode, mapControls.flood, confirmedFloodZoneIds]);
+
+Thay bằng:
+
+}, [origin, destination, travelMode, mapControls.flood, confirmedFloodZoneIds, floodZones]);
+
+Việc này giúp khi dữ liệu vùng ngập từ SQL Server tải xong, thuật toán né vùng ngập có dữ liệu mới để xử lý.
+
+4. Yêu cầu số 3 phụ thuộc vào findSafeRouteZone
+
+Yêu cầu của bạn:
+
+Nếu chọn đi vào vùng nguy hiểm nhưng trên đường đến còn có vùng ngập >10cm khác thì phải đề xuất đường tránh vùng đó.
+
+Logic này phải nằm trong file:
+
+src/frontend/src/utils/floodZoneRouteUtils.ts
+
+Nguyên tắc đúng là:
+
+- Vùng ngập user đã xác nhận đi vào: được phép đi vào
+- Các vùng ngập khác > 10cm: vẫn phải né
+- Vùng ngập <= 10cm: không cần né
+
+Trong findSafeRouteZone, khi kiểm tra vùng cần né, điều kiện phải kiểu như này:
+
+const dangerousZones = floodZones.filter((zone) => {
+    const isDangerous = zone.depthCm > 10;
+    const isConfirmed = confirmedFloodZoneIds.includes(String(zone.id));
+
+    return isDangerous && !isConfirmed;
+});
+
+Nghĩa là nếu user chọn vùng ngập id = 3 và đã OK, thì vùng đó được phép là điểm đến. Nhưng nếu tuyến đường đi ngang vùng ngập id = 1 hoặc id = 2 cũng >10cm mà chưa xác nhận, hệ thống vẫn phải tìm đường tránh.
+
+5. Sau khi sửa, test theo 3 case
+
+Test nhanh như sau:
+
+Case 1:
+Bấm vùng vàng 8cm
+→ Không hiện confirm
+→ Tự đặt điểm đến
+→ Chỉ đường bình thường
+
+Case 2:
+Bấm vùng cam/đỏ 15cm, 25cm, 55cm, 80cm
+→ Hiện confirm
+→ Bấm Cancel
+→ Không tạo đường, vẫn ở màn hình map
+
+Case 3:
+Bấm vùng cam/đỏ
+→ Bấm OK
+→ Có route tới vùng đó
+→ Nếu route đi qua vùng ngập >10cm khác thì route phải né vùng đó
+
+Tóm lại: bạn sửa chính ở handleMapClick. Hiện tại nó chỉ mở popup rồi return, nên không dẫn đường. Sau khi thay đoạn trên, click vùng ngập sẽ vừa hiện popup vừa đặt điểm đến theo đúng điều kiện ngập.
 ```
 
 #### 4.4. Phần sinh viên/nhóm tự chỉnh sửa hoặc cải tiến
 
-```text
-Viết tại đây...
+```
+AI đưa ra đáp án hướng đi chuẩn hoàn toàn đối với yêu cầu nóm tôi nên không cần cải tiến hay cân chỉnh gì thêm
 ```
 
 #### 4.5. Minh chứng
@@ -917,15 +1162,25 @@ Viết tại đây...
 |---|---|
 | Link commit |  |
 | File liên quan |  |
-| Screenshot |  |
-| Kết quả chạy/test |  |
+| Screenshot | <img width="807" height="776" alt="image" src="https://github.com/user-attachments/assets/629fa50d-4310-464c-8a1d-11901047173a" />
+<img width="822" height="870" alt="image" src="https://github.com/user-attachments/assets/a2fd5132-ed68-4219-8410-6457b7a67ac2" />
+<img width="887" height="857" alt="image" src="https://github.com/user-attachments/assets/d67e5395-209a-4e34-83a8-814c6678dcfe" />
+<img width="911" height="891" alt="image" src="https://github.com/user-attachments/assets/e90930c5-3306-449e-9170-7925c6623848" />
+<img width="923" height="882" alt="image" src="https://github.com/user-attachments/assets/e1031b7d-8846-4080-9766-fddb0437fa5f" />
+<img width="882" height="887" alt="image" src="https://github.com/user-attachments/assets/61244ce7-d0b2-43af-ace7-a01909d0b832" />
+<img width="823" height="833" alt="image" src="https://github.com/user-attachments/assets/a05edcf3-c755-4ed0-b68e-2ce7b8dc2a33" />
+<img width="606" height="802" alt="image" src="https://github.com/user-attachments/assets/ba4d231c-b879-4ef5-86d3-cb0d1b40b16c" />
+
+
+ |
+| Kết quả chạy/test | Thành công|
 | Link video demo |  |
 | Ghi chú khác |  |
 
 #### 4.6. Nhận xét cá nhân/nhóm
 
-```text
-Viết tại đây...
+```
+Vì đã đưa prompt có yeeucaauf cụ thể rõ ràng nên AI đã làm đúng theo ý của người viết prompt
 ```
 
 ---
@@ -936,19 +1191,19 @@ Viết tại đây...
 
 | Hạng mục | Không dùng AI | AI hỗ trợ ít | AI hỗ trợ nhiều | AI sinh chính | Ghi chú |
 |---|:---:|:---:|:---:|:---:|---|
-| Phân tích yêu cầu |  |  |  |  |  |
-| Viết user story/use case |  |  |  |  |  |
-| Thiết kế database |  |  |  |  |  |
-| Thiết kế kiến trúc hệ thống |  |  |  |  |  |
-| Thiết kế giao diện |  |  |  |  |  |
-| Code frontend |  |  |  |  |  |
-| Code backend |  |  |  |  |  |
-| Debug lỗi |  |  |  |  |  |
-| Viết test case |  |  |  |  |  |
-| Kiểm thử sản phẩm |  |  |  |  |  |
-| Tối ưu code |  |  |  |  |  |
-| Viết báo cáo |  |  |  |  |  |
-| Làm slide thuyết trình |  |  |  |  |  |
+| Phân tích yêu cầu |  |  | x |  |  |
+| Viết user story/use case |  |  | x |  |  |
+| Thiết kế database |  |  | x |  |  |
+| Thiết kế kiến trúc hệ thống |  |  | x |  |  |
+| Thiết kế giao diện |  |  |  | x |  |
+| Code frontend |  |  |  | x |  |
+| Code backend |  |  |  | x |  |
+| Debug lỗi |  |  |  | x |  |
+| Viết test case |  |  | x |  |  |
+| Kiểm thử sản phẩm |  |  | x |  |  |
+| Tối ưu code |  |  |  | x |  |
+| Viết báo cáo |  |  |  | x |  |
+| Làm slide thuyết trình |  |  |  | x |  |
 
 ---
 
