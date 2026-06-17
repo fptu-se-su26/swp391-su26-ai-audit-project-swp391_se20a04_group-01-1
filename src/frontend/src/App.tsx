@@ -8,9 +8,8 @@ import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage/LandingPage';
 import ForgotPassword from './pages/Login/ForgotPassword';
-
-// 1. THÊM IMPORT NÀY VÀO TRÊN CÙNG:
 import Verify2FA from './pages/Auth/Verify2FA'; 
+import { Toaster } from 'react-hot-toast';
 
 export default function App() {
     const token = localStorage.getItem('token');
@@ -18,6 +17,7 @@ export default function App() {
 
     return (
         <Router>
+            <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
             <Routes>
                 <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <SplashScreen />} />
                 <Route path="/login" element={<Login />} />

@@ -46,7 +46,7 @@ export interface RoadClosure {
     id: number;
     road_name: string;
     event_title: string;
-    restriction_type: 'CLOSED' | 'ONE_WAY' | 'SPEED_LIMIT';
+    restriction_type: 'CLOSED' | 'LIMITED' | 'ONE_WAY' | 'NO_PARKING';
     time_frame: string;
 }
 
