@@ -3,6 +3,7 @@ import { API_ENDPOINTS } from '../config/api';
 
 interface UpdateProfileData {
   avatar_url?: string;
+  username?: string;
 }
 
 interface ChangePasswordData {
@@ -32,10 +33,9 @@ export const updateProfile = async (data: UpdateProfileData) => {
 };
 
 /**
- * Change password
+ * Change password (Đã bỏ /api vì baseURL đã có sẵn)
  */
 export const changePassword = async (data: ChangePasswordData) => {
-  // ✅ Đã cập nhật trỏ đúng tới API mới tạo
   const response = await api.put('/user/change-password', data);
   return response.data;
 };
@@ -49,10 +49,35 @@ export const getSecuritySettings = async () => {
 };
 
 /**
- * Disable 2FA
+ * Disable 2FA (Đã bỏ /api)
  */
 export const disable2FA = async (data: DisableTwoFAData) => {
-  // ✅ Trỏ đúng tới API tắt 2FA
   const response = await api.delete('/auth/disable-2fa', { data });
+  return response.data;
+};
+
+// ============ API ADMIN ============
+
+/**
+ * Get all users for admin management (Đã bỏ /api)
+ */
+export const getAllUsers = async () => {
+  const response = await api.get('/admin/users');
+  return response; 
+};
+
+/**
+ * Ban user account with reason (Đã bỏ /api)
+ */
+export const banUser = async (id: number, reason: string) => {
+  const response = await api.put(`/admin/users/${id}/ban`, { ban_reason: reason });
+  return response.data;
+};
+
+/**
+ * Unban user account (Đã bỏ /api)
+ */
+export const unbanUser = async (id: number) => {
+  const response = await api.put(`/admin/users/${id}/unban`);
   return response.data;
 };

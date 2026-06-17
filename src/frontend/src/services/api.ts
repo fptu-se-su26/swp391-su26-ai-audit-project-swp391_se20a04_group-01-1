@@ -52,7 +52,9 @@ apiClient.interceptors.response.use(
 );
 
 // ============ FORGOT PASSWORD API ============
-
+export const poiAPI = {
+    getAllPOIs: () => apiClient.get('/pois'),
+};
 export const forgotPasswordAPI = {
     sendOtp: (email: string) =>
         apiClient.post('/auth/forgot-password', { email }),
@@ -104,5 +106,11 @@ export default apiClient;
 
 // Thêm vào trong api.ts
 export const eventAPI = {
-    getAllEvents: () => apiClient.get('/events'),
+    getAllEvents: (status?: string) => apiClient.get('/events', { params: { status } }),
+    getEventCategories: () => apiClient.get('/event-categories'),
+    createEvent: (data: any) => apiClient.post('/events', data),
+    updateEvent: (id: number, data: any) => apiClient.put(`/events/${id}`, data),
+    deleteEvent: (id: number) => apiClient.delete(`/events/${id}`),
+    toggleFavorite: (id: number) => apiClient.post(`/events/${id}/favorite`),
+    getFavoriteEventIds: () => apiClient.get('/user/favorites/events'),
 };

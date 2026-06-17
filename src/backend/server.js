@@ -11,7 +11,14 @@ const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
 
 const app = express();
-app.use(cors());
+
+// Cấu hình CORS cho phép Frontend ở cổng 5173 truy cập
+app.use(cors({
+    origin: "http://localhost:5173", 
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true
+}));
+
 app.use(express.json());
 
 // ============ MIDDLEWARE & UTILS ============
@@ -45,7 +52,38 @@ const isValidPassword = (password) => {
     return password && password.length >= 6;
 };
 
-// ✅ Hàm format ngày tháng chính xác (Fix lỗi UTC)
+const parseTimeToDate = (timeStr) => {
+    if (!timeStr) return null;
+    const parts = timeStr.split(':').map(Number);
+    if (parts.some(isNaN)) return null;
+    const hours = parts[0] || 0;
+    const minutes = parts[1] || 0;
+    const seconds = parts[2] || 0;
+    return new Date(Date.UTC(1970, 0, 1, hours, minutes, seconds));
+};
+
+// ================= CHECK BAN STATUS =================
+
+const checkBanStatus = (user) => {
+    if (!user) {
+        return {
+            banned: false
+        };
+    }
+
+    if (user.is_active === 0 || user.is_active === false) {
+        return {
+            banned: true,
+            message: `Tài khoản đã bị khóa! Lý do: ${user.ban_reason || "Vi phạm chính sách."}`
+        };
+    }
+
+    return {
+        banned: false
+    };
+};
+
+// Hàm format ngày tháng chính xác (Fix lỗi UTC)
 const formatDateTime = (dateObj) => {
     if (!dateObj) return null;
     try {
@@ -83,18 +121,20 @@ app.post("/api/auth/register", async (req, res) => {
             return res.status(400).json({ message: "Username phải có ít nhất 3 ký tự!" });
         }
 
-        const pool = await poolPromise;
-        const checkExist = await pool
-            .request()
-            .input("email", sql.NVarChar, email.toLowerCase())
+        // Thay thế đoạn kiểm tra trùng lặp trong hàm Đăng ký (Register)
+const pool = await poolPromise;
+const checkExist = await pool
+    .request()
+    .input("email", sql.NVarChar, email.toLowerCase())
             .input("username", sql.NVarChar, trimmedUsername)
-            .query(
-                "SELECT user_id FROM Users WHERE LOWER(email) = LOWER(@email) OR LOWER(username) = LOWER(@username)",
-            );
+    .query(
+        // CHỈ KIỂM TRA EMAIL TRÙNG LẶP, BỎ KIỂM TRA USERNAME
+        "SELECT user_id FROM Users WHERE LOWER(email) = LOWER(@email)"
+    );
 
-        if (checkExist.recordset.length > 0) {
-            return res.status(400).json({ message: "Email hoặc Username đã được sử dụng!" });
-        }
+if (checkExist.recordset.length > 0) {
+    return res.status(400).json({ message: "Email này đã được đăng ký!" });
+}
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
@@ -121,23 +161,28 @@ app.post("/api/auth/register", async (req, res) => {
 // POST /api/auth/setup-2fa
 app.post("/api/auth/setup-2fa", authenticateToken, async (req, res) => {
     try {
-        // Sinh secret (không lưu vào DB)
+        const userEmail = req.user.email || "admin@danang.gov.vn"; 
+
         const secret = speakeasy.generateSecret({
-            name: `DN-Pulse (${req.user.email})`
+            length: 20, 
+            name: `DanangSmart:${userEmail}`,
+            issuer: "DanangSmart" 
         });
+
+        console.log("👉 Secret Base32 chuẩn gửi về Frontend:", secret.base32); 
+        console.log("👉 URL tạo mã QR:", secret.otpauth_url);
         
-        // ✅ Chỉ trả về QR và secret, cho frontend chứa tạm thời
         const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
         
         res.json({
             success: true,
             data: {
                 qrCode: qrCodeUrl,
-                secret: secret.base32
-                // ⚠️ Không lưu vào DB ở đây!
+                secret: secret.base32 
             }
         });
     } catch (error) {
+        console.error("Lỗi sập hệ thống tại setup-2fa:", error);
         res.status(500).json({ success: false, error: { message: error.message } });
     }
 });
@@ -145,52 +190,46 @@ app.post("/api/auth/setup-2fa", authenticateToken, async (req, res) => {
 // POST /api/auth/confirm-2fa
 app.post("/api/auth/confirm-2fa", authenticateToken, async (req, res) => {
     try {
-        const { code, secret } = req.body;  // ← Frontend gửi secret tạm thời
-        
-        // ✅ Validate code format
+        const { code, secret } = req.body;
+        console.log("🔍 [DEBUG] Code nhận được:", code);
+    console.log("🔍 [DEBUG] Secret nhận được:", secret);
+        // 1. Validate đầu vào (Đã làm tốt)
         if (!code || !/^\d{6}$/.test(code)) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mã 2FA phải là 6 chữ số!" } 
-            });
+            return res.status(400).json({ success: false, error: { message: "Mã 2FA phải là 6 chữ số!" } });
         }
         
-        if (!secret) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Secret không hợp lệ!" } 
-            });
+        // 2. Clean secret (Đảm bảo loại bỏ khoảng trắng dư thừa)
+        const cleanSecret = secret ? secret.trim() : null;
+        if (!cleanSecret) {
+            return res.status(400).json({ success: false, error: { message: "Secret không hợp lệ!" } });
         }
         
         const pool = await poolPromise;
         
-        // ✅ Verify code với secret tạm thời
+        // 3. Sử dụng 'verified' để kiểm tra
         const verified = speakeasy.totp.verify({
-            secret: secret,  // ← Secret từ frontend
+            secret: cleanSecret, // Sử dụng bản đã trim()
             encoding: "base32",
             token: code,
-            window: 1
+            window: 1 // Tăng lên window: 2 nếu vẫn thấy lỗi mã sai do lệch giờ
         });
         
-        if (verified !== true) {
-            console.warn(`[2FA SECURITY] Failed 2FA confirmation for user: ${req.user.id}`);
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mã xác thực không đúng!" } 
-            });
+        if (!verified) {
+            console.warn(`[2FA SECURITY] Failed 2FA for user: ${req.user.id}`);
+            return res.status(400).json({ success: false, error: { message: "Mã OTP không chính xác!" } });
         }
         
-        // ✅ Chỉ lưu secret vào DB khi xác thực thành công
+        // 4. Update Database
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
-            .input("secret", sql.NVarChar, secret)
+            .input("secret", sql.NVarChar, cleanSecret)
             .query("UPDATE Users SET two_factor_secret = @secret, is_2fa_enabled = 1 WHERE user_id = @user_id");
         
         console.log(`[2FA SECURITY] 2FA enabled for user: ${req.user.id}`);
         res.json({ success: true, message: "Kích hoạt 2FA thành công!" });
     } catch (error) {
         console.error("[2FA] Confirm error:", error);
-        res.status(500).json({ success: false, error: { message: error.message } });
+        res.status(500).json({ success: false, error: { message: "Lỗi hệ thống!" } });
     }
 });
 
@@ -199,7 +238,6 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
     try {
         const { password } = req.body;
         
-        // ✅ Validate password
         if (!password) {
             return res.status(400).json({ 
                 success: false, 
@@ -212,7 +250,6 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
             .input("user_id", sql.Int, req.user.id)
             .query("SELECT password_hash FROM Users WHERE user_id = @user_id");
         
-        // ✅ Check user tồn tại
         const user = result.recordset[0];
         if (!user) {
             console.warn(`[2FA] User not found: ${req.user.id}`);
@@ -222,7 +259,6 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ Verify password
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             console.warn(`[2FA SECURITY] Failed password verification for disable-2fa: ${req.user.id}`);
@@ -232,7 +268,6 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
             });
         }
         
-        // ✅ Tắt 2FA
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
             .query("UPDATE Users SET is_2fa_enabled = 0, two_factor_secret = NULL WHERE user_id = @user_id");
@@ -245,6 +280,58 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
             success: false, 
             error: { message: "Lỗi tắt 2FA!" } 
         });
+    }
+});
+
+// ============ ĐỔI / TẠO MẬT KHẨU ============
+app.put("/api/user/change-password", authenticateToken, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!isValidPassword(newPassword)) {
+            return res.status(400).json({ message: "Mật khẩu mới phải có ít nhất 6 ký tự!" });
+        }
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("user_id", sql.Int, req.user.id)
+            .query("SELECT password_hash FROM Users WHERE user_id = @user_id");
+
+        const user = result.recordset[0];
+        if (!user) {
+            return res.status(404).json({ message: "Người dùng không tồn tại!" });
+        }
+
+        // Xử lý kiểm tra mật khẩu hiện tại nếu user ĐÃ CÓ mật khẩu (không phải Google tạo lần đầu)
+        if (user.password_hash) {
+            if (!currentPassword) {
+                return res.status(400).json({ message: "Vui lòng nhập mật khẩu hiện tại!" });
+            }
+            if (currentPassword === newPassword) {
+                return res.status(400).json({ message: "Mật khẩu mới phải khác mật khẩu hiện tại!" });
+            }
+
+            const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+            if (!isMatch) {
+                console.warn(`[AUTH SECURITY] Failed change-password attempt for user: ${req.user.id}`);
+                // ✅ SỬ DỤNG MÃ 400 (Thay vì 401) ĐỂ KHÔNG BỊ AXIOS ĐÁ VĂNG RA TRANG LOGIN
+                return res.status(400).json({ message: "Mật khẩu hiện tại không chính xác!" });
+            }
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await pool.request()
+            .input("user_id", sql.Int, req.user.id)
+            .input("password_hash", sql.NVarChar, hashedPassword)
+            .query("UPDATE Users SET password_hash = @password_hash WHERE user_id = @user_id");
+
+        console.log(`[AUTH] Password changed/created for user: ${req.user.id}`);
+        res.json({ message: user.password_hash ? "Đổi mật khẩu thành công!" : "Tạo mật khẩu thành công!" });
+    } catch (error) {
+        console.error("Change password error:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
@@ -293,7 +380,7 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
 
         console.log(`[2FA SECURITY] Successful 2FA verification for user: ${user.user_id}`);
 
-        // ✅ Cập nhật last_login_at
+        // Cập nhật last_login_at
         await pool.request()
             .input("user_id", sql.Int, user.user_id)
             .query("UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id");
@@ -319,29 +406,43 @@ app.post("/api/auth/verify-2fa", async (req, res) => {
 });
 
 // ============ ĐĂNG NHẬP ============
-
 app.post("/api/auth/login", async (req, res) => {
     try {
         const { email, password } = req.body;
-        
+
         if (!email || !password) {
-            return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu!' });
+            return res.status(400).json({ message: "Vui lòng nhập email và mật khẩu!" });
         }
+
         if (!isValidEmail(email)) {
-            return res.status(400).json({ message: 'Email không hợp lệ!' });
+            return res.status(400).json({ message: "Email không hợp lệ!" });
         }
 
         const pool = await poolPromise;
-        const result = await pool.request()
-            .input('email', sql.NVarChar, email.toLowerCase())
-            .query('SELECT user_id, username, email, password_hash, role FROM Users WHERE LOWER(email) = LOWER(@email)');
+
+        const result = await pool
+            .request()
+            .input("email", sql.NVarChar, email.toLowerCase())
+            .query(`
+                SELECT user_id, username, email, password_hash, role, is_active, ban_reason
+                FROM Users
+                WHERE LOWER(email)=LOWER(@email)
+            `);
 
         const user = result.recordset[0];
+
         if (!user) {
-            return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác!' });
+            return res.status(401).json({ message: "Email hoặc mật khẩu không chính xác!" });
+        }
+
+        const banCheck = checkBanStatus(user);
+
+        if (banCheck.banned) {
+            return res.status(403).json({ message: banCheck.message });
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
+
         if (!isMatch) {
             console.warn(`[AUTH] Failed login attempt for: ${email}`);
             return res.status(401).json({ message: 'Email hoặc mật khẩu không chính xác!' });
@@ -350,10 +451,10 @@ app.post("/api/auth/login", async (req, res) => {
         const userDb = await pool.request()
             .input('user_id', sql.Int, user.user_id)
             .query('SELECT is_2fa_enabled, role FROM Users WHERE user_id = @user_id');
-        
+
         const dbUser = userDb.recordset[0];
         const is2FA = dbUser?.is_2fa_enabled;
-        const userRole = dbUser?.role; 
+        const userRole = dbUser?.role;
 
         if (userRole === 'admin' && is2FA) {
             const tempToken = jwt.sign(
@@ -365,7 +466,6 @@ app.post("/api/auth/login", async (req, res) => {
             return res.json({ requires2FA: true, tempToken, email: user.email });
         }
 
-        // ✅ Phục hồi lại code cập nhật last_login_at cho user thường
         await pool.request()
             .input('user_id', sql.Int, user.user_id)
             .query('UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id');
@@ -380,36 +480,35 @@ app.post("/api/auth/login", async (req, res) => {
         res.json({
             token,
             role: user.role,
-            user: { id: user.user_id, username: user.username, email: user.email, role: user.role }
+            user: {
+                id: user.user_id,
+                username: user.username,
+                email: user.email,
+                role: user.role
+            }
         });
+
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ message: 'Lỗi server', error: error.message });
+        console.error(error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
 // ============ PROTECTED ROUTES ============
 
-// ✅ GET /api/user/profile - Lấy thông tin user
 app.get("/api/user/profile", authenticateToken, async (req, res) => {
     try {
         const pool = await poolPromise;
-
-        // SỬA TẠI ĐÂY: Thêm password_hash vào SELECT
         const result = await pool
             .request()
             .input("user_id", sql.Int, req.user.id)
-            .query(
-                "SELECT user_id, username, email, role, created_at, last_login_at, password_hash FROM Users WHERE user_id = @user_id",
-            );
+            .query("SELECT user_id, username, email, role, created_at, last_login_at, password_hash FROM Users WHERE user_id = @user_id");
 
         if (result.recordset.length === 0) {
             return res.status(404).json({ message: "Người dùng không tồn tại!" });
         }
 
         const user = result.recordset[0];
-        
-        // SỬA TẠI ĐÂY: Thêm cờ has_password
         const formattedUser = {
             user_id: user.user_id,
             username: user.username,
@@ -417,7 +516,7 @@ app.get("/api/user/profile", authenticateToken, async (req, res) => {
             role: user.role,
             created_at: formatDateTime(user.created_at),
             last_login_at: user.last_login_at ? formatDateTime(user.last_login_at) : "Chưa đăng nhập",
-            has_password: user.password_hash ? true : false // Trả về true nếu đã có mật khẩu
+            has_password: user.password_hash ? true : false
         };
 
         res.json({ message: "Lấy dữ liệu thành công!", data: formattedUser });
@@ -427,54 +526,86 @@ app.get("/api/user/profile", authenticateToken, async (req, res) => {
     }
 });
 
-// ✅ PUT /api/user/change-password - Đổi mật khẩu hoặc tạo mật khẩu mới cho Google User
-app.put("/api/user/change-password", authenticateToken, async (req, res) => {
+// ============ CẬP NHẬT HỒ SƠ ============
+app.put("/api/user/profile", authenticateToken, async (req, res) => {
     try {
-        const { currentPassword, newPassword } = req.body;
+        const body = req.body || {};
+        const username = body.username; 
 
-        if (!newPassword || newPassword.length < 8) {
-            return res.status(400).json({ message: "Mật khẩu mới phải có ít nhất 8 ký tự!" });
+        if (!username || username.trim() === '') {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Tên hiển thị không được để trống!" 
+            });
         }
 
         const pool = await poolPromise;
-        
-        // 1. Lấy mật khẩu hiện tại của user từ Database
-        const result = await pool.request()
-            .input("user_id", sql.Int, req.user.id)
-            .query("SELECT password_hash FROM Users WHERE user_id = @user_id");
+        const trimmedUsername = username.trim();
 
-        const user = result.recordset[0];
-        if (!user) {
-            return res.status(404).json({ message: "Không tìm thấy người dùng!" });
-        }
-
-        // 2. PHÂN LOẠI NGƯỜI DÙNG
-        // Nếu user ĐÃ CÓ mật khẩu (tài khoản thường) -> BẮT BUỘC kiểm tra currentPassword
-        if (user.password_hash) {
-            if (!currentPassword) {
-                return res.status(400).json({ message: "Vui lòng nhập mật khẩu hiện tại!" });
-            }
-            
-            const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-            if (!isMatch) {
-                return res.status(400).json({ message: "Mật khẩu hiện tại không chính xác!" });
-            }
-        }
-        // Nếu user CHƯA CÓ mật khẩu (Tài khoản Google) -> Bỏ qua bước kiểm tra mật khẩu cũ
-
-        // 3. Mã hóa mật khẩu mới và lưu vào DB
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-
+        // Cập nhật tên thẳng vào Database (Không cần kiểm tra trùng lặp nữa)
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
-            .input("password_hash", sql.NVarChar, hashedPassword)
-            .query("UPDATE Users SET password_hash = @password_hash WHERE user_id = @user_id");
+            .input("username", sql.NVarChar, trimmedUsername)
+            .query(`
+                UPDATE Users 
+                SET username = @username 
+                WHERE user_id = @user_id
+            `);
 
-        res.json({ message: "Cập nhật mật khẩu thành công!" });
+        res.json({ success: true, message: "Cập nhật hồ sơ thành công!" });
     } catch (error) {
-        console.error("Change password error:", error);
+        console.error("❌ Lỗi cập nhật hồ sơ:", error);
+        res.status(500).json({ success: false, message: "Lỗi hệ thống khi cập nhật", error: error.message });
+    }
+});
+
+// ============ ADMIN ROUTES ============
+
+app.get('/api/admin/users', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Truy cập bị từ chối: Cần quyền Admin!' });
+    }
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT user_id, username, email, role, is_active, ban_reason, created_at, last_login_at
+            FROM Users
+            ORDER BY created_at DESC
+        `);
+        res.json({ message: "Lấy danh sách người dùng thành công!", data: result.recordset });
+    } catch (error) {
+        console.error("Admin get users error:", error);
         res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+app.put('/api/admin/users/:id/ban', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Truy cập bị từ chối!' });
+    }
+    try {
+        const pool = await poolPromise;
+        
+        // ÉP KIỂU ID SANG SỐ (INTEGER) TẠI ĐÂY
+        const userId = parseInt(req.params.id, 10);
+        
+        if (isNaN(userId)) {
+            return res.status(400).json({ message: "ID người dùng không hợp lệ!" });
+        }
+
+        const result = await pool.request()
+            .input('ban_reason', sql.NVarChar, req.body.ban_reason || 'Vi phạm chính sách')
+            .input('user_id', sql.Int, userId) // Sử dụng biến đã ép kiểu
+            .query('UPDATE Users SET is_active = 0, ban_reason = @ban_reason WHERE user_id = @user_id');
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ message: "Không tìm thấy người dùng này." });
+        }
+
+        res.json({ message: "Đã khóa tài khoản thành công" });
+    } catch (error) {
+        console.error("❌ LỖI SQL KHI KHÓA TÀI KHOẢN:", error);
+        res.status(500).json({ message: "Lỗi hệ thống", error: error.message });
     }
 });
 
@@ -666,67 +797,52 @@ app.post('/api/auth/resend-otp', async (req, res) => {
 
 // ============ EVENTS ============
 
-app.post("/api/events", async (req, res) => {
-    try {
-        const { Title, TimeRange, EventDate, Location, Status, IsLive, CrowdLevel, Description } = req.body;
-
-        if (!Title || !EventDate || !Location) return res.status(400).json({ message: "Thiếu thông tin sự kiện!" });
-
-        const pool = await poolPromise;
-        await pool
-            .request()
-            .input("Title", sql.NVarChar, Title)
-            .input("TimeRange", sql.NVarChar, TimeRange || null)
-            .input("EventDate", sql.NVarChar, EventDate)
-            .input("Location", sql.NVarChar, Location)
-            .input("Status", sql.NVarChar, Status || "pending")
-            .input("IsLive", sql.Bit, IsLive || 0)
-            .input("CrowdLevel", sql.NVarChar, CrowdLevel || "low")
-            .input("Description", sql.NVarChar, Description || null)
-            .query(`INSERT INTO Events (Title, TimeRange, EventDate, Location, Status, IsLive, CrowdLevel, Description) 
-                    VALUES (@Title, @TimeRange, @EventDate, @Location, @Status, @IsLive, @CrowdLevel, @Description)`);
-
-        console.log(`[EVENTS] New event created: ${Title}`);
-        res.status(201).json({ message: "Lưu sự kiện thành công!" });
-    } catch (error) {
-        console.error("Add event error:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
-    }
-});
-
 // GET /api/events
 app.get("/api/events", async (req, res) => {
     try {
+        const { status } = req.query;
         const pool = await poolPromise;
-        const result = await pool
-            .request()
-            .query(`
-                SELECT 
-                    event_id, 
-                    category_id,
-                    title, 
-                    short_description,
-                    description, 
-                    location_name,
-                    latitude,
-                    longitude,
-                    address,
-                    district,
-                    start_time, 
-                    end_time,
-                    banner_url,
-                    thumbnail_url,
-                    status,
-                    is_featured,
-                    is_free,
-                    ticket_price,
-                    view_count,
-                    favorite_count,
-                    created_at,
-                    updated_at
-                FROM Events 
-                ORDER BY start_time DESC
-            `);
+        
+        let query = `
+            SELECT 
+                e.event_id, 
+                e.category_id,
+                c.name AS category_name,
+                c.icon AS category_icon,
+                c.color_code AS category_color,
+                e.title, 
+                e.short_description,
+                e.description, 
+                e.location_name,
+                e.latitude,
+                e.longitude,
+                e.address,
+                e.district,
+                e.start_time, 
+                e.end_time,
+                e.banner_url,
+                e.thumbnail_url,
+                e.status,
+                e.is_featured,
+                e.is_free,
+                e.ticket_price,
+                e.view_count,
+                e.favorite_count,
+                e.created_at,
+                e.updated_at
+            FROM Events e
+            LEFT JOIN EventCategories c ON e.category_id = c.category_id
+        `;
+        
+        const request = pool.request();
+        if (status) {
+            query += " WHERE e.status = @status";
+            request.input("status", sql.NVarChar, status);
+        }
+        
+        query += " ORDER BY e.start_time DESC";
+        
+        const result = await request.query(query);
 
         res.json({
             message: "Lấy danh sách sự kiện thành công!",
@@ -739,7 +855,7 @@ app.get("/api/events", async (req, res) => {
 });
 
 // POST /api/events
-app.post("/api/events", async (req, res) => {
+app.post("/api/events", authenticateToken, async (req, res) => {
     try {
         const {
             title,
@@ -760,7 +876,7 @@ app.post("/api/events", async (req, res) => {
             is_free,
             ticket_price,
             organizer_name,
-            contact_email,
+            contact_phone,
             website_url
         } = req.body;
 
@@ -778,8 +894,8 @@ app.post("/api/events", async (req, res) => {
             .input("short_description", sql.NVarChar, short_description || null)
             .input("description", sql.NVarChar, description || null)
             .input("location_name", sql.NVarChar, location_name)
-            .input("latitude", sql.Decimal, latitude || 0)
-            .input("longitude", sql.Decimal, longitude || 0)
+            .input("latitude", sql.Decimal(9, 6), latitude || 0)
+            .input("longitude", sql.Decimal(9, 6), longitude || 0)
             .input("address", sql.NVarChar, address || null)
             .input("district", sql.NVarChar, district || null)
             .input("start_time", sql.DateTime, start_time)
@@ -791,21 +907,21 @@ app.post("/api/events", async (req, res) => {
             .input("is_free", sql.Bit, is_free ? 1 : 0)
             .input("ticket_price", sql.Decimal, ticket_price || 0)
             .input("organizer_name", sql.NVarChar, organizer_name || null)
-            .input("contact_email", sql.NVarChar, contact_email || null)
+            .input("contact_phone", sql.NVarChar, contact_phone || null)
             .input("website_url", sql.NVarChar, website_url || null)
             .query(`
                 INSERT INTO Events (
                     category_id, created_by, title, short_description, description,
                     location_name, latitude, longitude, address, district,
                     start_time, end_time, banner_url, thumbnail_url, status,
-                    is_featured, is_free, ticket_price, organizer_name, contact_email,
+                    is_featured, is_free, ticket_price, organizer_name, contact_phone,
                     website_url, created_at, updated_at
                 )
                 VALUES (
                     @category_id, @created_by, @title, @short_description, @description,
                     @location_name, @latitude, @longitude, @address, @district,
                     @start_time, @end_time, @banner_url, @thumbnail_url, @status,
-                    @is_featured, @is_free, @ticket_price, @organizer_name, @contact_email,
+                    @is_featured, @is_free, @ticket_price, @organizer_name, @contact_phone,
                     @website_url, GETDATE(), GETDATE()
                 )
             `);
@@ -814,6 +930,396 @@ app.post("/api/events", async (req, res) => {
         res.status(201).json({ message: "Lưu sự kiện thành công!" });
     } catch (error) {
         console.error("Add event error:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// GET /api/event-categories
+app.get("/api/event-categories", async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(
+            "SELECT category_id, name, icon, color_code, description FROM EventCategories ORDER BY category_id"
+        );
+        res.json({
+            message: "Lấy danh sách danh mục sự kiện thành công!",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lỗi lấy danh mục sự kiện:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// PUT /api/events/:id
+app.put("/api/events/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            title,
+            short_description,
+            description,
+            location_name,
+            latitude,
+            longitude,
+            address,
+            district,
+            start_time,
+            end_time,
+            banner_url,
+            thumbnail_url,
+            status,
+            category_id,
+            is_featured,
+            is_free,
+            ticket_price,
+            organizer_name,
+            contact_phone,
+            website_url
+        } = req.body;
+
+        const pool = await poolPromise;
+        
+        // Check if event exists
+        const checkResult = await pool.request()
+            .input("id", sql.Int, id)
+            .query("SELECT event_id FROM Events WHERE event_id = @id");
+            
+        if (checkResult.recordset.length === 0) {
+            return res.status(404).json({ message: "Không tìm thấy sự kiện!" });
+        }
+
+        await pool.request()
+            .input("id", sql.Int, id)
+            .input("category_id", sql.Int, category_id || 1)
+            .input("title", sql.NVarChar, title)
+            .input("short_description", sql.NVarChar, short_description || null)
+            .input("description", sql.NVarChar, description || null)
+            .input("location_name", sql.NVarChar, location_name)
+            .input("latitude", sql.Decimal(9, 6), latitude || 0)
+            .input("longitude", sql.Decimal(9, 6), longitude || 0)
+            .input("address", sql.NVarChar, address || null)
+            .input("district", sql.NVarChar, district || null)
+            .input("start_time", sql.DateTime, start_time)
+            .input("end_time", sql.DateTime, end_time || null)
+            .input("banner_url", sql.NVarChar, banner_url || null)
+            .input("thumbnail_url", sql.NVarChar, thumbnail_url || null)
+            .input("status", sql.NVarChar, status || "pending")
+            .input("is_featured", sql.Bit, is_featured ? 1 : 0)
+            .input("is_free", sql.Bit, is_free ? 1 : 0)
+            .input("ticket_price", sql.Decimal, ticket_price || 0)
+            .input("organizer_name", sql.NVarChar, organizer_name || null)
+            .input("contact_phone", sql.NVarChar, contact_phone || null)
+            .input("website_url", sql.NVarChar, website_url || null)
+            .query(`
+                UPDATE Events SET
+                    category_id = @category_id,
+                    title = @title,
+                    short_description = @short_description,
+                    description = @description,
+                    location_name = @location_name,
+                    latitude = @latitude,
+                    longitude = @longitude,
+                    address = @address,
+                    district = @district,
+                    start_time = @start_time,
+                    end_time = @end_time,
+                    banner_url = @banner_url,
+                    thumbnail_url = @thumbnail_url,
+                    status = @status,
+                    is_featured = @is_featured,
+                    is_free = @is_free,
+                    ticket_price = @ticket_price,
+                    organizer_name = @organizer_name,
+                    contact_phone = @contact_phone,
+                    website_url = @website_url,
+                    updated_at = GETDATE()
+                WHERE event_id = @id
+            `);
+
+        res.json({ message: "Cập nhật sự kiện thành công!" });
+    } catch (error) {
+        console.error("Lỗi cập nhật sự kiện:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// DELETE /api/events/:id
+app.delete("/api/events/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await poolPromise;
+        
+        const checkResult = await pool.request()
+            .input("id", sql.Int, id)
+            .query("SELECT event_id FROM Events WHERE event_id = @id");
+            
+        if (checkResult.recordset.length === 0) {
+            return res.status(404).json({ message: "Không tìm thấy sự kiện!" });
+        }
+
+        await pool.request()
+            .input("id", sql.Int, id)
+            .query("DELETE FROM Events WHERE event_id = @id");
+
+        res.json({ message: "Xóa sự kiện thành công!" });
+    } catch (error) {
+        console.error("Lỗi xóa sự kiện:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// POST /api/events/:id/favorite - Toggle favorite status
+app.post("/api/events/:id/favorite", authenticateToken, async (req, res) => {
+    try {
+        const eventId = parseInt(req.params.id);
+        const userId = req.user.id;
+        
+        if (!eventId) {
+            return res.status(400).json({ message: "ID sự kiện không hợp lệ!" });
+        }
+
+        const pool = await poolPromise;
+        
+        // Check if event exists
+        const eventCheck = await pool.request()
+            .input("event_id", sql.Int, eventId)
+            .query("SELECT event_id, favorite_count FROM Events WHERE event_id = @event_id");
+            
+        if (eventCheck.recordset.length === 0) {
+            return res.status(404).json({ message: "Sự kiện không tồn tại!" });
+        }
+
+        let currentFavoriteCount = eventCheck.recordset[0].favorite_count || 0;
+
+        // Check if already favorited
+        const favCheck = await pool.request()
+            .input("user_id", sql.Int, userId)
+            .input("event_id", sql.Int, eventId)
+            .query("SELECT 1 FROM UserFavoriteEvents WHERE user_id = @user_id AND event_id = @event_id");
+
+        let isFavorite = false;
+        let newFavoriteCount = currentFavoriteCount;
+
+        if (favCheck.recordset.length > 0) {
+            // Unfavorite
+            await pool.request()
+                .input("user_id", sql.Int, userId)
+                .input("event_id", sql.Int, eventId)
+                .query("DELETE FROM UserFavoriteEvents WHERE user_id = @user_id AND event_id = @event_id");
+
+            newFavoriteCount = Math.max(0, currentFavoriteCount - 1);
+            
+            await pool.request()
+                .input("event_id", sql.Int, eventId)
+                .input("fav_count", sql.Int, newFavoriteCount)
+                .query("UPDATE Events SET favorite_count = @fav_count WHERE event_id = @event_id");
+                
+            isFavorite = false;
+        } else {
+            // Favorite
+            await pool.request()
+                .input("user_id", sql.Int, userId)
+                .input("event_id", sql.Int, eventId)
+                .query("INSERT INTO UserFavoriteEvents (user_id, event_id, saved_at) VALUES (@user_id, @event_id, GETDATE())");
+
+            newFavoriteCount = currentFavoriteCount + 1;
+            
+            await pool.request()
+                .input("event_id", sql.Int, eventId)
+                .input("fav_count", sql.Int, newFavoriteCount)
+                .query("UPDATE Events SET favorite_count = @fav_count WHERE event_id = @event_id");
+                
+            isFavorite = true;
+        }
+
+        res.json({
+            message: isFavorite ? "Lưu sự kiện thành công!" : "Bỏ lưu sự kiện thành công!",
+            isFavorite,
+            favoriteCount: newFavoriteCount
+        });
+    } catch (error) {
+        console.error("Lỗi toggle yêu thích sự kiện:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// GET /api/user/favorites/events - Get user's favorited event IDs
+app.get("/api/user/favorites/events", authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("user_id", sql.Int, userId)
+            .query("SELECT event_id FROM UserFavoriteEvents WHERE user_id = @user_id");
+
+        const favoriteIds = result.recordset.map(item => item.event_id);
+        res.json({
+            message: "Lấy danh sách sự kiện yêu thích thành công!",
+            data: favoriteIds
+        });
+    } catch (error) {
+        console.error("Lỗi lấy danh sách yêu thích sự kiện:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// ============ FLOOD ZONES ============
+app.get("/api/flood-zones", async (req, res) => {
+    try {
+        const pool = await poolPromise;
+
+        const result = await pool.request().query(`
+            SELECT 
+                zone_id,
+                zone_name,
+                district,
+                risk_level,
+                polygon_coordinates,
+                description,
+                typical_flood_months,
+                is_active,
+                last_updated,
+                updated_by
+            FROM FloodZones
+            WHERE is_active = 1
+            ORDER BY zone_id ASC
+        `);
+
+        const data = result.recordset.map((zone) => {
+            let coordinates = null;
+
+            try {
+                coordinates = zone.polygon_coordinates
+                    ? JSON.parse(zone.polygon_coordinates)
+                    : null;
+            } catch (error) {
+                console.error("Lỗi parse polygon_coordinates:", zone.zone_name);
+            }
+
+            let depthCm = 8;
+            let level = "low";
+            let color = "yellow";
+            let radius = 150;
+
+            if (zone.risk_level === "High") {
+                depthCm = zone.zone_name.includes("Nguyễn Văn Linh") ? 80 : 55;
+                level = "high";
+                color = "red";
+                radius = 280;
+            } else if (zone.risk_level === "Medium") {
+                depthCm = zone.zone_name.includes("Tiên Sơn") ? 15 : 25;
+                level = "medium";
+                color = "orange";
+                radius = 220;
+            }
+
+            return {
+                id: String(zone.zone_id),
+                zone_id: zone.zone_id,
+                name: zone.zone_name,
+                district: zone.district,
+
+                risk_level: zone.risk_level,
+                polygon_coordinates: zone.polygon_coordinates,
+                description: zone.description,
+                typical_flood_months: zone.typical_flood_months,
+
+                center: Array.isArray(coordinates) && typeof coordinates[0] === "number"
+                    ? coordinates
+                    : null,
+
+                radius,
+                depthCm,
+                level,
+                color,
+                depthValue: depthCm / 100,
+                depthLevel: level,
+
+                bypassPosition: null,
+                bypassOptions: []
+            };
+        });
+
+        res.json({
+            success: true,
+            message: "Lấy dữ liệu vùng ngập lụt thành công",
+            data
+        });
+    } catch (error) {
+        console.error("Lỗi lấy dữ liệu FloodZones:", error);
+        res.status(500).json({
+            success: false,
+            message: "Lỗi server",
+            error: error.message
+        });
+    }
+});
+// ============ POIs (Points of Interest) ============
+
+// GET /api/pois - Lấy danh sách tất cả POIs (có thể lọc theo category)
+app.get("/api/pois", async (req, res) => {
+    try {
+        const { category_id } = req.query;
+        const pool = await poolPromise;
+
+        let query = `
+            SELECT 
+                p.poi_id,
+                p.name,
+                p.latitude,
+                p.longitude,
+                p.address,
+                p.description,
+                p.image_url,
+                p.website_url,
+                p.phone_number,
+                p.rating,
+                p.is_featured,
+                p.is_active,
+                c.name AS category_name,
+                c.icon AS category_icon,
+                c.color_code AS category_color
+            FROM POIs p
+            LEFT JOIN POIsCategories c ON p.category_id = c.id
+            WHERE p.is_active = 1
+        `;
+
+        const request = pool.request();
+
+        if (category_id) {
+            query += ` AND p.category_id = @category_id`;
+            request.input("category_id", sql.Int, parseInt(category_id));
+        }
+
+        query += ` ORDER BY p.is_featured DESC, p.rating DESC`;
+
+        const result = await request.query(query);
+
+        res.json({
+            message: "Lấy danh sách POI thành công!",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lỗi lấy dữ liệu POIs:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// GET /api/poi-categories - Lấy danh sách tất cả POI categories
+app.get("/api/poi-categories", async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(
+            "SELECT id, name, icon, color_code, description FROM POIsCategories ORDER BY id"
+        );
+
+        res.json({
+            message: "Lấy danh sách POI categories thành công!",
+            data: result.recordset
+        });
+    } catch (error) {
+        console.error("Lỗi lấy dữ liệu POIsCategories:", error);
         res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
@@ -836,7 +1342,11 @@ app.post("/api/auth/google", async (req, res) => {
         let result = await pool
             .request()
             .input("email", sql.NVarChar, email.toLowerCase())
-            .query("SELECT * FROM Users WHERE LOWER(email) = LOWER(@email)");
+            .query(`
+                SELECT user_id, username, email, role, password_hash, is_active, ban_reason
+                FROM Users
+                WHERE LOWER(email)=LOWER(@email)
+            `);
 
         let user = result.recordset[0];
 
@@ -859,8 +1369,13 @@ app.post("/api/auth/google", async (req, res) => {
         } else {
             console.log(`[AUTH] Google user login: ${email}`);
         }
+        
+        const banCheck = checkBanStatus(user);
+        if (banCheck.banned) {
+            return res.status(403).json({ message: banCheck.message });
+        }
 
-        // ✅ Phục hồi lại code cập nhật last_login_at cho Google Login
+        // Cập nhật last_login_at cho Google Login
         await pool.request()
             .input("user_id", sql.Int, user.user_id)
             .query("UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id");
@@ -879,6 +1394,271 @@ app.post("/api/auth/google", async (req, res) => {
     } catch (err) {
         console.error("Google Auth Error:", err);
         res.status(401).json({ message: "Xác thực Google thất bại" });
+    }
+});
+
+// ============ EVENT ROADS (ROAD RESTRICTIONS) ============
+
+// GET /api/event-roads - Lấy danh sách đường cấm/hạn chế do sự kiện
+app.get("/api/event-roads", async (req, res) => {
+    try {
+        const { event_id, active_only, approved_only } = req.query;
+        const pool = await poolPromise;
+        let query = `
+            SELECT 
+                r.road_id,
+                r.event_id,
+                e.title AS event_title,
+                e.status AS event_status,
+                r.road_name,
+                r.restriction_type,
+                r.restriction_start,
+                r.restriction_end,
+                r.polyline_encoded,
+                r.geojson_coords,
+                r.description,
+                r.created_at,
+                r.bypass_coords,
+                r.days_of_week,
+                CONVERT(VARCHAR(8), r.start_time_of_day, 108) AS start_time_of_day,
+                CONVERT(VARCHAR(8), r.end_time_of_day, 108) AS end_time_of_day
+            FROM EventRoad r
+            LEFT JOIN Events e ON r.event_id = e.event_id
+            WHERE 1=1
+        `;
+
+        const request = pool.request();
+
+        if (event_id) {
+            query += " AND r.event_id = @event_id";
+            request.input("event_id", sql.Int, parseInt(event_id));
+        }
+
+        if (approved_only === "true") {
+            query += " AND e.status = 'approved'";
+        }
+
+        if (active_only === "true") {
+            query += " AND r.restriction_start <= GETDATE() AND r.restriction_end >= GETDATE()";
+        }
+
+        query += " ORDER BY r.restriction_start ASC";
+
+        const result = await request.query(query);
+
+        // Parse JSON strings to objects/arrays for geojson fields
+        let formattedData = result.recordset.map(item => {
+            let geojson = null;
+            let bypass = null;
+            try {
+                if (item.geojson_coords) {
+                    geojson = JSON.parse(item.geojson_coords);
+                }
+            } catch (e) {
+                console.error("Lỗi parse geojson_coords của road_id:", item.road_id, e.message);
+            }
+            try {
+                if (item.bypass_coords) {
+                    bypass = JSON.parse(item.bypass_coords);
+                }
+            } catch (e) {
+                console.error("Lỗi parse bypass_coords của road_id:", item.road_id, e.message);
+            }
+            return {
+                ...item,
+                geojson_coords: geojson,
+                bypass_coords: bypass
+            };
+        });
+
+        // Nếu yêu cầu lọc các tuyến đường đang thực sự bị cấm tại thời điểm này
+        if (active_only === "true") {
+            const now = new Date();
+            const currentDay = now.getDay(); // 0: CN, 1: T2, ..., 6: T7
+            const currentHours = now.getHours();
+            const currentMinutes = now.getMinutes();
+            const currentTotalMinutes = currentHours * 60 + currentMinutes;
+
+            formattedData = formattedData.filter(road => {
+                if (road.days_of_week) {
+                    const days = road.days_of_week.split(',').map(d => parseInt(d.trim()));
+                    if (!days.includes(currentDay)) {
+                        return false; // Không trùng ngày trong tuần
+                    }
+                }
+
+                if (road.start_time_of_day && road.end_time_of_day) {
+                    const parseTimeToMinutes = (timeStr) => {
+                        const parts = timeStr.split(':');
+                        return parseInt(parts[0] || '0') * 60 + parseInt(parts[1] || '0');
+                    };
+                    const startMin = parseTimeToMinutes(road.start_time_of_day);
+                    const endMin = parseTimeToMinutes(road.end_time_of_day);
+
+                    return currentTotalMinutes >= startMin && currentTotalMinutes <= endMin;
+                }
+
+                return true;
+            });
+        }
+
+        res.json({
+            success: true,
+            message: "Lấy danh sách đường hạn chế thành công!",
+            data: formattedData
+        });
+    } catch (error) {
+        console.error("Lỗi lấy danh sách đường hạn chế:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// POST /api/event-roads - Thêm mới một đoạn đường cấm/hạn chế
+app.post("/api/event-roads", async (req, res) => {
+    try {
+        const {
+            event_id,
+            road_name,
+            restriction_type,
+            restriction_start,
+            restriction_end,
+            polyline_encoded,
+            geojson_coords,
+            description,
+            bypass_coords,
+            days_of_week,
+            start_time_of_day,
+            end_time_of_day
+        } = req.body;
+
+        if (!event_id || !road_name || !restriction_type || !restriction_start || !restriction_end) {
+            return res.status(400).json({ success: false, message: "Thiếu thông tin bắt buộc!" });
+        }
+
+        const geojsonStr = typeof geojson_coords === "object" ? JSON.stringify(geojson_coords) : geojson_coords || null;
+        const bypassStr = typeof bypass_coords === "object" ? JSON.stringify(bypass_coords) : bypass_coords || null;
+
+        const pool = await poolPromise;
+        await pool.request()
+            .input("event_id", sql.Int, event_id)
+            .input("road_name", sql.NVarChar, road_name)
+            .input("restriction_type", sql.NVarChar, restriction_type)
+            .input("restriction_start", sql.DateTime, restriction_start)
+            .input("restriction_end", sql.DateTime, restriction_end)
+            .input("polyline_encoded", sql.NVarChar, polyline_encoded || null)
+            .input("geojson_coords", sql.NVarChar, geojsonStr)
+            .input("description", sql.NVarChar, description || null)
+            .input("bypass_coords", sql.NVarChar, bypassStr)
+            .input("days_of_week", sql.NVarChar, days_of_week || null)
+            .input("start_time_of_day", sql.Time, parseTimeToDate(start_time_of_day))
+            .input("end_time_of_day", sql.Time, parseTimeToDate(end_time_of_day))
+            .query(`
+                INSERT INTO EventRoad (
+                    event_id, road_name, restriction_type, restriction_start, restriction_end,
+                    polyline_encoded, geojson_coords, description, created_at, bypass_coords,
+                    days_of_week, start_time_of_day, end_time_of_day
+                )
+                VALUES (
+                    @event_id, @road_name, @restriction_type, @restriction_start, @restriction_end,
+                    @polyline_encoded, @geojson_coords, @description, GETDATE(), @bypass_coords,
+                    @days_of_week, @start_time_of_day, @end_time_of_day
+                )
+            `);
+
+        res.status(201).json({ success: true, message: "Thêm đường hạn chế thành công!" });
+    } catch (error) {
+        console.error("Lỗi thêm đường hạn chế:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// PUT /api/event-roads/:id - Cập nhật thông tin đường cấm/hạn chế
+app.put("/api/event-roads/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            event_id,
+            road_name,
+            restriction_type,
+            restriction_start,
+            restriction_end,
+            polyline_encoded,
+            geojson_coords,
+            description,
+            bypass_coords,
+            days_of_week,
+            start_time_of_day,
+            end_time_of_day
+        } = req.body;
+
+        if (!event_id || !road_name || !restriction_type || !restriction_start || !restriction_end) {
+            return res.status(400).json({ success: false, message: "Thiếu thông tin bắt buộc!" });
+        }
+
+        const geojsonStr = typeof geojson_coords === "object" ? JSON.stringify(geojson_coords) : geojson_coords || null;
+        const bypassStr = typeof bypass_coords === "object" ? JSON.stringify(bypass_coords) : bypass_coords || null;
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("road_id", sql.Int, parseInt(id))
+            .input("event_id", sql.Int, event_id)
+            .input("road_name", sql.NVarChar, road_name)
+            .input("restriction_type", sql.NVarChar, restriction_type)
+            .input("restriction_start", sql.DateTime, restriction_start)
+            .input("restriction_end", sql.DateTime, restriction_end)
+            .input("polyline_encoded", sql.NVarChar, polyline_encoded || null)
+            .input("geojson_coords", sql.NVarChar, geojsonStr)
+            .input("description", sql.NVarChar, description || null)
+            .input("bypass_coords", sql.NVarChar, bypassStr)
+            .input("days_of_week", sql.NVarChar, days_of_week || null)
+            .input("start_time_of_day", sql.Time, parseTimeToDate(start_time_of_day))
+            .input("end_time_of_day", sql.Time, parseTimeToDate(end_time_of_day))
+            .query(`
+                UPDATE EventRoad
+                SET 
+                    event_id = @event_id,
+                    road_name = @road_name,
+                    restriction_type = @restriction_type,
+                    restriction_start = @restriction_start,
+                    restriction_end = @restriction_end,
+                    polyline_encoded = @polyline_encoded,
+                    geojson_coords = @geojson_coords,
+                    description = @description,
+                    bypass_coords = @bypass_coords,
+                    days_of_week = @days_of_week,
+                    start_time_of_day = @start_time_of_day,
+                    end_time_of_day = @end_time_of_day
+                WHERE road_id = @road_id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy đường hạn chế cần cập nhật!" });
+        }
+
+        res.json({ success: true, message: "Cập nhật đường hạn chế thành công!" });
+    } catch (error) {
+        console.error("Lỗi cập nhật đường hạn chế:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// DELETE /api/event-roads/:id - Xóa đường cấm/hạn chế
+app.delete("/api/event-roads/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("road_id", sql.Int, parseInt(id))
+            .query("DELETE FROM EventRoad WHERE road_id = @road_id");
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy đường hạn chế cần xóa!" });
+        }
+
+        res.json({ success: true, message: "Xóa đường hạn chế thành công!" });
+    } catch (error) {
+        console.error("Lỗi xóa đường hạn chế:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
     }
 });
 

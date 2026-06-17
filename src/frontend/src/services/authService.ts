@@ -7,8 +7,8 @@ export const setup2FA = async () => {
     return response.data;
 };
 
-export const confirm2FA = async (code: string) => {
-    const response = await api.post(API_ENDPOINTS.CONFIRM_2FA, { code });
+export const confirm2FA = async (code: string, secret: string) => {
+    const response = await api.post('/auth/confirm-2fa', { code, secret });
     return response.data;
 };
 
