@@ -100,6 +100,12 @@ export const adminAPI = {
 
     deleteUser: (userId: string) =>
         apiClient.delete(`/admin/users/${userId}`),
+
+    getFloodZones: () =>
+        apiClient.get('/admin/flood-zones'),
+
+    updateFloodZone: (id: number, isActive: boolean) =>
+        apiClient.put(`/admin/flood-zones/${id}`, { is_active: isActive }),
 };
 
 export default apiClient;

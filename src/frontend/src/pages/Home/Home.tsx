@@ -24,8 +24,9 @@ import {
     ShieldAlert, Ban, CloudRain, Compass, Utensils, Hotel,
     Gamepad2, Landmark, DollarSign,
     Layers, TrendingUp, RouteOff,
-    Car, Footprints, Bike, ArrowUpDown, Calendar
+    Car, Footprints, Bike, ArrowUpDown, Calendar, AlertTriangle
 } from 'lucide-react';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 import POIsLayer from './components/POIsLayer';
 import { poiAPI, eventAPI } from '../../services/api'; // ✅ ĐÃ SỬA LỖI IMPORT TẠI ĐÂY
@@ -178,6 +179,45 @@ export default function Home() {
         flood: false
     });
 
+    // Tùy chọn định tuyến tránh vùng ngập lụt
+    const [avoidFlood, setAvoidFlood] = useState<boolean>(true);
+
+    // Custom confirm modal state
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        onCancel: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        onCancel: () => {}
+    });
+
+    const showCustomConfirm = (
+        title: string,
+        message: string,
+        onConfirm: () => void,
+        onCancel: () => void
+    ) => {
+        setConfirmModal({
+            isOpen: true,
+            title,
+            message,
+            onConfirm: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onConfirm();
+            },
+            onCancel: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onCancel();
+            }
+        });
+    };
+
     // CÁC STATE CỦA MAPBOX VÀ CHỈ ĐƯỜNG
     const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
     const [origin, setOrigin] = useState<{ lng: number; lat: number; label: string } | null>(null);
@@ -231,23 +271,32 @@ export default function Home() {
         const zone = findFloodZoneContainingPoint([lng, lat], floodZones);
         if (zone && zone.depthCm > 10) {
             if (!confirmedFloodZoneIds.includes(zone.id)) {
-                const confirmed = window.confirm(
-                    `Địa điểm bạn chọn đang nằm trong vùng ngập ${zone.depthCm}cm. Bạn có chắc chắn muốn đi vào khu vực ngập lụt này không?`
+                showCustomConfirm(
+                    "Xác nhận đi vào vùng ngập sâu",
+                    `Địa điểm bạn chọn đang nằm trong vùng ngập sâu ${zone.depthCm}cm. Bạn có chắc chắn muốn đi vào khu vực ngập lụt này không?`,
+                    () => {
+                        setConfirmedFloodZoneIds((prev) => [...prev, zone.id]);
+                        onApproved();
+                    },
+                    () => {
+                        showPremiumToast("Bạn đã hủy chọn địa điểm trong vùng ngập. Vui lòng chọn địa điểm khác an toàn hơn.", "error");
+                        onRejected();
+                    }
                 );
-                if (confirmed) {
-                    setConfirmedFloodZoneIds((prev) => [...prev, zone.id]);
-                    onApproved();
-                } else {
-                    alert("Bạn đã hủy chọn địa điểm trong vùng ngập. Vui lòng chọn địa điểm khác an toàn hơn.");
-                    onRejected();
-                }
             } else {
                 onApproved();
             }
         } else if (zone && zone.depthCm <= 10) {
-            // Hiển thị cảnh báo nhẹ trong console
-            console.log(`[FloodCheck] Địa điểm này đang ngập khoảng ${zone.depthCm}cm nhưng vẫn có thể di chuyển.`);
-            onApproved();
+            showCustomConfirm(
+                "Địa điểm ngập nhẹ",
+                `Địa điểm bạn chọn đang ngập nhẹ khoảng ${zone.depthCm}cm. Bạn có muốn tiếp tục di chuyển tới đây không?`,
+                () => {
+                    onApproved();
+                },
+                () => {
+                    onRejected();
+                }
+            );
         } else {
             onApproved();
         }
@@ -361,48 +410,60 @@ const handleMapClick = (event: any) => {
             });
 
             if (depthCm <= 10) {
-                setDestination({ lng, lat, label });
-                setDestinationQuery(label);
+                showCustomConfirm(
+                    "Định tuyến tới vùng ngập nhẹ",
+                    `Khu vực này đang ngập nhẹ khoảng ${depthCm}cm (Vẫn có thể di chuyển).\n\nBạn có muốn tìm đường đi tới đây không?`,
+                    () => {
+                        setDestination({ lng, lat, label });
+                        setDestinationQuery(label);
 
-                if (userLocation) {
-                    setOrigin({
-                        lng: userLocation.lng,
-                        lat: userLocation.lat,
-                        label: 'Vị trí của bạn'
-                    });
-                    setOriginQuery('Vị trí của bạn');
-                }
-
+                        if (userLocation) {
+                            setOrigin({
+                                lng: userLocation.lng,
+                                lat: userLocation.lat,
+                                label: 'Vị trí của bạn'
+                            });
+                            setOriginQuery('Vị trí của bạn');
+                        }
+                    },
+                    () => {
+                        setDestination(null);
+                        setDestinationQuery('');
+                        setRouteData(null);
+                        setRouteAlertMessage(null);
+                    }
+                );
                 return;
             }
 
-            const confirmed = window.confirm(
-                `Khu vực này đang ngập ${depthCm}cm, có thể nguy hiểm.\n\nBạn có chắc chắn muốn đi vào vùng ngập này không?`
-            );
-
-            if (confirmed) {
-                setConfirmedFloodZoneIds((prev) => {
-                    if (prev.includes(zoneId)) return prev;
-                    return [...prev, zoneId];
-                });
-
-                setDestination({ lng, lat, label });
-                setDestinationQuery(label);
-
-                if (userLocation) {
-                    setOrigin({
-                        lng: userLocation.lng,
-                        lat: userLocation.lat,
-                        label: 'Vị trí của bạn'
+            showCustomConfirm(
+                "Định tuyến tới vùng ngập sâu",
+                `Khu vực này đang ngập sâu ${depthCm}cm, có thể gây nguy hiểm cho phương tiện của bạn.\n\nBạn có chắc chắn muốn tiếp tục tìm đường tới đây không?`,
+                () => {
+                    setConfirmedFloodZoneIds((prev) => {
+                        if (prev.includes(zoneId)) return prev;
+                        return [...prev, zoneId];
                     });
-                    setOriginQuery('Vị trí của bạn');
+
+                    setDestination({ lng, lat, label });
+                    setDestinationQuery(label);
+
+                    if (userLocation) {
+                        setOrigin({
+                            lng: userLocation.lng,
+                            lat: userLocation.lat,
+                            label: 'Vị trí của bạn'
+                        });
+                        setOriginQuery('Vị trí của bạn');
+                    }
+                },
+                () => {
+                    setDestination(null);
+                    setDestinationQuery('');
+                    setRouteData(null);
+                    setRouteAlertMessage(null);
                 }
-            } else {
-                setDestination(null);
-                setDestinationQuery('');
-                setRouteData(null);
-                setRouteAlertMessage(null);
-            }
+            );
 
             return;
         }
@@ -505,7 +566,7 @@ const handleMapClick = (event: any) => {
                     let selectedRoute = data.routes[0];
                     let alertMsg: string | null = null;
 
-                    if (mapControls.flood) {
+                    if (avoidFlood) {
                         // FIX: Avoid flood zones deeper than 10cm when routing
                         const result = await findSafeRouteZone(
                             data.routes,
@@ -581,7 +642,7 @@ const handleMapClick = (event: any) => {
             }
         };
         getShortestRoute();
-}, [origin, destination, travelMode, mapControls.flood, confirmedFloodZoneIds, floodZones, eventRoads]);
+}, [origin, destination, travelMode, avoidFlood, confirmedFloodZoneIds, floodZones, eventRoads]);
     const geojsonData: any = routeData ? {
         type: 'Feature',
         properties: {},
@@ -1484,6 +1545,24 @@ const floodGeoJSON: any = useMemo(() => {
                                 <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4">
                                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
                                     
+                                    {/* Tùy chọn định tuyến: Tránh vùng ngập lụt */}
+                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-3 animate-fade-in">
+                                        <div className="flex items-center gap-2">
+                                            <CloudRain size={14} className="text-blue-500" />
+                                            <span className="text-[10px] font-bold text-slate-700">Tránh vùng ngập lụt</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAvoidFlood(!avoidFlood)}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${avoidFlood ? 'bg-blue-600' : 'bg-slate-200'}`}
+                                        >
+                                            <span
+                                                style={{ transform: avoidFlood ? 'translateX(18px)' : 'translateX(2px)' }}
+                                                className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
+                                            />
+                                        </button>
+                                    </div>
+                                    
                                     {/* Hiển thị cảnh báo ngập lụt nếu có */}
                                     {routeAlertMessage && (
                                         <div className={`text-[10px] font-bold px-3 py-2 rounded-xl mb-3 border whitespace-pre-line ${
@@ -1576,6 +1655,24 @@ const floodGeoJSON: any = useMemo(() => {
                             {routeData && (
                                 <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 pointer-events-auto animate-fade-up">
                                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
+                                    
+                                    {/* Tùy chọn định tuyến: Tránh vùng ngập lụt */}
+                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-3 animate-fade-in">
+                                        <div className="flex items-center gap-2">
+                                            <CloudRain size={14} className="text-blue-500" />
+                                            <span className="text-[10px] font-bold text-slate-700">Tránh vùng ngập lụt</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAvoidFlood(!avoidFlood)}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${avoidFlood ? 'bg-blue-600' : 'bg-slate-200'}`}
+                                        >
+                                            <span
+                                                style={{ transform: avoidFlood ? 'translateX(18px)' : 'translateX(2px)' }}
+                                                className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
+                                            />
+                                        </button>
+                                    </div>
                                     
                                     {/* Hiển thị cảnh báo ngập lụt nếu có */}
                                     {routeAlertMessage && (
@@ -1857,6 +1954,68 @@ const floodGeoJSON: any = useMemo(() => {
                     </div>
                 </div>
             )}
+
+            {/* CUSTOM CONFIRM MODAL DIALOG */}
+            {confirmModal.isOpen && (
+                <div 
+                    style={{
+                        animation: 'fadeIn 250ms ease-out forwards'
+                    }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
+                >
+                    <div 
+                        style={{
+                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+                        }}
+                        className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full mx-4"
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                                confirmModal.title.includes('nguy hiểm') || confirmModal.title.includes('sâu')
+                                    ? 'bg-red-50 text-red-500' 
+                                    : 'bg-blue-50 text-blue-500'
+                            }`}>
+                                <AlertTriangle size={20} />
+                            </span>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                                {confirmModal.title}
+                            </h3>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mb-6 leading-relaxed whitespace-pre-line">
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={confirmModal.onCancel}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                onClick={confirmModal.onConfirm}
+                                className={`px-5 py-2 text-xs font-bold text-white rounded-xl shadow-md transition-all ${
+                                    confirmModal.title.includes('nguy hiểm') || confirmModal.title.includes('sâu')
+                                        ? 'bg-red-500 hover:bg-red-600 shadow-red-100'
+                                        : 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
+                                }`}
+                            >
+                                Xác nhận
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes scaleUp {
+                    from { transform: scale(0.95); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 }

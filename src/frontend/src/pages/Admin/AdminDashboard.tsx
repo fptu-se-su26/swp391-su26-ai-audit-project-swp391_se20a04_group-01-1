@@ -12,7 +12,7 @@ import {
 import AdminLayout from '../../layouts/AdminLayout';
 import * as authService from '../../services/authService';
 import * as userService from '../../services/userService';
-import { eventAPI } from '../../services/api';
+import { eventAPI, adminAPI } from '../../services/api';
 import { eventRoadService } from '../../services/eventRoadService';
 import SettingsTab from './SettingsTab';
 import UsersTab from './UsersTab';
@@ -23,6 +23,7 @@ import EventsTab from './EventsTab';
 import OverviewTab from './OverviewTab';
 import { DBEvent, TrafficAlert, FloodZone, RoadClosure, ManageUser, EventFormData } from './types';
 import toast from 'react-hot-toast';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 export default function AdminDashboard() {
     const [activeMenu, setActiveMenu] = useState('overview');
@@ -52,11 +53,7 @@ export default function AdminDashboard() {
         { id: 3, title: 'Thi công sửa đường ống nước', location: 'Đường Điện Biên Phủ, Thanh Khê', type: 'CONSTRUCTION', severity: 'LOW', is_active: true, created_at: '2 giờ trước' }
     ]);
 
-    const [floodZones, setFloodZones] = useState<FloodZone[]>([
-        { id: 1, name: 'Vùng trũng Hàm Nghi', district: 'Thanh Khê', risk_level: 'HIGH', is_active: true, last_updated: '2026-05-31' },
-        { id: 2, name: 'Khu vực bến xe trung tâm', district: 'Liên Chiểu', risk_level: 'MEDIUM', is_active: true, last_updated: '2026-05-30' },
-        { id: 3, name: 'Ngã tư Trưng Nữ Vương - Nguyễn Văn Linh', district: 'Hải Châu', risk_level: 'LOW', is_active: false, last_updated: '2026-05-28' }
-    ]);
+    const [floodZones, setFloodZones] = useState<FloodZone[]>([]);
 
     const [roadClosures, setRoadClosures] = useState<RoadClosure[]>([
         { id: 1, road_name: 'Đường Bạch Đằng', event_title: 'Lễ hội Pháo hoa quốc tế DIFF 2026', restriction_type: 'CLOSED', time_frame: '18:00 - 23:00' },
@@ -102,12 +99,33 @@ export default function AdminDashboard() {
         }
     };
 
+    const fetchFloodZones = async () => {
+        try {
+            const response = await adminAPI.getFloodZones();
+            if (response.data && response.data.success) {
+                const data = response.data.data.map((z: any) => ({
+                    id: Number(z.zone_id),
+                    name: z.name || z.zone_name,
+                    district: z.district,
+                    risk_level: (z.risk_level || 'LOW').toUpperCase(),
+                    is_active: !!z.is_active,
+                    last_updated: z.last_updated || 'Chưa cập nhật'
+                }));
+                setFloodZones(data);
+            }
+        } catch (error) {
+            console.error("Lỗi lấy danh sách vùng ngập lụt:", error);
+            showPremiumToast('Không thể lấy dữ liệu vùng ngập lụt từ server.', 'error');
+        }
+    };
+
     useEffect(() => {
         fetchEvents();
         fetchAdminSecuritySettings();
         fetchUserProfile();
         fetchUsers();
         fetchRoadClosures();
+        fetchFloodZones();
     }, []);
 
     const fetchAdminSecuritySettings = async () => {
@@ -215,10 +233,10 @@ export default function AdminDashboard() {
                 ...eventObj,
                 status: nextStatus
             });
-            toast.success(nextStatus === 'approved' ? 'Phê duyệt sự kiện thành công!' : 'Đã chuyển sự kiện về trạng thái chờ duyệt!');
+            showPremiumToast(nextStatus === 'approved' ? 'Phê duyệt sự kiện thành công!' : 'Đã chuyển sự kiện về trạng thái chờ duyệt!', 'success');
             fetchEvents();
         } catch (error) {
-            toast.error('Lỗi phê duyệt sự kiện.');
+            showPremiumToast('Lỗi phê duyệt sự kiện.', 'error');
         }
     };
 
@@ -226,10 +244,10 @@ export default function AdminDashboard() {
         if (window.confirm('Bạn có chắc chắn muốn xóa sự kiện này không?')) {
             try {
                 await eventAPI.deleteEvent(id);
-                toast.success('Xóa sự kiện thành công!');
+                showPremiumToast('Xóa sự kiện thành công!', 'success');
                 fetchEvents();
             } catch (error) {
-                toast.error('Lỗi xóa sự kiện.');
+                showPremiumToast('Lỗi xóa sự kiện.', 'error');
             }
         }
     };
@@ -257,16 +275,16 @@ export default function AdminDashboard() {
 
             if (editingEvent) {
                 await eventAPI.updateEvent(editingEvent.event_id, body);
-                toast.success('Cập nhật sự kiện thành công!');
+                showPremiumToast('Cập nhật sự kiện thành công!', 'success');
             } else {
                 await eventAPI.createEvent(body);
-                toast.success('Thêm sự kiện mới thành công!');
+                showPremiumToast('Thêm sự kiện mới thành công!', 'success');
             }
             setShowModal(false);
             setEditingEvent(null);
             fetchEvents();
         } catch (error) {
-            toast.error('Lỗi kết nối máy chủ hoặc lưu sự kiện.');
+            showPremiumToast('Lỗi kết nối máy chủ hoặc lưu sự kiện.', 'error');
         }
     };
 
@@ -281,8 +299,23 @@ export default function AdminDashboard() {
         setTrafficAlerts(prev => prev.map(a => a.id === id ? { ...a, is_active: !a.is_active } : a));
     };
 
-    const toggleFloodStatus = (id: number) => {
-        setFloodZones(prev => prev.map(z => z.id === id ? { ...z, is_active: !z.is_active, last_updated: 'Hôm nay' } : z));
+    const toggleFloodStatus = async (id: number) => {
+        const zone = floodZones.find(z => z.id === id);
+        if (!zone) return;
+
+        const nextStatus = !zone.is_active;
+        try {
+            const response = await adminAPI.updateFloodZone(id, nextStatus);
+            if (response.data && response.data.success) {
+                showPremiumToast('Cập nhật trạng thái vùng ngập thành công!', 'success');
+                setFloodZones(prev => prev.map(z => z.id === id ? { ...z, is_active: nextStatus, last_updated: 'Vừa xong' } : z));
+            } else {
+                showPremiumToast('Cập nhật trạng thái vùng ngập thất bại.', 'error');
+            }
+        } catch (error) {
+            console.error("Lỗi cập nhật trạng thái vùng ngập:", error);
+            showPremiumToast('Lỗi hệ thống khi cập nhật trạng thái.', 'error');
+        }
     };
 
     const handleChangePasswordSubmit = async (e: React.FormEvent) => {

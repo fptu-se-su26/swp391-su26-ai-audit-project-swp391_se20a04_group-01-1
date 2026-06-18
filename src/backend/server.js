@@ -609,6 +609,136 @@ app.put('/api/admin/users/:id/ban', authenticateToken, async (req, res) => {
     }
 });
 
+// ============ ADMIN FLOOD ZONES ============
+app.get('/api/admin/flood-zones', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Cần quyền Admin!' });
+    }
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT 
+                zone_id,
+                zone_name,
+                district,
+                risk_level,
+                polygon_coordinates,
+                description,
+                typical_flood_months,
+                is_active,
+                last_updated,
+                updated_by
+            FROM FloodZones
+            ORDER BY zone_id ASC
+        `);
+
+        const data = result.recordset.map((zone) => {
+            let coordinates = null;
+            try {
+                coordinates = zone.polygon_coordinates
+                    ? JSON.parse(zone.polygon_coordinates)
+                    : null;
+            } catch (error) {
+                console.error("Lỗi parse polygon_coordinates:", zone.zone_name);
+            }
+
+            let depthCm = 8;
+            let level = "low";
+            let color = "yellow";
+            let radius = 150;
+
+            if (zone.risk_level === "High") {
+                depthCm = zone.zone_name.includes("Nguyễn Văn Linh") ? 80 : 55;
+                level = "high";
+                color = "red";
+                radius = 280;
+            } else if (zone.risk_level === "Medium") {
+                depthCm = zone.zone_name.includes("Tiên Sơn") ? 15 : 25;
+                level = "medium";
+                color = "orange";
+                radius = 220;
+            }
+
+            return {
+                id: zone.zone_id,
+                zone_id: zone.zone_id,
+                name: zone.zone_name,
+                district: zone.district,
+                risk_level: zone.risk_level,
+                polygon_coordinates: zone.polygon_coordinates,
+                description: zone.description,
+                typical_flood_months: zone.typical_flood_months,
+                is_active: zone.is_active,
+                last_updated: zone.last_updated ? zone.last_updated.toISOString().split('T')[0] : '',
+                updated_by: zone.updated_by,
+                
+                center: Array.isArray(coordinates) && typeof coordinates[0] === "number"
+                    ? coordinates
+                    : null,
+                radius,
+                depthCm,
+                level,
+                color,
+                depthValue: depthCm / 100,
+                depthLevel: level,
+                bypassPosition: null,
+                bypassOptions: []
+            };
+        });
+
+        res.json({
+            success: true,
+            message: "Lấy tất cả vùng ngập lụt thành công",
+            data
+        });
+    } catch (error) {
+        console.error("Lỗi lấy dữ liệu FloodZones cho admin:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+app.put('/api/admin/flood-zones/:id', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Truy cập bị từ chối!' });
+    }
+    try {
+        const pool = await poolPromise;
+        const zoneId = parseInt(req.params.id, 10);
+        if (isNaN(zoneId)) {
+            return res.status(400).json({ success: false, message: "ID vùng ngập lụt không hợp lệ!" });
+        }
+        
+        const { is_active } = req.body;
+        if (is_active === undefined) {
+            return res.status(400).json({ success: false, message: "Thiếu trạng thái is_active!" });
+        }
+
+        const activeBit = is_active ? 1 : 0;
+        const updatedBy = req.user.id;
+
+        await pool.request()
+            .input('is_active', sql.Bit, activeBit)
+            .input('updated_by', sql.Int, updatedBy)
+            .input('zone_id', sql.Int, zoneId)
+            .query(`
+                UPDATE FloodZones 
+                SET is_active = @is_active, 
+                    last_updated = GETDATE(), 
+                    updated_by = @updated_by 
+                WHERE zone_id = @zone_id
+            `);
+
+        res.json({
+            success: true,
+            message: "Cập nhật trạng thái vùng ngập lụt thành công!"
+        });
+    } catch (error) {
+        console.error("Lỗi cập nhật trạng thái FloodZone:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+
 app.put("/api/user/profile", authenticateToken, async (req, res) => {
     try {
         const { username } = req.body;
