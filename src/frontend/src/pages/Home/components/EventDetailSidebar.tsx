@@ -106,7 +106,7 @@ export default function EventDetailSidebar({
 
                 {/* Tiêu đề góc dưới đè lên banner */}
                 <div className="absolute bottom-3 inset-x-3 text-left">
-                    <span 
+                    <span
                         className="text-[9px] font-bold text-white px-2 py-0.5 rounded-full shadow-sm"
                         style={{ backgroundColor: event.category_color || '#6366F1' }}
                     >

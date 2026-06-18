@@ -67,7 +67,19 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
             className="poi-popup-container z-50"
             maxWidth="280px"
         >
-            <div className="w-[260px] bg-white rounded-xl overflow-hidden shadow-2xl font-sans">
+            <div className="w-[260px] bg-white rounded-xl overflow-hidden shadow-2xl font-sans relative">
+                {/* Nút đóng luôn hiển thị ở góc trên bên phải */}
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClose();
+                    }}
+                    className="absolute top-2 right-2 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center transition-all active:scale-95 z-20"
+                    title="Đóng"
+                >
+                    <X size={16} />
+                </button>
+
                 {/* Header: Hình ảnh */}
                 {poi.image_url && (
                     <div className="relative h-[120px] overflow-hidden">
@@ -90,24 +102,12 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
                             {poi.category_name}
                         </span>
 
-                        {/* Featured badge */}
+                        {/* Featured badge - dịch sang bên trái nút đóng */}
                         {poi.is_featured && (
-                            <span className="absolute top-2 right-2 text-[9px] font-bold bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full shadow-sm">
+                            <span className="absolute top-2 right-12 text-[9px] font-bold bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full shadow-sm">
                                 ⭐ Nổi bật
                             </span>
                         )}
-
-                        {/* Nút đóng */}
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onClose();
-                            }}
-                            className="absolute top-2 right-2 w-6 h-6 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center transition-colors"
-                            style={{ right: poi.is_featured ? 'auto' : '8px', left: poi.is_featured ? 'auto' : 'auto' }}
-                        >
-                            <X size={12} />
-                        </button>
                     </div>
                 )}
 

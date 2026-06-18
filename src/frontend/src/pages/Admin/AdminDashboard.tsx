@@ -13,6 +13,7 @@ import AdminLayout from '../../layouts/AdminLayout';
 import * as authService from '../../services/authService';
 import * as userService from '../../services/userService';
 import { eventAPI } from '../../services/api';
+import { eventRoadService } from '../../services/eventRoadService';
 import SettingsTab from './SettingsTab';
 import UsersTab from './UsersTab';
 import ClosureTab from './ClosureTab';
@@ -21,6 +22,7 @@ import TrafficTab from './TrafficTab';
 import EventsTab from './EventsTab';
 import OverviewTab from './OverviewTab';
 import { DBEvent, TrafficAlert, FloodZone, RoadClosure, ManageUser, EventFormData } from './types';
+import toast from 'react-hot-toast';
 
 export default function AdminDashboard() {
     const [activeMenu, setActiveMenu] = useState('overview');
@@ -105,6 +107,7 @@ export default function AdminDashboard() {
         fetchAdminSecuritySettings();
         fetchUserProfile();
         fetchUsers();
+        fetchRoadClosures();
     }, []);
 
     const fetchAdminSecuritySettings = async () => {
@@ -132,6 +135,40 @@ export default function AdminDashboard() {
                 const user = JSON.parse(storedUser);
                 setProfileForm({ username: user.username || '', email: user.email || '' });
             }
+        }
+    };
+
+    const fetchRoadClosures = async () => {
+        try {
+            const data = await eventRoadService.getEventRoads();
+            const mappedClosures = data.map(road => {
+                let timeFrameStr = '';
+                if (road.days_of_week) {
+                    const daysStr = road.days_of_week.split(',').map((d: string) => {
+                        const day = parseInt(d.trim());
+                        return day === 0 ? 'CN' : `T${day + 1}`;
+                    }).join(', ');
+                    const startStr = road.start_time_of_day ? road.start_time_of_day.substring(0, 5) : '';
+                    const endStr = road.end_time_of_day ? road.end_time_of_day.substring(0, 5) : '';
+                    timeFrameStr = `${startStr} - ${endStr} (${daysStr} hàng tuần)`;
+                } else {
+                    const startStr = new Date(road.restriction_start).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                    const endStr = new Date(road.restriction_end).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                    const dateStr = new Date(road.restriction_start).toLocaleDateString('vi-VN');
+                    timeFrameStr = `${startStr} - ${endStr} (${dateStr})`;
+                }
+                
+                return {
+                    id: road.road_id,
+                    road_name: road.road_name,
+                    event_title: road.event_title || 'Sự kiện cấm đường',
+                    restriction_type: road.restriction_type as any,
+                    time_frame: timeFrameStr
+                };
+            });
+            setRoadClosures(mappedClosures);
+        } catch (error) {
+            console.error("Lỗi khi tải danh sách đường cấm do sự kiện:", error);
         }
     };
 
@@ -178,9 +215,10 @@ export default function AdminDashboard() {
                 ...eventObj,
                 status: nextStatus
             });
+            toast.success(nextStatus === 'approved' ? 'Phê duyệt sự kiện thành công!' : 'Đã chuyển sự kiện về trạng thái chờ duyệt!');
             fetchEvents();
         } catch (error) {
-            alert('Lỗi phê duyệt sự kiện.');
+            toast.error('Lỗi phê duyệt sự kiện.');
         }
     };
 
@@ -188,9 +226,10 @@ export default function AdminDashboard() {
         if (window.confirm('Bạn có chắc chắn muốn xóa sự kiện này không?')) {
             try {
                 await eventAPI.deleteEvent(id);
+                toast.success('Xóa sự kiện thành công!');
                 fetchEvents();
             } catch (error) {
-                alert('Lỗi xóa sự kiện.');
+                toast.error('Lỗi xóa sự kiện.');
             }
         }
     };
@@ -218,14 +257,16 @@ export default function AdminDashboard() {
 
             if (editingEvent) {
                 await eventAPI.updateEvent(editingEvent.event_id, body);
+                toast.success('Cập nhật sự kiện thành công!');
             } else {
                 await eventAPI.createEvent(body);
+                toast.success('Thêm sự kiện mới thành công!');
             }
             setShowModal(false);
             setEditingEvent(null);
             fetchEvents();
         } catch (error) {
-            alert('Lỗi kết nối máy chủ hoặc lưu sự kiện.');
+            toast.error('Lỗi kết nối máy chủ hoặc lưu sự kiện.');
         }
     };
 
@@ -320,7 +361,13 @@ export default function AdminDashboard() {
                 />
             )}
             {activeMenu === 'flood' && <FloodTab floodZones={floodZones} toggleFloodStatus={toggleFloodStatus} />}
-            {activeMenu === 'closure' && <ClosureTab roadClosures={roadClosures} />}
+            {activeMenu === 'closure' && (
+                <ClosureTab 
+                    roadClosures={roadClosures} 
+                    events={events}
+                    onRefresh={fetchRoadClosures} 
+                />
+            )}
             {activeMenu === 'users' && (
                 <UsersTab
                     adminUsers={adminUsers} showBanModal={showBanModal} setShowBanModal={setShowBanModal}
