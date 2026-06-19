@@ -87,6 +87,42 @@ export default function AdminDashboard() {
 
     const [currentPage, setCurrentPage] = useState(1);
 
+    // Custom confirm modal state
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        onCancel: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        onCancel: () => {}
+    });
+
+    const showCustomConfirm = (
+        title: string,
+        message: string,
+        onConfirm: () => void,
+        onCancel: () => void = () => {}
+    ) => {
+        setConfirmModal({
+            isOpen: true,
+            title,
+            message,
+            onConfirm: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onConfirm();
+            },
+            onCancel: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onCancel();
+            }
+        });
+    };
+
     const fetchUsers = async () => {
         try {
             const response = await userService.getAllUsers();
@@ -260,15 +296,19 @@ export default function AdminDashboard() {
     };
 
     const handleDeleteEvent = async (id: number) => {
-        if (window.confirm('Bạn có chắc chắn muốn xóa sự kiện này không?')) {
-            try {
-                await eventAPI.deleteEvent(id);
-                showPremiumToast('Xóa sự kiện thành công!', 'success');
-                fetchEvents();
-            } catch (error) {
-                showPremiumToast('Lỗi xóa sự kiện.', 'error');
+        showCustomConfirm(
+            'Xác nhận xóa',
+            'Bạn có chắc chắn muốn xóa sự kiện này không?',
+            async () => {
+                try {
+                    await eventAPI.deleteEvent(id);
+                    showPremiumToast('Xóa sự kiện thành công!', 'success');
+                    fetchEvents();
+                } catch (error) {
+                    showPremiumToast('Lỗi xóa sự kiện.', 'error');
+                }
             }
-        }
+        );
     };
 
     const handleCreateEvent = async (e: React.FormEvent) => {
@@ -355,6 +395,28 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleDeleteTrafficAlert = async (id: number) => {
+        showCustomConfirm(
+            'Xác nhận xóa sự cố',
+            'Bạn có chắc chắn muốn xóa báo cáo cảnh báo sự cố giao thông này không?',
+            async () => {
+                try {
+                    const response = await adminAPI.deleteTrafficAlert(id);
+                    if (response.data && response.data.success) {
+                        showPremiumToast('Xóa cảnh báo sự cố thành công!', 'success');
+                        setTrafficAlerts(prev => prev.filter(a => a.id !== id));
+                    } else {
+                        showPremiumToast('Không thể xóa cảnh báo sự cố.', 'error');
+                    }
+                } catch (error) {
+                    console.error("Lỗi khi xóa sự cố giao thông:", error);
+                    showPremiumToast('Lỗi hệ thống khi xóa sự cố.', 'error');
+                }
+            },
+            () => {}
+        );
+    };
+
     const toggleFloodStatus = async (id: number) => {
         const zone = floodZones.find(z => z.id === id);
         if (!zone) return;
@@ -387,8 +449,16 @@ export default function AdminDashboard() {
     };
 
     const handleUnbanUser = async (userId: number) => {
-        if (!window.confirm("Bạn có chắc chắn muốn mở khóa cho tài khoản này không?")) return;
-        try { await userService.unbanUser(userId); fetchUsers(); } catch (error) {}
+        showCustomConfirm(
+            'Xác nhận mở khóa',
+            'Bạn có chắc chắn muốn mở khóa cho tài khoản này không?',
+            async () => {
+                try {
+                    await userService.unbanUser(userId);
+                    fetchUsers();
+                } catch (error) {}
+            }
+        );
     };
 
     const handleBanSubmit = async (e: React.FormEvent) => {
@@ -424,10 +494,25 @@ export default function AdminDashboard() {
     };
 
     const handleDisable2FA = async () => {
+        setTwoFaMessage('');
+        setTwoFaError(false);
         try {
-            await userService.disable2FA({ password: disable2FaPassword });
-            setTwoFactorEnabled(false); setShowDisable2FaInput(false); localStorage.setItem('is_2fa_enabled', '0');
-        } catch (error) {}
+            const result = await userService.disable2FA({ password: disable2FaPassword });
+            if (result.success) {
+                setTwoFactorEnabled(false);
+                setShowDisable2FaInput(false);
+                setDisable2FaPassword('');
+                localStorage.setItem('is_2fa_enabled', '0');
+                showPremiumToast('Đã tắt xác thực 2 lớp (2FA) thành công!', 'success');
+            } else {
+                setTwoFaError(true);
+                setTwoFaMessage(result.error?.message || result.message || 'Lỗi khi tắt 2FA');
+            }
+        } catch (error: any) {
+            setTwoFaError(true);
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Mật khẩu không chính xác hoặc lỗi hệ thống!';
+            setTwoFaMessage(errorMessage);
+        }
     };
 
     return (
@@ -456,6 +541,7 @@ export default function AdminDashboard() {
                     trafficAlerts={trafficAlerts} toggleTrafficStatus={toggleTrafficStatus} showTrafficModal={showTrafficModal}
                     setShowTrafficModal={setShowTrafficModal} trafficFormData={trafficFormData} setTrafficFormData={setTrafficFormData}
                     handleCreateTrafficAlert={handleCreateTrafficAlert}
+                    deleteTrafficAlert={handleDeleteTrafficAlert}
                 />
             )}
             {activeMenu === 'flood' && <FloodTab floodZones={floodZones} toggleFloodStatus={toggleFloodStatus} />}
@@ -488,6 +574,48 @@ export default function AdminDashboard() {
                     handleSetup2FA={handleSetup2FA} handleConfirm2FA={handleConfirm2FA} handleDisable2FA={handleDisable2FA}
                     setTwoFaQRCode={setTwoFaQRCode} setTwoFaSecret={setTwoFaSecret} setTwoFaError={setTwoFaError} setTwoFaMessage={setTwoFaMessage}
                 />
+            )}
+            {/* CUSTOM CONFIRM MODAL DIALOG */}
+            {confirmModal.isOpen && (
+                <div 
+                    style={{
+                        animation: 'fadeIn 250ms ease-out forwards'
+                    }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
+                >
+                    <div 
+                        style={{
+                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+                        }}
+                        className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full mx-4 text-left font-sans"
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-blue-50 text-blue-500">
+                                <AlertTriangle size={20} />
+                            </span>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                                {confirmModal.title}
+                            </h3>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mb-6 leading-relaxed whitespace-pre-line">
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={confirmModal.onCancel}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                onClick={confirmModal.onConfirm}
+                                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-100 transition-all"
+                            >
+                                Xác nhận
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </AdminLayout>
     );

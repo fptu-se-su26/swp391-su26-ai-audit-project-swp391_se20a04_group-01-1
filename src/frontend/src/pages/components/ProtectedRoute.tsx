@@ -9,9 +9,10 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     const token = localStorage.getItem('token');
     const userRole = localStorage.getItem('userRole');
 
-    // ❌ Nếu không có token → redirect login
+    // ❌ Nếu không có token → redirect login kèm query string hiện tại
     if (!token) {
-        return <Navigate to="/login" replace />;
+        const search = window.location.search;
+        return <Navigate to={`/login${search}`} replace />;
     }
 
     // ✅ Nếu yêu cầu role cụ thể mà role không khớp → redirect dashboard

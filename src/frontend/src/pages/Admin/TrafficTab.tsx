@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Plus, X, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
 import { TrafficAlert } from './types';
 import Map, { Marker, NavigationControl } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -7,6 +7,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 interface Props {
     trafficAlerts: TrafficAlert[];
     toggleTrafficStatus: (id: number) => void;
+    deleteTrafficAlert: (id: number) => void;
     showTrafficModal: boolean;
     setShowTrafficModal: (v: boolean) => void;
     trafficFormData: {
@@ -22,7 +23,7 @@ interface Props {
 }
 
 export default function TrafficTab({
-    trafficAlerts, toggleTrafficStatus,
+    trafficAlerts, toggleTrafficStatus, deleteTrafficAlert,
     showTrafficModal, setShowTrafficModal,
     trafficFormData, setTrafficFormData, handleCreateTrafficAlert
 }: Props) {
@@ -130,15 +131,24 @@ export default function TrafficTab({
                                 }`}>
                                     Cấp độ: {alert.severity}
                                 </span>
-                                <button
-                                    onClick={() => toggleTrafficStatus(alert.id)}
-                                    className={`px-3 py-1 rounded-lg text-xs font-semibold border transition ${alert.is_active
-                                        ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-                                        : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
-                                    }`}
-                                >
-                                    {alert.is_active ? 'Gỡ cảnh báo' : 'Kích hoạt lại'}
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => toggleTrafficStatus(alert.id)}
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${alert.is_active
+                                            ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
+                                            : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'
+                                        }`}
+                                    >
+                                        {alert.is_active ? 'Gỡ' : 'Bật lại'}
+                                    </button>
+                                    <button
+                                        onClick={() => deleteTrafficAlert(alert.id)}
+                                        className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 border border-red-100 hover:border-red-200 transition"
+                                        title="Xóa cảnh báo"
+                                    >
+                                        <Trash2 size={13} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     ))}
