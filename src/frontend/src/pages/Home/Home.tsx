@@ -24,11 +24,13 @@ import {
     ShieldAlert, Ban, CloudRain, Compass, Utensils, Hotel,
     Gamepad2, Landmark, DollarSign,
     Layers, TrendingUp, RouteOff,
-    Car, Footprints, Bike, ArrowUpDown, Calendar
+    Car, Footprints, Bike, ArrowUpDown, Calendar, AlertTriangle,
+    Construction, CheckCircle2
 } from 'lucide-react';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 import POIsLayer from './components/POIsLayer';
-import { poiAPI, eventAPI } from '../../services/api'; // ✅ ĐÃ SỬA LỖI IMPORT TẠI ĐÂY
+import { poiAPI, eventAPI, trafficAlertAPI } from '../../services/api'; // ✅ ĐÃ SỬA LỖI IMPORT TẠI ĐÂY
 import { POIData } from './components/POIPopup';
 import POIFeaturedSidebar from './components/POIFeaturedSidebar';
 import EventsLayer, { EventData } from './components/EventsLayer';
@@ -117,6 +119,57 @@ export default function Home() {
     const [eventRoads, setEventRoads] = useState<EventRoad[]>([]);
     const [selectedRoadPopup, setSelectedRoadPopup] = useState<EventRoad | null>(null);
 
+    // State cho Cảnh báo giao thông (Traffic Alerts)
+    const [trafficAlerts, setTrafficAlerts] = useState<any[]>([]);
+    const [selectedTrafficAlert, setSelectedTrafficAlert] = useState<any | null>(null);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportFormData, setReportFormData] = useState({
+        type: 'CONGESTION',
+        title: '',
+        description: '',
+        location: '',
+        latitude: 16.0544,
+        longitude: 108.2022,
+        severity: 'MEDIUM'
+    });
+
+    const handleOpenReportModal = (lat: number, lng: number) => {
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        if (!token) {
+            showPremiumToast('Vui lòng đăng nhập để gửi báo cáo sự cố giao thông.', 'error');
+            return;
+        }
+
+        setReportFormData({
+            type: 'CONGESTION',
+            title: '',
+            description: '',
+            location: `Tọa độ: ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+            latitude: lat,
+            longitude: lng,
+            severity: 'MEDIUM'
+        });
+        setShowReportModal(true);
+        setPendingDestination(null);
+    };
+
+    const handleSubmitTrafficReport = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const response = await trafficAlertAPI.createTrafficAlert(reportFormData);
+            if (response.data && response.data.success) {
+                showPremiumToast('Gửi báo cáo sự cố giao thông thành công! Đang chờ phê duyệt.', 'success');
+                setShowReportModal(false);
+                fetchTrafficAlerts();
+            } else {
+                showPremiumToast(response.data.message || 'Lỗi gửi báo cáo sự cố.', 'error');
+            }
+        } catch (error: any) {
+            console.error("Lỗi gửi báo cáo sự cố:", error);
+            showPremiumToast(error.response?.data?.message || 'Không thể gửi báo cáo lên hệ thống.', 'error');
+        }
+    };
+
     const handleEventClick = (evt: EventData) => {
         setSelectedEvent(evt);
         setSelectedPOI(null); // Đóng POI nếu đang mở
@@ -178,6 +231,45 @@ export default function Home() {
         flood: false
     });
 
+    // Tùy chọn định tuyến tránh vùng ngập lụt
+    const [avoidFlood, setAvoidFlood] = useState<boolean>(true);
+
+    // Custom confirm modal state
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        onCancel: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        onCancel: () => {}
+    });
+
+    const showCustomConfirm = (
+        title: string,
+        message: string,
+        onConfirm: () => void,
+        onCancel: () => void
+    ) => {
+        setConfirmModal({
+            isOpen: true,
+            title,
+            message,
+            onConfirm: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onConfirm();
+            },
+            onCancel: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onCancel();
+            }
+        });
+    };
+
     // CÁC STATE CỦA MAPBOX VÀ CHỈ ĐƯỜNG
     const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
     const [origin, setOrigin] = useState<{ lng: number; lat: number; label: string } | null>(null);
@@ -231,23 +323,32 @@ export default function Home() {
         const zone = findFloodZoneContainingPoint([lng, lat], floodZones);
         if (zone && zone.depthCm > 10) {
             if (!confirmedFloodZoneIds.includes(zone.id)) {
-                const confirmed = window.confirm(
-                    `Địa điểm bạn chọn đang nằm trong vùng ngập ${zone.depthCm}cm. Bạn có chắc chắn muốn đi vào khu vực ngập lụt này không?`
+                showCustomConfirm(
+                    "Xác nhận đi vào vùng ngập sâu",
+                    `Địa điểm bạn chọn đang nằm trong vùng ngập sâu ${zone.depthCm}cm. Bạn có chắc chắn muốn đi vào khu vực ngập lụt này không?`,
+                    () => {
+                        setConfirmedFloodZoneIds((prev) => [...prev, zone.id]);
+                        onApproved();
+                    },
+                    () => {
+                        showPremiumToast("Bạn đã hủy chọn địa điểm trong vùng ngập. Vui lòng chọn địa điểm khác an toàn hơn.", "error");
+                        onRejected();
+                    }
                 );
-                if (confirmed) {
-                    setConfirmedFloodZoneIds((prev) => [...prev, zone.id]);
-                    onApproved();
-                } else {
-                    alert("Bạn đã hủy chọn địa điểm trong vùng ngập. Vui lòng chọn địa điểm khác an toàn hơn.");
-                    onRejected();
-                }
             } else {
                 onApproved();
             }
         } else if (zone && zone.depthCm <= 10) {
-            // Hiển thị cảnh báo nhẹ trong console
-            console.log(`[FloodCheck] Địa điểm này đang ngập khoảng ${zone.depthCm}cm nhưng vẫn có thể di chuyển.`);
-            onApproved();
+            showCustomConfirm(
+                "Địa điểm ngập nhẹ",
+                `Địa điểm bạn chọn đang ngập nhẹ khoảng ${zone.depthCm}cm. Bạn có muốn tiếp tục di chuyển tới đây không?`,
+                () => {
+                    onApproved();
+                },
+                () => {
+                    onRejected();
+                }
+            );
         } else {
             onApproved();
         }
@@ -361,48 +462,60 @@ const handleMapClick = (event: any) => {
             });
 
             if (depthCm <= 10) {
-                setDestination({ lng, lat, label });
-                setDestinationQuery(label);
+                showCustomConfirm(
+                    "Định tuyến tới vùng ngập nhẹ",
+                    `Khu vực này đang ngập nhẹ khoảng ${depthCm}cm (Vẫn có thể di chuyển).\n\nBạn có muốn tìm đường đi tới đây không?`,
+                    () => {
+                        setDestination({ lng, lat, label });
+                        setDestinationQuery(label);
 
-                if (userLocation) {
-                    setOrigin({
-                        lng: userLocation.lng,
-                        lat: userLocation.lat,
-                        label: 'Vị trí của bạn'
-                    });
-                    setOriginQuery('Vị trí của bạn');
-                }
-
+                        if (userLocation) {
+                            setOrigin({
+                                lng: userLocation.lng,
+                                lat: userLocation.lat,
+                                label: 'Vị trí của bạn'
+                            });
+                            setOriginQuery('Vị trí của bạn');
+                        }
+                    },
+                    () => {
+                        setDestination(null);
+                        setDestinationQuery('');
+                        setRouteData(null);
+                        setRouteAlertMessage(null);
+                    }
+                );
                 return;
             }
 
-            const confirmed = window.confirm(
-                `Khu vực này đang ngập ${depthCm}cm, có thể nguy hiểm.\n\nBạn có chắc chắn muốn đi vào vùng ngập này không?`
-            );
-
-            if (confirmed) {
-                setConfirmedFloodZoneIds((prev) => {
-                    if (prev.includes(zoneId)) return prev;
-                    return [...prev, zoneId];
-                });
-
-                setDestination({ lng, lat, label });
-                setDestinationQuery(label);
-
-                if (userLocation) {
-                    setOrigin({
-                        lng: userLocation.lng,
-                        lat: userLocation.lat,
-                        label: 'Vị trí của bạn'
+            showCustomConfirm(
+                "Định tuyến tới vùng ngập sâu",
+                `Khu vực này đang ngập sâu ${depthCm}cm, có thể gây nguy hiểm cho phương tiện của bạn.\n\nBạn có chắc chắn muốn tiếp tục tìm đường tới đây không?`,
+                () => {
+                    setConfirmedFloodZoneIds((prev) => {
+                        if (prev.includes(zoneId)) return prev;
+                        return [...prev, zoneId];
                     });
-                    setOriginQuery('Vị trí của bạn');
+
+                    setDestination({ lng, lat, label });
+                    setDestinationQuery(label);
+
+                    if (userLocation) {
+                        setOrigin({
+                            lng: userLocation.lng,
+                            lat: userLocation.lat,
+                            label: 'Vị trí của bạn'
+                        });
+                        setOriginQuery('Vị trí của bạn');
+                    }
+                },
+                () => {
+                    setDestination(null);
+                    setDestinationQuery('');
+                    setRouteData(null);
+                    setRouteAlertMessage(null);
                 }
-            } else {
-                setDestination(null);
-                setDestinationQuery('');
-                setRouteData(null);
-                setRouteAlertMessage(null);
-            }
+            );
 
             return;
         }
@@ -505,7 +618,7 @@ const handleMapClick = (event: any) => {
                     let selectedRoute = data.routes[0];
                     let alertMsg: string | null = null;
 
-                    if (mapControls.flood) {
+                    if (avoidFlood) {
                         // FIX: Avoid flood zones deeper than 10cm when routing
                         const result = await findSafeRouteZone(
                             data.routes,
@@ -581,7 +694,7 @@ const handleMapClick = (event: any) => {
             }
         };
         getShortestRoute();
-}, [origin, destination, travelMode, mapControls.flood, confirmedFloodZoneIds, floodZones, eventRoads]);
+}, [origin, destination, travelMode, avoidFlood, confirmedFloodZoneIds, floodZones, eventRoads]);
     const geojsonData: any = routeData ? {
         type: 'Feature',
         properties: {},
@@ -688,6 +801,22 @@ const handleMapClick = (event: any) => {
             }
         };
         fetchEventRoads();
+    }, []);
+
+    // Tải danh sách cảnh báo giao thông từ backend
+    const fetchTrafficAlerts = async () => {
+        try {
+            const response = await trafficAlertAPI.getTrafficAlerts();
+            if (response.data && response.data.success) {
+                setTrafficAlerts(response.data.data);
+            }
+        } catch (error) {
+            console.error("Lỗi tải danh sách cảnh báo giao thông:", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchTrafficAlerts();
     }, []);
 
     // Tải danh sách sự kiện, danh mục và yêu thích sự kiện
@@ -808,10 +937,19 @@ const handleMapClick = (event: any) => {
     // NEW CODE: Lọc các đường cấm do sự kiện đang diễn ra hoặc thuộc sự kiện được chọn
     const activeOrSelectedEventRoads = useMemo(() => {
         const now = new Date();
+        const futureTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 phút tiếp theo
+        
         return eventRoads.filter(road => {
-            const isActive = isRoadRestrictionActive(road, now);
+            // 1. Đường cấm đang hoạt động ở thời điểm hiện tại
+            const isActiveNow = isRoadRestrictionActive(road, now);
+
+            // 2. Đường cấm chuẩn bị hoạt động trong vòng 30 phút tới
+            const isActiveSoon = isRoadRestrictionActive(road, futureTime);
+
+            // 3. Sự kiện liên quan đang được người dùng chọn xem chi tiết
             const isSelectedEventRoad = selectedEvent && road.event_id === selectedEvent.event_id;
-            return isActive || isSelectedEventRoad;
+
+            return isActiveNow || isActiveSoon || isSelectedEventRoad;
         });
     }, [eventRoads, selectedEvent]);
 
@@ -1101,8 +1239,18 @@ const floodGeoJSON: any = useMemo(() => {
                                             Chỉ đường
                                         </button>
                                         <button
+                                            onClick={() => {
+                                                if (pendingDestination) {
+                                                    handleOpenReportModal(pendingDestination.lat, pendingDestination.lng);
+                                                }
+                                            }}
+                                            className="bg-orange-50 border border-orange-200 text-orange-600 text-[11px] font-bold py-2 px-3 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95"
+                                        >
+                                            Báo cáo
+                                        </button>
+                                        <button
                                             onClick={() => setPendingDestination(null)}
-                                            className="bg-slate-50 border border-slate-200/60 text-slate-600 text-[11px] font-bold py-2 px-3 rounded-xl hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-95"
+                                            className="bg-slate-50 border border-slate-200/60 text-slate-600 text-[11px] font-bold py-2 px-2.5 rounded-xl hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-95"
                                         >
                                             Hủy
                                         </button>
@@ -1257,6 +1405,9 @@ const floodGeoJSON: any = useMemo(() => {
                         const now = new Date();
                         const isActive = isRoadRestrictionActive(road, now);
                         const isSelected = selectedRoadPopup && selectedRoadPopup.road_id === road.road_id;
+                        
+                        // Tìm sự kiện tương ứng với road.event_id
+                        const relatedEvent = events.find(e => e.event_id === road.event_id);
 
                         const getMarkerColor = () => {
                             if (isSelected) return 'bg-red-500 scale-110 ring-4 ring-red-500/30 z-30';
@@ -1265,6 +1416,47 @@ const floodGeoJSON: any = useMemo(() => {
                             if (road.restriction_type === 'ONE_WAY') return 'bg-blue-600';
                             return 'bg-red-600';
                         };
+
+                        if (relatedEvent) {
+                            const categoryColor = relatedEvent.category_color || '#ef4444';
+                            return (
+                                <Marker
+                                    key={`marker-road-${road.road_id}`}
+                                    longitude={startCoord[0]}
+                                    latitude={startCoord[1]}
+                                    anchor="bottom"
+                                >
+                                    <div 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setViewMode('events');
+                                            handleEventClick(relatedEvent);
+                                        }}
+                                        className={`relative flex items-center justify-center border-2 border-white rounded-full shadow-2xl cursor-pointer transform hover:scale-115 transition-all z-20 w-9 h-9`}
+                                        style={{ backgroundColor: categoryColor }}
+                                    >
+                                        {/* Logo sự kiện (Hình ảnh hoặc Emoji) */}
+                                        {relatedEvent.thumbnail_url ? (
+                                            <img 
+                                                src={relatedEvent.thumbnail_url} 
+                                                alt={relatedEvent.title} 
+                                                className="w-full h-full object-cover rounded-full"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                            />
+                                        ) : (
+                                            <span className="text-white text-sm">{relatedEvent.category_icon || '🎆'}</span>
+                                        )}
+
+                                        {/* Huy hiệu cấm đường góc dưới bên phải */}
+                                        <div className={`absolute -bottom-1 -right-1 border border-white text-white w-[18px] h-[18px] rounded-full flex items-center justify-center shadow-md ${getMarkerColor()} p-0.5`}>
+                                            <RouteOff size={9} />
+                                        </div>
+                                    </div>
+                                </Marker>
+                            );
+                        }
 
                         return (
                             <Marker
@@ -1285,6 +1477,90 @@ const floodGeoJSON: any = useMemo(() => {
                             </Marker>
                         );
                     })}
+
+                    {/* Traffic Alert Markers & Popups */}
+                    {mapControls.traffic && trafficAlerts.map(alert => {
+                        const getAlertColor = () => {
+                            if (alert.severity === 'HIGH') return 'bg-red-600 ring-red-500/30';
+                            if (alert.severity === 'MEDIUM') return 'bg-orange-500 ring-orange-400/30';
+                            return 'bg-blue-500 ring-blue-400/30';
+                        };
+
+                        const renderAlertIcon = () => {
+                            if (alert.type === 'CONGESTION') return <Car size={13} />;
+                            if (alert.type === 'ACCIDENT') return <AlertTriangle size={13} />;
+                            if (alert.type === 'CONSTRUCTION') return <Construction size={13} />;
+                            return <AlertTriangle size={13} />;
+                        };
+
+                        return (
+                            <Marker
+                                key={`traffic-alert-${alert.id}`}
+                                longitude={alert.longitude}
+                                latitude={alert.latitude}
+                                anchor="bottom"
+                            >
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedTrafficAlert(alert);
+                                        setSelectedPOI(null);
+                                        setSelectedEvent(null);
+                                        setSelectedRoadPopup(null);
+                                    }}
+                                    className={`flex items-center justify-center border border-white text-white w-7 h-7 rounded-full shadow-lg cursor-pointer transform hover:scale-115 transition-all z-20 ${getAlertColor()} ring-4`}
+                                >
+                                    {renderAlertIcon()}
+                                </div>
+                            </Marker>
+                        );
+                    })}
+
+                    {mapControls.traffic && selectedTrafficAlert && (
+                        <Popup
+                            longitude={selectedTrafficAlert.longitude}
+                            latitude={selectedTrafficAlert.latitude}
+                            anchor="top"
+                            onClose={() => setSelectedTrafficAlert(null)}
+                            closeButton={true}
+                            closeOnClick={false}
+                            offset={[0, 10]}
+                            className="z-50"
+                        >
+                            <div className="p-4 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 text-slate-800 font-sans text-left">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                                        selectedTrafficAlert.type === 'CONGESTION' ? 'bg-orange-50 border-orange-200 text-orange-600' :
+                                        selectedTrafficAlert.type === 'ACCIDENT' ? 'bg-red-50 border-red-200 text-red-600' :
+                                        'bg-blue-50 border-blue-200 text-blue-600'
+                                    }`}>
+                                        {selectedTrafficAlert.type === 'CONGESTION' ? 'Kẹt xe' : selectedTrafficAlert.type === 'ACCIDENT' ? 'Tai nạn' : 'Thi công'}
+                                    </span>
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                                        selectedTrafficAlert.severity === 'HIGH' ? 'bg-red-100 border-red-300 text-red-700' :
+                                        selectedTrafficAlert.severity === 'MEDIUM' ? 'bg-orange-100 border-orange-300 text-orange-700' :
+                                        'bg-blue-100 border-blue-300 text-blue-700'
+                                    }`}>
+                                        {selectedTrafficAlert.severity}
+                                    </span>
+                                </div>
+
+                                <h4 className="font-extrabold text-sm text-slate-800 leading-snug mb-1">{selectedTrafficAlert.title}</h4>
+                                {selectedTrafficAlert.description && (
+                                    <p className="text-xs text-slate-600 mb-2 leading-relaxed">{selectedTrafficAlert.description}</p>
+                                )}
+                                <p className="text-[10px] text-slate-400 font-semibold mb-1 flex items-center gap-1">📍 {selectedTrafficAlert.location}</p>
+                                <div className="flex justify-between items-center border-t border-slate-100 pt-2.5 mt-2.5">
+                                    <span className="text-[9px] text-slate-400 font-medium">
+                                        Bởi: {selectedTrafficAlert.creator_name || 'Hệ thống'}
+                                    </span>
+                                    <span className="text-[9px] text-slate-400 font-medium">
+                                        {new Date(selectedTrafficAlert.created_at).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}
+                                    </span>
+                                </div>
+                            </div>
+                        </Popup>
+                    )}
 
                     {selectedRoadPopup && selectedRoadPopup.geojson_coords && selectedRoadPopup.geojson_coords.length > 0 && (
                         <Popup
@@ -1484,6 +1760,24 @@ const floodGeoJSON: any = useMemo(() => {
                                 <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4">
                                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
                                     
+                                    {/* Tùy chọn định tuyến: Tránh vùng ngập lụt */}
+                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-3 animate-fade-in">
+                                        <div className="flex items-center gap-2">
+                                            <CloudRain size={14} className="text-blue-500" />
+                                            <span className="text-[10px] font-bold text-slate-700">Tránh vùng ngập lụt</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAvoidFlood(!avoidFlood)}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${avoidFlood ? 'bg-blue-600' : 'bg-slate-200'}`}
+                                        >
+                                            <span
+                                                style={{ transform: avoidFlood ? 'translateX(18px)' : 'translateX(2px)' }}
+                                                className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
+                                            />
+                                        </button>
+                                    </div>
+                                    
                                     {/* Hiển thị cảnh báo ngập lụt nếu có */}
                                     {routeAlertMessage && (
                                         <div className={`text-[10px] font-bold px-3 py-2 rounded-xl mb-3 border whitespace-pre-line ${
@@ -1576,6 +1870,24 @@ const floodGeoJSON: any = useMemo(() => {
                             {routeData && (
                                 <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 pointer-events-auto animate-fade-up">
                                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
+                                    
+                                    {/* Tùy chọn định tuyến: Tránh vùng ngập lụt */}
+                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-3 animate-fade-in">
+                                        <div className="flex items-center gap-2">
+                                            <CloudRain size={14} className="text-blue-500" />
+                                            <span className="text-[10px] font-bold text-slate-700">Tránh vùng ngập lụt</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAvoidFlood(!avoidFlood)}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${avoidFlood ? 'bg-blue-600' : 'bg-slate-200'}`}
+                                        >
+                                            <span
+                                                style={{ transform: avoidFlood ? 'translateX(18px)' : 'translateX(2px)' }}
+                                                className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
+                                            />
+                                        </button>
+                                    </div>
                                     
                                     {/* Hiển thị cảnh báo ngập lụt nếu có */}
                                     {routeAlertMessage && (
@@ -1857,6 +2169,181 @@ const floodGeoJSON: any = useMemo(() => {
                     </div>
                 </div>
             )}
+
+            {/* CUSTOM CONFIRM MODAL DIALOG */}
+            {confirmModal.isOpen && (
+                <div 
+                    style={{
+                        animation: 'fadeIn 250ms ease-out forwards'
+                    }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
+                >
+                    <div 
+                        style={{
+                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+                        }}
+                        className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full mx-4"
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                                confirmModal.title.includes('nguy hiểm') || confirmModal.title.includes('sâu')
+                                    ? 'bg-red-50 text-red-500' 
+                                    : 'bg-blue-50 text-blue-500'
+                            }`}>
+                                <AlertTriangle size={20} />
+                            </span>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                                {confirmModal.title}
+                            </h3>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mb-6 leading-relaxed whitespace-pre-line">
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={confirmModal.onCancel}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                onClick={confirmModal.onConfirm}
+                                className={`px-5 py-2 text-xs font-bold text-white rounded-xl shadow-md transition-all ${
+                                    confirmModal.title.includes('nguy hiểm') || confirmModal.title.includes('sâu')
+                                        ? 'bg-red-500 hover:bg-red-600 shadow-red-100'
+                                        : 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
+                                }`}
+                            >
+                                Xác nhận
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TRAFFIC ALERT REPORT MODAL */}
+            {showReportModal && (
+                <div 
+                    style={{
+                        animation: 'fadeIn 250ms ease-out forwards'
+                    }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
+                >
+                    <div 
+                        style={{
+                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+                        }}
+                        className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden mx-4"
+                    >
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4 flex items-center justify-between text-white">
+                            <h3 className="font-extrabold text-sm flex items-center gap-2 tracking-wide uppercase">
+                                <AlertTriangle className="w-5 h-5 animate-pulse" />
+                                Báo cáo sự cố giao thông
+                            </h3>
+                            <button 
+                                onClick={() => setShowReportModal(false)} 
+                                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all active:scale-95"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={handleSubmitTrafficReport} className="p-6 space-y-4 font-sans text-left">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Mô tả ngắn sự cố (*)</label>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="VD: Kẹt xe nghiêm trọng..."
+                                    value={reportFormData.title}
+                                    onChange={(e) => setReportFormData({ ...reportFormData, title: e.target.value })}
+                                    className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Thông tin chi tiết (Tùy chọn)</label>
+                                <textarea
+                                    placeholder="VD: Các phương tiện di chuyển chậm..."
+                                    rows={2}
+                                    value={reportFormData.description}
+                                    onChange={(e) => setReportFormData({ ...reportFormData, description: e.target.value })}
+                                    className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 resize-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Địa điểm xảy ra (*)</label>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="VD: Đường Bạch Đằng, Hải Châu"
+                                    value={reportFormData.location}
+                                    onChange={(e) => setReportFormData({ ...reportFormData, location: e.target.value })}
+                                    className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Phân loại sự cố</label>
+                                    <select
+                                        value={reportFormData.type}
+                                        onChange={(e) => setReportFormData({ ...reportFormData, type: e.target.value })}
+                                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer bg-white"
+                                    >
+                                        <option value="CONGESTION">Kẹt xe</option>
+                                        <option value="ACCIDENT">Tai nạn</option>
+                                        <option value="CONSTRUCTION">Thi công</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Mức độ nghiêm trọng</label>
+                                    <select
+                                        value={reportFormData.severity}
+                                        onChange={(e) => setReportFormData({ ...reportFormData, severity: e.target.value })}
+                                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer bg-white"
+                                    >
+                                        <option value="LOW">Thấp (LOW)</option>
+                                        <option value="MEDIUM">Trung bình (MEDIUM)</option>
+                                        <option value="HIGH">Nghiêm trọng (HIGH)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowReportModal(false)}
+                                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-all"
+                                >
+                                    Hủy bỏ
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl transition-all shadow-md shadow-orange-500/10 active:scale-95 flex items-center gap-1.5"
+                                >
+                                    <CheckCircle2 size={14} />
+                                    Gửi báo cáo
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            <style>{`
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes scaleUp {
+                    from { transform: scale(0.95); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 }

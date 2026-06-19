@@ -609,6 +609,136 @@ app.put('/api/admin/users/:id/ban', authenticateToken, async (req, res) => {
     }
 });
 
+// ============ ADMIN FLOOD ZONES ============
+app.get('/api/admin/flood-zones', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Cần quyền Admin!' });
+    }
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT 
+                zone_id,
+                zone_name,
+                district,
+                risk_level,
+                polygon_coordinates,
+                description,
+                typical_flood_months,
+                is_active,
+                last_updated,
+                updated_by
+            FROM FloodZones
+            ORDER BY zone_id ASC
+        `);
+
+        const data = result.recordset.map((zone) => {
+            let coordinates = null;
+            try {
+                coordinates = zone.polygon_coordinates
+                    ? JSON.parse(zone.polygon_coordinates)
+                    : null;
+            } catch (error) {
+                console.error("Lỗi parse polygon_coordinates:", zone.zone_name);
+            }
+
+            let depthCm = 8;
+            let level = "low";
+            let color = "yellow";
+            let radius = 150;
+
+            if (zone.risk_level === "High") {
+                depthCm = zone.zone_name.includes("Nguyễn Văn Linh") ? 80 : 55;
+                level = "high";
+                color = "red";
+                radius = 280;
+            } else if (zone.risk_level === "Medium") {
+                depthCm = zone.zone_name.includes("Tiên Sơn") ? 15 : 25;
+                level = "medium";
+                color = "orange";
+                radius = 220;
+            }
+
+            return {
+                id: zone.zone_id,
+                zone_id: zone.zone_id,
+                name: zone.zone_name,
+                district: zone.district,
+                risk_level: zone.risk_level,
+                polygon_coordinates: zone.polygon_coordinates,
+                description: zone.description,
+                typical_flood_months: zone.typical_flood_months,
+                is_active: zone.is_active,
+                last_updated: zone.last_updated ? zone.last_updated.toISOString().split('T')[0] : '',
+                updated_by: zone.updated_by,
+                
+                center: Array.isArray(coordinates) && typeof coordinates[0] === "number"
+                    ? coordinates
+                    : null,
+                radius,
+                depthCm,
+                level,
+                color,
+                depthValue: depthCm / 100,
+                depthLevel: level,
+                bypassPosition: null,
+                bypassOptions: []
+            };
+        });
+
+        res.json({
+            success: true,
+            message: "Lấy tất cả vùng ngập lụt thành công",
+            data
+        });
+    } catch (error) {
+        console.error("Lỗi lấy dữ liệu FloodZones cho admin:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+app.put('/api/admin/flood-zones/:id', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Truy cập bị từ chối!' });
+    }
+    try {
+        const pool = await poolPromise;
+        const zoneId = parseInt(req.params.id, 10);
+        if (isNaN(zoneId)) {
+            return res.status(400).json({ success: false, message: "ID vùng ngập lụt không hợp lệ!" });
+        }
+        
+        const { is_active } = req.body;
+        if (is_active === undefined) {
+            return res.status(400).json({ success: false, message: "Thiếu trạng thái is_active!" });
+        }
+
+        const activeBit = is_active ? 1 : 0;
+        const updatedBy = req.user.id;
+
+        await pool.request()
+            .input('is_active', sql.Bit, activeBit)
+            .input('updated_by', sql.Int, updatedBy)
+            .input('zone_id', sql.Int, zoneId)
+            .query(`
+                UPDATE FloodZones 
+                SET is_active = @is_active, 
+                    last_updated = GETDATE(), 
+                    updated_by = @updated_by 
+                WHERE zone_id = @zone_id
+            `);
+
+        res.json({
+            success: true,
+            message: "Cập nhật trạng thái vùng ngập lụt thành công!"
+        });
+    } catch (error) {
+        console.error("Lỗi cập nhật trạng thái FloodZone:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+
 app.put("/api/user/profile", authenticateToken, async (req, res) => {
     try {
         const { username } = req.body;
@@ -1658,6 +1788,164 @@ app.delete("/api/event-roads/:id", async (req, res) => {
         res.json({ success: true, message: "Xóa đường hạn chế thành công!" });
     } catch (error) {
         console.error("Lỗi xóa đường hạn chế:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// ============ TRAFFIC ALERTS ENDPOINTS ============
+
+// GET /api/traffic-alerts - Lấy các cảnh báo giao thông đang hoạt động
+app.get("/api/traffic-alerts", async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT ta.*, u.username as creator_name
+            FROM TrafficAlerts ta
+            LEFT JOIN Users u ON ta.created_by = u.user_id
+            WHERE ta.is_active = 1
+            ORDER BY ta.created_at DESC
+        `);
+
+        const data = result.recordset.map(alert => ({
+            id: alert.alert_id,
+            title: alert.title,
+            description: alert.description,
+            location: alert.location_name,
+            latitude: parseFloat(alert.latitude),
+            longitude: parseFloat(alert.longitude),
+            type: alert.alert_type,
+            severity: alert.severity,
+            is_active: alert.is_active === 1 || alert.is_active === true,
+            created_by: alert.created_by,
+            creator_name: alert.creator_name,
+            created_at: alert.created_at
+        }));
+
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error("Lỗi lấy danh sách cảnh báo giao thông:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// POST /api/traffic-alerts - Báo cáo cảnh báo giao thông mới (yêu cầu Token)
+app.post("/api/traffic-alerts", authenticateToken, async (req, res) => {
+    try {
+        const {
+            type,
+            title,
+            description,
+            location,
+            latitude,
+            longitude,
+            severity,
+            event_id
+        } = req.body;
+
+        if (!type || !title || latitude === undefined || longitude === undefined || !severity) {
+            return res.status(400).json({ success: false, message: "Thiếu thông tin bắt buộc!" });
+        }
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("created_by", sql.Int, req.user.id)
+            .input("event_id", sql.Int, event_id || null)
+            .input("alert_type", sql.NVarChar, type)
+            .input("title", sql.NVarChar, title)
+            .input("description", sql.NVarChar, description || null)
+            .input("location_name", sql.NVarChar, location || null)
+            .input("latitude", sql.Decimal(9, 6), parseFloat(latitude))
+            .input("longitude", sql.Decimal(9, 6), parseFloat(longitude))
+            .input("severity", sql.NVarChar, severity)
+            .query(`
+                INSERT INTO TrafficAlerts (
+                    created_by, event_id, alert_type, title, description,
+                    location_name, latitude, longitude, severity, is_active, created_at, updated_at
+                )
+                OUTPUT INSERTED.alert_id
+                VALUES (
+                    @created_by, @event_id, @alert_type, @title, @description,
+                    @location_name, @latitude, @longitude, @severity, 1, GETDATE(), GETDATE()
+                )
+            `);
+
+        res.status(201).json({
+            success: true,
+            message: "Gửi báo cáo sự cố giao thông thành công!",
+            alert_id: result.recordset[0].alert_id
+        });
+    } catch (error) {
+        console.error("Lỗi gửi báo cáo sự cố giao thông:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// GET /api/admin/traffic-alerts - Lấy toàn bộ danh sách cảnh báo giao thông (Admin)
+app.get("/api/admin/traffic-alerts", authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Cần quyền Admin!' });
+    }
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT ta.*, u.username as creator_name
+            FROM TrafficAlerts ta
+            LEFT JOIN Users u ON ta.created_by = u.user_id
+            ORDER BY ta.created_at DESC
+        `);
+
+        const data = result.recordset.map(alert => ({
+            id: alert.alert_id,
+            title: alert.title,
+            description: alert.description,
+            location: alert.location_name,
+            latitude: parseFloat(alert.latitude),
+            longitude: parseFloat(alert.longitude),
+            type: alert.alert_type,
+            severity: alert.severity,
+            is_active: alert.is_active === 1 || alert.is_active === true,
+            created_by: alert.created_by,
+            creator_name: alert.creator_name,
+            created_at: alert.created_at
+        }));
+
+        res.json({ success: true, data });
+    } catch (error) {
+        console.error("Lỗi lấy toàn bộ danh sách cảnh báo giao thông (Admin):", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// PUT /api/admin/traffic-alerts/:id/toggle - Bật/tắt trạng thái cảnh báo giao thông (Admin)
+app.put("/api/admin/traffic-alerts/:id/toggle", authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Cần quyền Admin!' });
+    }
+    try {
+        const { id } = req.params;
+        const { is_active } = req.body;
+
+        if (is_active === undefined) {
+            return res.status(400).json({ success: false, message: "Thiếu thông tin is_active!" });
+        }
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("alert_id", sql.Int, parseInt(id))
+            .input("is_active", sql.Bit, is_active ? 1 : 0)
+            .query(`
+                UPDATE TrafficAlerts
+                SET is_active = @is_active, updated_at = GETDATE()
+                WHERE alert_id = @alert_id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy cảnh báo giao thông cần cập nhật!" });
+        }
+
+        res.json({ success: true, message: "Cập nhật trạng thái cảnh báo giao thông thành công!" });
+    } catch (error) {
+        console.error("Lỗi cập nhật trạng thái cảnh báo giao thông:", error);
         res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
     }
 });

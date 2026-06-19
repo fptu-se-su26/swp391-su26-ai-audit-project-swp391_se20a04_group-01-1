@@ -16,7 +16,7 @@ export default function App() {
     const userRole = localStorage.getItem('userRole');
 
     return (
-        <Router>
+        <Router basename={import.meta.env.BASE_URL}>
             <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
             <Routes>
                 <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <SplashScreen />} />

@@ -111,9 +111,9 @@ const Verify2FA: React.FC = () => {
         
         // 2. SỬA ĐOẠN ĐIỀU HƯỚNG: Phân luồng cho Admin và User
         if (result.user.role === "admin") {
-          window.location.href = "/admin/dashboard";
+          window.location.href = `${import.meta.env.BASE_URL}admin/dashboard`;
         } else {
-          window.location.href = "/dashboard";
+          window.location.href = `${import.meta.env.BASE_URL}dashboard`;
         }
         
       } else {

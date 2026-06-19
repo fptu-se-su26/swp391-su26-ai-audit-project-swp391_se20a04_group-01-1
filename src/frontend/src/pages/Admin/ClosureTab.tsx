@@ -3,6 +3,7 @@ import { RouteOff, Plus, Trash2, Calendar, Clock, AlertCircle, Sparkles, Refresh
 import { RoadClosure, DBEvent } from './types';
 import { eventRoadService } from '../../services/eventRoadService';
 import toast from 'react-hot-toast';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 interface Props {
     roadClosures: RoadClosure[];
@@ -136,10 +137,10 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
         if (window.confirm('Bạn có chắc chắn muốn xóa tuyến đường hạn chế này không?')) {
             try {
                 await eventRoadService.deleteEventRoad(id);
-                toast.success('Xóa đường cấm thành công!');
+                showPremiumToast('Xóa đường cấm thành công!', 'success');
                 onRefresh();
             } catch (err: any) {
-                toast.error('Không thể xóa: ' + err.message);
+                showPremiumToast('Không thể xóa: ' + err.message, 'error');
             }
         }
     };
@@ -246,17 +247,17 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
 
             if (editingId) {
                 await eventRoadService.updateEventRoad(editingId, roadData);
-                toast.success('Cập nhật đường cấm thành công!');
+                showPremiumToast('Cập nhật đường cấm thành công!', 'success');
             } else {
                 await eventRoadService.createEventRoad(roadData);
-                toast.success('Đăng ký đường cấm thành công!');
+                showPremiumToast('Đăng ký đường cấm thành công!', 'success');
             }
 
             handleCloseModal();
             onRefresh();
         } catch (err: any) {
             setError(err.message || 'Lỗi khi lưu thông tin cấm đường.');
-            toast.error(err.message || 'Lỗi khi lưu thông tin cấm đường.');
+            showPremiumToast(err.message || 'Lỗi khi lưu thông tin cấm đường.', 'error');
         } finally {
             setSubmitting(false);
         }

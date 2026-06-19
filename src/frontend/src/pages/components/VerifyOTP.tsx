@@ -39,7 +39,7 @@ const VerifyOTP: React.FC<VerifyOTPProps> = ({ email, onSuccess }) => {
       
       // Redirect to home
       setTimeout(() => {
-        window.location.href = '/';
+        window.location.href = import.meta.env.BASE_URL;
       }, 1500);
     } catch (err: any) {
       const errorMsg = err.response?.data?.error?.message || 'OTP không chính xác';

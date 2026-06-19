@@ -1,15 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle, Navigation, RefreshCw, ShieldCheck } from 'lucide-react';
 import { forgotPasswordAPI } from '../../services/api'; // Đảm bảo đường dẫn này đúng với dự án của bạn
 
 // ── Step indicator ─────────────────────────────────────────────────────
 const STEPS = [
   { label: 'Email' },
-  { label: 'Verify' },
-  { label: 'Reset' },
+  { label: 'Xác thực' },
+  { label: 'Đặt lại' },
 ];
 
-const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+const strengthLabels = ['', 'Yêu', 'Trung bình', 'Khá', 'Mạnh'];
 const strengthColors = ['', '#EF4444', '#F59E0B', '#10B981', '#059669'];
 const segmentClass = ['', 'weak', 'fair', 'good', 'strong'];
 
@@ -55,7 +56,7 @@ function OtpInput({ value, onChange }: { value: string[]; onChange: (v: string[]
           onKeyDown={handleKey(i)}
           onPaste={i === 0 ? handlePaste : undefined}
           id={`otp-digit-${i}`}
-          aria-label={`OTP digit ${i + 1}`}
+          aria-label={`Mã OTP số ${i + 1}`}
         />
       ))}
     </div>
@@ -230,25 +231,25 @@ export default function ForgotPassword() {
               fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)',
               textAlign: 'center', letterSpacing: '-0.02em', marginBottom: '0.375rem',
             }}>
-              Forgot Password?
+              Quên mật khẩu?
             </h2>
             <p style={{
               fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center',
               marginBottom: '1.75rem', lineHeight: 1.55,
             }}>
-              No worries! Enter your email address and we'll send you a 6-digit verification code.
+              Đừng lo lắng! Nhập địa chỉ email của bạn và chúng tôi sẽ gửi mã xác thực gồm 6 chữ số.
             </p>
 
             <form onSubmit={handleSendOtp}>
               <div className="form-group">
-                <label className="form-label" htmlFor="fp-email">Email Address</label>
+                <label className="form-label" htmlFor="fp-email">Địa chỉ Email</label>
                 <div className="input-wrapper">
                   <span className="input-icon"><Mail size={17} strokeWidth={2} /></span>
                   <input
                     id="fp-email"
                     type="email"
                     className="form-input"
-                    placeholder="Enter your registered email"
+                    placeholder="Nhập email đã đăng ký"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     autoComplete="email"
@@ -258,18 +259,18 @@ export default function ForgotPassword() {
               </div>
 
               <button type="submit" id="fp-send-btn" className="btn-primary" disabled={loading} style={{ marginTop: '0.25rem', opacity: loading ? 0.7 : 1 }}>
-                {loading ? 'Sending...' : 'Send Verification Code'}
+                {loading ? 'Đang gửi...' : 'Gửi mã xác thực'}
               </button>
             </form>
 
             <div className="forgot-footer">
-              <a href="/login">
+              <Link to="/login">
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <ArrowLeft size={13} strokeWidth={2.5} /> Back to Sign In
+                  <ArrowLeft size={13} strokeWidth={2.5} /> Quay lại Đăng nhập
                 </span>
-              </a>
+              </Link>
               <div className="forgot-footer-sep" />
-              <a href="/register">Don't have an account? <strong>Sign up</strong></a>
+              <Link to="/register">Chưa có tài khoản? <strong>Đăng ký</strong></Link>
             </div>
           </div>
         )}
@@ -285,13 +286,13 @@ export default function ForgotPassword() {
               fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)',
               textAlign: 'center', letterSpacing: '-0.02em', marginBottom: '0.375rem',
             }}>
-              Check Your Email
+              Kiểm tra Email
             </h2>
             <p style={{
               fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center',
               marginBottom: '0.375rem', lineHeight: 1.55,
             }}>
-              We sent a 6-digit code to
+              Chúng tôi đã gửi mã xác thực gồm 6 chữ số tới
             </p>
             <p style={{
               fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary)',
@@ -310,31 +311,31 @@ export default function ForgotPassword() {
                 disabled={!otpComplete || loading}
                 style={{ opacity: (otpComplete && !loading) ? 1 : 0.5, cursor: (otpComplete && !loading) ? 'pointer' : 'not-allowed' }}
               >
-                {loading ? 'Verifying...' : 'Verify Code'}
+                {loading ? 'Đang xác thực...' : 'Xác thực mã'}
               </button>
             </form>
 
             <div className="resend-row" style={{ marginTop: '1rem' }}>
               {canResend ? (
                 <>
-                  Didn't receive it?{' '}
+                  Không nhận được mã?{' '}
                   <button className="resend-btn" onClick={handleResend}>
-                    <RefreshCw size={12} style={{ display: 'inline', marginRight: 3 }} /> Resend code
+                    <RefreshCw size={12} style={{ display: 'inline', marginRight: 3 }} /> Gửi lại mã
                   </button>
                 </>
               ) : (
                 <>
-                  Resend code in <strong style={{ color: 'var(--primary)' }}>0:{countdown.toString().padStart(2, '0')}</strong>
+                  Gửi lại mã sau <strong style={{ color: 'var(--primary)' }}>0:{countdown.toString().padStart(2, '0')}</strong>
                 </>
               )}
             </div>
 
             <div className="forgot-footer">
               <button type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8375rem', fontWeight: 600, color: 'var(--text-secondary)', fontFamily: 'Inter, sans-serif' }}>
-                <ArrowLeft size={13} strokeWidth={2.5} /> Back
+                <ArrowLeft size={13} strokeWidth={2.5} /> Quay lại
               </button>
               <div className="forgot-footer-sep" />
-              <a href="/login">Sign In</a>
+              <Link to="/login">Đăng nhập</Link>
             </div>
           </div>
         )}
@@ -350,25 +351,25 @@ export default function ForgotPassword() {
               fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)',
               textAlign: 'center', letterSpacing: '-0.02em', marginBottom: '0.375rem',
             }}>
-              Set New Password
+              Đặt mật khẩu mới
             </h2>
             <p style={{
               fontSize: '0.9rem', color: 'var(--text-secondary)', textAlign: 'center',
               marginBottom: '1.75rem', lineHeight: 1.55,
             }}>
-              Your new password must be different from previously used passwords.
+              Mật khẩu mới của bạn phải khác với các mật khẩu đã sử dụng trước đó.
             </p>
 
             <form onSubmit={handleResetPassword}>
               <div className="form-group">
-                <label className="form-label" htmlFor="fp-newpw">New Password</label>
+                <label className="form-label" htmlFor="fp-newpw">Mật khẩu mới</label>
                 <div className="input-wrapper">
                   <span className="input-icon"><Lock size={17} strokeWidth={2} /></span>
                   <input
                     id="fp-newpw"
                     type={showPw ? 'text' : 'password'}
                     className="form-input"
-                    placeholder="Min 8 characters"
+                    placeholder="Tối thiểu 8 ký tự"
                     value={newPw}
                     onChange={e => setNewPw(e.target.value)}
                     autoComplete="new-password"
@@ -393,14 +394,14 @@ export default function ForgotPassword() {
               </div>
 
               <div className="form-group">
-                <label className="form-label" htmlFor="fp-confirm">Confirm Password</label>
+                <label className="form-label" htmlFor="fp-confirm">Xác nhận mật khẩu</label>
                 <div className="input-wrapper">
                   <span className="input-icon"><Lock size={17} strokeWidth={2} /></span>
                   <input
                     id="fp-confirm"
                     type={showConfirm ? 'text' : 'password'}
                     className="form-input"
-                    placeholder="Re-enter new password"
+                    placeholder="Nhập lại mật khẩu mới"
                     value={confirmPw}
                     onChange={e => setConfirmPw(e.target.value)}
                     autoComplete="new-password"
@@ -417,7 +418,7 @@ export default function ForgotPassword() {
                   )}
                 </div>
                 {pwMismatch && (
-                  <p style={{ fontSize: '0.75rem', color: '#EF4444', marginTop: '0.25rem' }}>Passwords do not match</p>
+                  <p style={{ fontSize: '0.75rem', color: '#EF4444', marginTop: '0.25rem' }}>Mật khẩu không khớp</p>
                 )}
               </div>
 
@@ -428,7 +429,7 @@ export default function ForgotPassword() {
                 disabled={!pwMatch || loading}
                 style={{ marginTop: '0.25rem', opacity: (pwMatch && !loading) ? 1 : 0.5, cursor: (pwMatch && !loading) ? 'pointer' : 'not-allowed' }}
               >
-                {loading ? 'Resetting...' : 'Reset Password'}
+                {loading ? 'Đang đặt lại...' : 'Đặt lại mật khẩu'}
               </button>
             </form>
           </div>
@@ -441,18 +442,18 @@ export default function ForgotPassword() {
               <CheckCircle size={36} color="#10B981" strokeWidth={2} />
             </div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
-              Password Reset! 🎉
+              Đặt lại mật khẩu thành công! 🎉
             </h2>
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: '1.75rem' }}>
-              Your password has been changed successfully. You can now sign in with your new password.
+              Mật khẩu của bạn đã được thay đổi thành công. Bây giờ bạn đã có thể đăng nhập bằng mật khẩu mới.
             </p>
-            <a
-              href="/login"
+            <Link
+              to="/login"
               id="fp-go-login-btn"
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', width: '100%', height: 48, borderRadius: 10, background: 'linear-gradient(135deg, #2563EB 0%, #1e40af 100%)', color: '#fff', fontWeight: 700, fontSize: '0.9375rem', textDecoration: 'none', boxShadow: '0 4px 14px rgba(37,99,235,0.35)', transition: 'all 0.2s ease' }}
             >
-              Back to Sign In
-            </a>
+              Quay lại Đăng nhập
+            </Link>
           </div>
         )}
       </div>
