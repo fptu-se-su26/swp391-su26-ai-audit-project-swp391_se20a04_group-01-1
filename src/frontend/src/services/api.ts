@@ -112,6 +112,9 @@ export const adminAPI = {
 
     toggleTrafficAlert: (id: number, isActive: boolean) =>
         apiClient.put(`/admin/traffic-alerts/${id}/toggle`, { is_active: isActive }),
+
+    deleteTrafficAlert: (id: number) =>
+        apiClient.delete(`/admin/traffic-alerts/${id}`),
 };
 
 export const trafficAlertAPI = {

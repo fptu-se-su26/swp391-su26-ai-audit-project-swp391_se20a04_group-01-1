@@ -4,8 +4,10 @@ import ChangePasswordModal from './ChangePasswordModal';
 import EditProfileModal from './EditProfileModal';
 import {
     Navigation, LogOut, User, Mail, Shield, Calendar, Clock,
-    Settings, Heart, HelpCircle, Edit2, Lock, Bell, History
+    Settings, Heart, HelpCircle, Edit2, Lock, Bell, History,
+    Bookmark, MapPin, Trash2, ArrowRight
 } from 'lucide-react';
+import { savedRouteService, SavedRoute } from '../../services/savedRouteService';
 
 interface UserData {
     user_id: number;
@@ -23,10 +25,52 @@ export default function ProfilePage() {
     const [isChecking, setIsChecking] = useState(true);
     const [userData, setUserData] = useState<UserData | null>(null);
     const [error, setError] = useState('');
-    const [activeMenu, setActiveMenu] = useState<'profile' | 'events' | 'favorites' | 'settings' | 'help'>('profile');
+    const [activeMenu, setActiveMenu] = useState<'profile' | 'saved_routes' | 'events' | 'favorites' | 'settings' | 'help'>('profile');
     
     const [showChangePassword, setShowChangePassword] = useState(false);
     const [showEditProfile, setShowEditProfile] = useState(false);
+
+    // ============ NEW STATE VARIABLES FOR SAVED ROUTES ============
+    const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
+    const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
+    const [routeToDelete, setRouteToDelete] = useState<number | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+    const fetchSavedRoutes = async () => {
+        setIsLoadingRoutes(true);
+        try {
+            const routes = await savedRouteService.getSavedRoutes();
+            setSavedRoutes(routes);
+        } catch (err) {
+            console.error('Error fetching saved routes:', err);
+        } finally {
+            setIsLoadingRoutes(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeMenu === 'saved_routes') {
+            fetchSavedRoutes();
+        }
+    }, [activeMenu]);
+
+    const triggerDeleteConfirm = (id: number) => {
+        setRouteToDelete(id);
+        setShowDeleteConfirm(true);
+    };
+
+    const handleDeleteRoute = async () => {
+        if (routeToDelete === null) return;
+        try {
+            await savedRouteService.deleteRoute(routeToDelete);
+            fetchSavedRoutes();
+        } catch (err) {
+            console.error('Error deleting route:', err);
+        } finally {
+            setShowDeleteConfirm(false);
+            setRouteToDelete(null);
+        }
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -86,6 +130,7 @@ export default function ProfilePage() {
     // ============ SIDEBAR MENU ============
     const menuItems = [
         { id: 'profile', label: 'Hồ Sơ', icon: User },
+        { id: 'saved_routes', label: 'Lộ Trình Đã Lưu', icon: Bookmark },
         { id: 'events', label: 'Lịch Sử Di Chuyển', icon: History },
         { id: 'favorites', label: 'Địa Điểm Yêu Thích', icon: Heart },
         { id: 'settings', label: 'Cài Đặt', icon: Settings },
@@ -302,6 +347,109 @@ export default function ProfilePage() {
                         </div>
                     )}
 
+                    {/* ============ SAVED ROUTES TAB ============ */}
+                    {activeMenu === 'saved_routes' && (
+                        <div>
+                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>Lộ Trình Đã Lưu</h1>
+                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Quản lý và xem lại các lộ trình bạn đã lưu trữ</p>
+                            
+                            {isLoadingRoutes ? (
+                                <div style={{ textAlign: 'center', padding: '40px' }}>
+                                    <div style={{ fontSize: '14px', color: '#6b7280' }}>⏳ Đang tải lộ trình...</div>
+                                </div>
+                            ) : savedRoutes.length === 0 ? (
+                                <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '2px dashed #d1d5db', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
+                                    <Bookmark size={48} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
+                                    <p style={{ color: '#9ca3af', fontSize: '13px' }}>Chưa có lộ trình nào được lưu.</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                                    {savedRoutes.map((route) => {
+                                        return (
+                                            <div 
+                                                key={route.route_id} 
+                                                style={{ 
+                                                    backgroundColor: 'white', 
+                                                    borderRadius: '12px', 
+                                                    padding: '16px', 
+                                                    border: '1px solid #e5e7eb', 
+                                                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    gap: '16px'
+                                                }}
+                                            >
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                                        <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+                                                            {route.route_name || 'Lộ trình không tên'}
+                                                        </h3>
+                                                        {route.is_emergency && (
+                                                            <span style={{ fontSize: '10px', backgroundColor: '#fef2f2', color: '#ef4444', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold', border: '1px solid #fee2e2' }}>
+                                                                Tránh ngập lụt
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    
+                                                    <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }}></span>
+                                                            <span><b>Bắt đầu:</b> {route.origin_name || 'Vị trí xuất phát'}</span>
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }}></span>
+                                                            <span><b>Điểm đến:</b> {route.destination_name || 'Điểm đến'}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '11px', color: '#9ca3af', fontWeight: 'bold' }}>
+                                                        <span>PHƯƠNG TIỆN: <span style={{ color: '#4b5563' }}>{route.profile === 'driving' ? '🚗 Lái xe' : route.profile === 'walking' ? '🚶 Đi bộ' : '🚴 Xe đạp'}</span></span>
+                                                        <span>KHOẢNG CÁCH: <span style={{ color: '#4b5563' }}>{(route.distance_meters / 1000).toFixed(2)} km</span></span>
+                                                        <span>THỜI GIAN: <span style={{ color: '#4b5563' }}>{Math.round(route.duration_seconds / 60)} phút</span></span>
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <button
+                                                        onClick={() => navigate(`/dashboard?routeId=${route.route_id}`)}
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                                            backgroundColor: '#2563EB', color: 'white', border: 'none',
+                                                            padding: '8px 14px', borderRadius: '6px', cursor: 'pointer',
+                                                            fontSize: '12px', fontWeight: '600', transition: 'all 0.3s ease'
+                                                        }}
+                                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#1d4ed8'; }}
+                                                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#2563EB'; }}
+                                                    >
+                                                        <span>Xem trên bản đồ</span>
+                                                        <ArrowRight size={14} />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => triggerDeleteConfirm(route.route_id)}
+                                                        style={{
+                                                            display: 'inline-flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            backgroundColor: 'white', color: '#ef4444', border: '1px solid #fee2e2',
+                                                            width: '34px', height: '34px', borderRadius: '6px', cursor: 'pointer',
+                                                            transition: 'all 0.3s ease'
+                                                        }}
+                                                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#fef2f2'; }}
+                                                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                                                        title="Xóa lộ trình"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* ============ HISTORY TAB ============ */}
                     {activeMenu === 'events' && (
                         <div>
@@ -393,6 +541,63 @@ export default function ProfilePage() {
                 currentAvatar={userData?.avatar_url || ''}
                 onSuccess={() => fetchProfile()} 
             />
+
+            {showDeleteConfirm && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+                }}>
+                    <div style={{
+                        backgroundColor: 'white', borderRadius: '16px', padding: '24px',
+                        width: '360px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                        border: '1px solid #e2e8f0', textAlign: 'center', fontFamily: 'sans-serif'
+                    }}>
+                        <div style={{
+                            width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#fee2e2',
+                            color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '0 auto 16px', fontSize: '20px'
+                        }}>
+                            ⚠️
+                        </div>
+                        <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px', margin: 0 }}>
+                            Xác nhận xóa lộ trình
+                        </h3>
+                        <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '24px' }}>
+                            Bạn có chắc chắn muốn xóa lộ trình này không? Hành động này không thể hoàn tác.
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={() => {
+                                    setShowDeleteConfirm(false);
+                                    setRouteToDelete(null);
+                                }}
+                                style={{
+                                    flex: 1, padding: '10px', backgroundColor: '#f3f4f6', color: '#4b5563',
+                                    border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600',
+                                    cursor: 'pointer', transition: 'all 0.2s ease'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#e5e7eb'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#f3f4f6'; }}
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                onClick={handleDeleteRoute}
+                                style={{
+                                    flex: 1, padding: '10px', backgroundColor: '#ef4444', color: 'white',
+                                    border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600',
+                                    cursor: 'pointer', transition: 'all 0.2s ease'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.backgroundColor = '#ef4444'; }}
+                            >
+                                Xác nhận xóa
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

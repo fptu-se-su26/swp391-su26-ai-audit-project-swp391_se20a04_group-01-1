@@ -253,7 +253,7 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
         const user = result.recordset[0];
         if (!user) {
             console.warn(`[2FA] User not found: ${req.user.id}`);
-            return res.status(401).json({ 
+            return res.status(400).json({ 
                 success: false, 
                 error: { message: "Người dùng không tồn tại!" } 
             });
@@ -262,7 +262,8 @@ app.delete("/api/auth/disable-2fa", authenticateToken, async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             console.warn(`[2FA SECURITY] Failed password verification for disable-2fa: ${req.user.id}`);
-            return res.status(401).json({ 
+            // ✅ SỬ DỤNG MÃ 400 (Thay vì 401) ĐỂ KHÔNG BỊ AXIOS ĐÁ VĂNG RA TRANG LOGIN
+            return res.status(400).json({ 
                 success: false, 
                 error: { message: "Mật khẩu không chính xác!" } 
             });
@@ -1946,6 +1947,278 @@ app.put("/api/admin/traffic-alerts/:id/toggle", authenticateToken, async (req, r
         res.json({ success: true, message: "Cập nhật trạng thái cảnh báo giao thông thành công!" });
     } catch (error) {
         console.error("Lỗi cập nhật trạng thái cảnh báo giao thông:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// DELETE /api/admin/traffic-alerts/:id - Xóa cảnh báo giao thông (Admin)
+app.delete("/api/admin/traffic-alerts/:id", authenticateToken, async (req, res) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ success: false, message: 'Truy cập bị từ chối: Cần quyền Admin!' });
+    }
+    try {
+        const { id } = req.params;
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("alert_id", sql.Int, parseInt(id))
+            .query(`
+                DELETE FROM TrafficAlerts
+                WHERE alert_id = @alert_id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy cảnh báo giao thông cần xóa!" });
+        }
+
+        res.json({ success: true, message: "Xóa cảnh báo giao thông thành công!" });
+    } catch (error) {
+        console.error("Lỗi xóa cảnh báo giao thông:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// ============ SAVED ROUTES & SHARING ENDPOINTS ============
+
+// POST /api/saved-routes - Lưu lộ trình mới (Yêu cầu đăng nhập)
+app.post("/api/saved-routes", authenticateToken, async (req, res) => {
+    try {
+        const {
+            origin_name,
+            origin_lat,
+            origin_lng,
+            destination_name,
+            destination_lat,
+            destination_lng,
+            route_name,
+            route_data,
+            distance_meters,
+            duration_seconds,
+            profile,
+            is_emergency
+        } = req.body;
+
+        if (origin_lat === undefined || origin_lng === undefined || destination_lat === undefined || destination_lng === undefined || !route_data) {
+            return res.status(400).json({ success: false, message: "Thiếu thông tin tọa độ hoặc dữ liệu lộ trình!" });
+        }
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("user_id", sql.Int, req.user.id)
+            .input("origin_name", sql.NVarChar(255), origin_name || null)
+            .input("origin_lat", sql.Decimal(9, 6), origin_lat)
+            .input("origin_lng", sql.Decimal(9, 6), origin_lng)
+            .input("destination_name", sql.NVarChar(255), destination_name || null)
+            .input("destination_lat", sql.Decimal(9, 6), destination_lat)
+            .input("destination_lng", sql.Decimal(9, 6), destination_lng)
+            .input("route_name", sql.NVarChar(150), route_name || null)
+            .input("route_data", sql.NVarChar(sql.MAX), route_data)
+            .input("distance_meters", sql.Int, distance_meters || 0)
+            .input("duration_seconds", sql.Int, duration_seconds || 0)
+            .input("profile", sql.NVarChar(20), profile || 'driving')
+            .input("is_emergency", sql.Bit, is_emergency ? 1 : 0)
+            .query(`
+                INSERT INTO SavedRoutes (
+                    user_id, origin_name, origin_lat, origin_lng, 
+                    destination_name, destination_lat, destination_lng, 
+                    route_name, route_data, distance_meters, duration_seconds, 
+                    profile, is_shared, is_emergency, created_at
+                ) 
+                OUTPUT INSERTED.*
+                VALUES (
+                    @user_id, @origin_name, @origin_lat, @origin_lng, 
+                    @destination_name, @destination_lat, @destination_lng, 
+                    @route_name, @route_data, @distance_meters, @duration_seconds, 
+                    @profile, 0, @is_emergency, GETDATE()
+                );
+            `);
+
+        res.status(201).json({ success: true, message: "Lưu lộ trình thành công!", route: result.recordset[0] });
+    } catch (error) {
+        console.error("Lỗi lưu lộ trình:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// GET /api/saved-routes - Lấy danh sách lộ trình đã lưu của người dùng hiện tại (Yêu cầu đăng nhập)
+app.get("/api/saved-routes", authenticateToken, async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("user_id", sql.Int, req.user.id)
+            .query(`
+                SELECT * FROM SavedRoutes 
+                WHERE user_id = @user_id 
+                ORDER BY created_at DESC
+            `);
+
+        res.json({ success: true, routes: result.recordset });
+    } catch (error) {
+        console.error("Lỗi lấy danh sách lộ trình đã lưu:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// GET /api/saved-routes/:id - Lấy chi tiết một lộ trình đã lưu (Yêu cầu đăng nhập)
+app.get("/api/saved-routes/:id", authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("route_id", sql.Int, parseInt(id))
+            .input("user_id", sql.Int, req.user.id)
+            .query(`
+                SELECT * FROM SavedRoutes 
+                WHERE route_id = @route_id AND user_id = @user_id
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy lộ trình hoặc bạn không có quyền xem!" });
+        }
+
+        res.json({ success: true, route: result.recordset[0] });
+    } catch (error) {
+        console.error("Lỗi lấy chi tiết lộ trình:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// DELETE /api/saved-routes/:id - Xóa một lộ trình đã lưu (Yêu cầu đăng nhập)
+app.delete("/api/saved-routes/:id", authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("route_id", sql.Int, parseInt(id))
+            .input("user_id", sql.Int, req.user.id)
+            .query(`
+                DELETE FROM SavedRoutes 
+                WHERE route_id = @route_id AND user_id = @user_id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy lộ trình hoặc bạn không có quyền xóa!" });
+        }
+
+        res.json({ success: true, message: "Xóa lộ trình thành công!" });
+    } catch (error) {
+        console.error("Lỗi xóa lộ trình:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// POST /api/saved-routes/:id/share - Tạo share token cho lộ trình đã lưu (Yêu cầu đăng nhập)
+app.post("/api/saved-routes/:id/share", authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const crypto = require("crypto");
+        const token = crypto.randomBytes(16).toString("hex");
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("route_id", sql.Int, parseInt(id))
+            .input("user_id", sql.Int, req.user.id)
+            .input("share_token", sql.NVarChar(100), token)
+            .query(`
+                UPDATE SavedRoutes
+                SET is_shared = 1, share_token = @share_token
+                OUTPUT INSERTED.share_token
+                WHERE route_id = @route_id AND user_id = @user_id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy lộ trình hoặc bạn không có quyền chia sẻ!" });
+        }
+
+        res.json({ success: true, share_token: result.recordset[0].share_token });
+    } catch (error) {
+        console.error("Lỗi chia sẻ lộ trình đã lưu:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// POST /api/saved-routes/share-direct - Chia sẻ trực tiếp lộ trình chưa lưu (Yêu cầu đăng nhập)
+app.post("/api/saved-routes/share-direct", authenticateToken, async (req, res) => {
+    try {
+        const {
+            origin_name,
+            origin_lat,
+            origin_lng,
+            destination_name,
+            destination_lat,
+            destination_lng,
+            route_name,
+            route_data,
+            distance_meters,
+            duration_seconds,
+            profile,
+            is_emergency
+        } = req.body;
+
+        if (origin_lat === undefined || origin_lng === undefined || destination_lat === undefined || destination_lng === undefined || !route_data) {
+            return res.status(400).json({ success: false, message: "Thiếu thông tin tọa độ hoặc dữ liệu lộ trình!" });
+        }
+
+        const crypto = require("crypto");
+        const token = crypto.randomBytes(16).toString("hex");
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("user_id", sql.Int, req.user.id)
+            .input("origin_name", sql.NVarChar(255), origin_name || null)
+            .input("origin_lat", sql.Decimal(9, 6), origin_lat)
+            .input("origin_lng", sql.Decimal(9, 6), origin_lng)
+            .input("destination_name", sql.NVarChar(255), destination_name || null)
+            .input("destination_lat", sql.Decimal(9, 6), destination_lat)
+            .input("destination_lng", sql.Decimal(9, 6), destination_lng)
+            .input("route_name", sql.NVarChar(150), route_name || "Lộ trình chia sẻ")
+            .input("route_data", sql.NVarChar(sql.MAX), route_data)
+            .input("distance_meters", sql.Int, distance_meters || 0)
+            .input("duration_seconds", sql.Int, duration_seconds || 0)
+            .input("profile", sql.NVarChar(20), profile || 'driving')
+            .input("is_emergency", sql.Bit, is_emergency ? 1 : 0)
+            .input("share_token", sql.NVarChar(100), token)
+            .query(`
+                INSERT INTO SavedRoutes (
+                    user_id, origin_name, origin_lat, origin_lng, 
+                    destination_name, destination_lat, destination_lng, 
+                    route_name, route_data, distance_meters, duration_seconds, 
+                    profile, is_shared, share_token, is_emergency, created_at
+                ) 
+                OUTPUT INSERTED.share_token
+                VALUES (
+                    @user_id, @origin_name, @origin_lat, @origin_lng, 
+                    @destination_name, @destination_lat, @destination_lng, 
+                    @route_name, @route_data, @distance_meters, @duration_seconds, 
+                    @profile, 1, @share_token, @is_emergency, GETDATE()
+                );
+            `);
+
+        res.status(201).json({ success: true, share_token: result.recordset[0].share_token });
+    } catch (error) {
+        console.error("Lỗi chia sẻ lộ trình trực tiếp:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// GET /api/routes/share/:token - Lấy thông tin lộ trình chia sẻ công khai (Không cần đăng nhập)
+app.get("/api/routes/share/:token", async (req, res) => {
+    try {
+        const { token } = req.params;
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("share_token", sql.NVarChar(100), token)
+            .query(`
+                SELECT * FROM SavedRoutes 
+                WHERE share_token = @share_token AND is_shared = 1
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy lộ trình chia sẻ hoặc liên kết không hợp lệ!" });
+        }
+
+        res.json({ success: true, route: result.recordset[0] });
+    } catch (error) {
+        console.error("Lỗi lấy thông tin lộ trình chia sẻ:", error);
         res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
     }
 });

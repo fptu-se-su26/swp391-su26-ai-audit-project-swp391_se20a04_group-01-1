@@ -94,11 +94,11 @@ export default function Login() {
           localStorage.setItem("user", JSON.stringify(data.user));
         }
 
-        // ✅ Redirect dựa trên role
+        // ✅ Redirect dựa trên role, giữ lại query parameters (như ?share=TOKEN)
         if (data.role === "admin") {
-          window.location.href = `${import.meta.env.BASE_URL}admin/dashboard`; // ← Admin dashboard
+          window.location.href = `${import.meta.env.BASE_URL}admin/dashboard${window.location.search}`; // ← Admin dashboard
         } else {
-          window.location.href = `${import.meta.env.BASE_URL}dashboard`; // ← User dashboard
+          window.location.href = `${import.meta.env.BASE_URL}dashboard${window.location.search}`; // ← User dashboard
         }
       } else {
         setErrorMsg(data.message || "Email hoặc mật khẩu không chính xác!");
@@ -255,7 +255,9 @@ export default function Login() {
                       localStorage.setItem("user", JSON.stringify(data.user));
                     }
                     window.location.href =
-                      data.role === "admin" ? `${import.meta.env.BASE_URL}admin/dashboard` : `${import.meta.env.BASE_URL}dashboard`;
+                      data.role === "admin"
+                        ? `${import.meta.env.BASE_URL}admin/dashboard${window.location.search}`
+                        : `${import.meta.env.BASE_URL}dashboard${window.location.search}`;
                   } else {
                     setErrorMsg(data.message || "Đăng nhập Google thất bại");
                   }
