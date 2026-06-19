@@ -32,7 +32,7 @@ export default function ProfilePage() {
         localStorage.removeItem('token');
         localStorage.removeItem('userRole');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        window.location.href = `${import.meta.env.BASE_URL}login`;
     };
 
     const fetchProfile = () => {

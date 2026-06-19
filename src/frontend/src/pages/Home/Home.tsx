@@ -24,12 +24,13 @@ import {
     ShieldAlert, Ban, CloudRain, Compass, Utensils, Hotel,
     Gamepad2, Landmark, DollarSign,
     Layers, TrendingUp, RouteOff,
-    Car, Footprints, Bike, ArrowUpDown, Calendar, AlertTriangle
+    Car, Footprints, Bike, ArrowUpDown, Calendar, AlertTriangle,
+    Construction, CheckCircle2
 } from 'lucide-react';
 import { showPremiumToast } from '../../utils/toastUtils';
 
 import POIsLayer from './components/POIsLayer';
-import { poiAPI, eventAPI } from '../../services/api'; // ✅ ĐÃ SỬA LỖI IMPORT TẠI ĐÂY
+import { poiAPI, eventAPI, trafficAlertAPI } from '../../services/api'; // ✅ ĐÃ SỬA LỖI IMPORT TẠI ĐÂY
 import { POIData } from './components/POIPopup';
 import POIFeaturedSidebar from './components/POIFeaturedSidebar';
 import EventsLayer, { EventData } from './components/EventsLayer';
@@ -117,6 +118,57 @@ export default function Home() {
     // State cho Đường cấm sự kiện
     const [eventRoads, setEventRoads] = useState<EventRoad[]>([]);
     const [selectedRoadPopup, setSelectedRoadPopup] = useState<EventRoad | null>(null);
+
+    // State cho Cảnh báo giao thông (Traffic Alerts)
+    const [trafficAlerts, setTrafficAlerts] = useState<any[]>([]);
+    const [selectedTrafficAlert, setSelectedTrafficAlert] = useState<any | null>(null);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportFormData, setReportFormData] = useState({
+        type: 'CONGESTION',
+        title: '',
+        description: '',
+        location: '',
+        latitude: 16.0544,
+        longitude: 108.2022,
+        severity: 'MEDIUM'
+    });
+
+    const handleOpenReportModal = (lat: number, lng: number) => {
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        if (!token) {
+            showPremiumToast('Vui lòng đăng nhập để gửi báo cáo sự cố giao thông.', 'error');
+            return;
+        }
+
+        setReportFormData({
+            type: 'CONGESTION',
+            title: '',
+            description: '',
+            location: `Tọa độ: ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+            latitude: lat,
+            longitude: lng,
+            severity: 'MEDIUM'
+        });
+        setShowReportModal(true);
+        setPendingDestination(null);
+    };
+
+    const handleSubmitTrafficReport = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const response = await trafficAlertAPI.createTrafficAlert(reportFormData);
+            if (response.data && response.data.success) {
+                showPremiumToast('Gửi báo cáo sự cố giao thông thành công! Đang chờ phê duyệt.', 'success');
+                setShowReportModal(false);
+                fetchTrafficAlerts();
+            } else {
+                showPremiumToast(response.data.message || 'Lỗi gửi báo cáo sự cố.', 'error');
+            }
+        } catch (error: any) {
+            console.error("Lỗi gửi báo cáo sự cố:", error);
+            showPremiumToast(error.response?.data?.message || 'Không thể gửi báo cáo lên hệ thống.', 'error');
+        }
+    };
 
     const handleEventClick = (evt: EventData) => {
         setSelectedEvent(evt);
@@ -751,6 +803,22 @@ const handleMapClick = (event: any) => {
         fetchEventRoads();
     }, []);
 
+    // Tải danh sách cảnh báo giao thông từ backend
+    const fetchTrafficAlerts = async () => {
+        try {
+            const response = await trafficAlertAPI.getTrafficAlerts();
+            if (response.data && response.data.success) {
+                setTrafficAlerts(response.data.data);
+            }
+        } catch (error) {
+            console.error("Lỗi tải danh sách cảnh báo giao thông:", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchTrafficAlerts();
+    }, []);
+
     // Tải danh sách sự kiện, danh mục và yêu thích sự kiện
     useEffect(() => {
         const fetchEventsAndCategories = async () => {
@@ -869,10 +937,19 @@ const handleMapClick = (event: any) => {
     // NEW CODE: Lọc các đường cấm do sự kiện đang diễn ra hoặc thuộc sự kiện được chọn
     const activeOrSelectedEventRoads = useMemo(() => {
         const now = new Date();
+        const futureTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 phút tiếp theo
+        
         return eventRoads.filter(road => {
-            const isActive = isRoadRestrictionActive(road, now);
+            // 1. Đường cấm đang hoạt động ở thời điểm hiện tại
+            const isActiveNow = isRoadRestrictionActive(road, now);
+
+            // 2. Đường cấm chuẩn bị hoạt động trong vòng 30 phút tới
+            const isActiveSoon = isRoadRestrictionActive(road, futureTime);
+
+            // 3. Sự kiện liên quan đang được người dùng chọn xem chi tiết
             const isSelectedEventRoad = selectedEvent && road.event_id === selectedEvent.event_id;
-            return isActive || isSelectedEventRoad;
+
+            return isActiveNow || isActiveSoon || isSelectedEventRoad;
         });
     }, [eventRoads, selectedEvent]);
 
@@ -1162,8 +1239,18 @@ const floodGeoJSON: any = useMemo(() => {
                                             Chỉ đường
                                         </button>
                                         <button
+                                            onClick={() => {
+                                                if (pendingDestination) {
+                                                    handleOpenReportModal(pendingDestination.lat, pendingDestination.lng);
+                                                }
+                                            }}
+                                            className="bg-orange-50 border border-orange-200 text-orange-600 text-[11px] font-bold py-2 px-3 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95"
+                                        >
+                                            Báo cáo
+                                        </button>
+                                        <button
                                             onClick={() => setPendingDestination(null)}
-                                            className="bg-slate-50 border border-slate-200/60 text-slate-600 text-[11px] font-bold py-2 px-3 rounded-xl hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-95"
+                                            className="bg-slate-50 border border-slate-200/60 text-slate-600 text-[11px] font-bold py-2 px-2.5 rounded-xl hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-95"
                                         >
                                             Hủy
                                         </button>
@@ -1318,6 +1405,9 @@ const floodGeoJSON: any = useMemo(() => {
                         const now = new Date();
                         const isActive = isRoadRestrictionActive(road, now);
                         const isSelected = selectedRoadPopup && selectedRoadPopup.road_id === road.road_id;
+                        
+                        // Tìm sự kiện tương ứng với road.event_id
+                        const relatedEvent = events.find(e => e.event_id === road.event_id);
 
                         const getMarkerColor = () => {
                             if (isSelected) return 'bg-red-500 scale-110 ring-4 ring-red-500/30 z-30';
@@ -1326,6 +1416,47 @@ const floodGeoJSON: any = useMemo(() => {
                             if (road.restriction_type === 'ONE_WAY') return 'bg-blue-600';
                             return 'bg-red-600';
                         };
+
+                        if (relatedEvent) {
+                            const categoryColor = relatedEvent.category_color || '#ef4444';
+                            return (
+                                <Marker
+                                    key={`marker-road-${road.road_id}`}
+                                    longitude={startCoord[0]}
+                                    latitude={startCoord[1]}
+                                    anchor="bottom"
+                                >
+                                    <div 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setViewMode('events');
+                                            handleEventClick(relatedEvent);
+                                        }}
+                                        className={`relative flex items-center justify-center border-2 border-white rounded-full shadow-2xl cursor-pointer transform hover:scale-115 transition-all z-20 w-9 h-9`}
+                                        style={{ backgroundColor: categoryColor }}
+                                    >
+                                        {/* Logo sự kiện (Hình ảnh hoặc Emoji) */}
+                                        {relatedEvent.thumbnail_url ? (
+                                            <img 
+                                                src={relatedEvent.thumbnail_url} 
+                                                alt={relatedEvent.title} 
+                                                className="w-full h-full object-cover rounded-full"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                }}
+                                            />
+                                        ) : (
+                                            <span className="text-white text-sm">{relatedEvent.category_icon || '🎆'}</span>
+                                        )}
+
+                                        {/* Huy hiệu cấm đường góc dưới bên phải */}
+                                        <div className={`absolute -bottom-1 -right-1 border border-white text-white w-[18px] h-[18px] rounded-full flex items-center justify-center shadow-md ${getMarkerColor()} p-0.5`}>
+                                            <RouteOff size={9} />
+                                        </div>
+                                    </div>
+                                </Marker>
+                            );
+                        }
 
                         return (
                             <Marker
@@ -1346,6 +1477,90 @@ const floodGeoJSON: any = useMemo(() => {
                             </Marker>
                         );
                     })}
+
+                    {/* Traffic Alert Markers & Popups */}
+                    {mapControls.traffic && trafficAlerts.map(alert => {
+                        const getAlertColor = () => {
+                            if (alert.severity === 'HIGH') return 'bg-red-600 ring-red-500/30';
+                            if (alert.severity === 'MEDIUM') return 'bg-orange-500 ring-orange-400/30';
+                            return 'bg-blue-500 ring-blue-400/30';
+                        };
+
+                        const renderAlertIcon = () => {
+                            if (alert.type === 'CONGESTION') return <Car size={13} />;
+                            if (alert.type === 'ACCIDENT') return <AlertTriangle size={13} />;
+                            if (alert.type === 'CONSTRUCTION') return <Construction size={13} />;
+                            return <AlertTriangle size={13} />;
+                        };
+
+                        return (
+                            <Marker
+                                key={`traffic-alert-${alert.id}`}
+                                longitude={alert.longitude}
+                                latitude={alert.latitude}
+                                anchor="bottom"
+                            >
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedTrafficAlert(alert);
+                                        setSelectedPOI(null);
+                                        setSelectedEvent(null);
+                                        setSelectedRoadPopup(null);
+                                    }}
+                                    className={`flex items-center justify-center border border-white text-white w-7 h-7 rounded-full shadow-lg cursor-pointer transform hover:scale-115 transition-all z-20 ${getAlertColor()} ring-4`}
+                                >
+                                    {renderAlertIcon()}
+                                </div>
+                            </Marker>
+                        );
+                    })}
+
+                    {mapControls.traffic && selectedTrafficAlert && (
+                        <Popup
+                            longitude={selectedTrafficAlert.longitude}
+                            latitude={selectedTrafficAlert.latitude}
+                            anchor="top"
+                            onClose={() => setSelectedTrafficAlert(null)}
+                            closeButton={true}
+                            closeOnClick={false}
+                            offset={[0, 10]}
+                            className="z-50"
+                        >
+                            <div className="p-4 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 text-slate-800 font-sans text-left">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                                        selectedTrafficAlert.type === 'CONGESTION' ? 'bg-orange-50 border-orange-200 text-orange-600' :
+                                        selectedTrafficAlert.type === 'ACCIDENT' ? 'bg-red-50 border-red-200 text-red-600' :
+                                        'bg-blue-50 border-blue-200 text-blue-600'
+                                    }`}>
+                                        {selectedTrafficAlert.type === 'CONGESTION' ? 'Kẹt xe' : selectedTrafficAlert.type === 'ACCIDENT' ? 'Tai nạn' : 'Thi công'}
+                                    </span>
+                                    <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                                        selectedTrafficAlert.severity === 'HIGH' ? 'bg-red-100 border-red-300 text-red-700' :
+                                        selectedTrafficAlert.severity === 'MEDIUM' ? 'bg-orange-100 border-orange-300 text-orange-700' :
+                                        'bg-blue-100 border-blue-300 text-blue-700'
+                                    }`}>
+                                        {selectedTrafficAlert.severity}
+                                    </span>
+                                </div>
+
+                                <h4 className="font-extrabold text-sm text-slate-800 leading-snug mb-1">{selectedTrafficAlert.title}</h4>
+                                {selectedTrafficAlert.description && (
+                                    <p className="text-xs text-slate-600 mb-2 leading-relaxed">{selectedTrafficAlert.description}</p>
+                                )}
+                                <p className="text-[10px] text-slate-400 font-semibold mb-1 flex items-center gap-1">📍 {selectedTrafficAlert.location}</p>
+                                <div className="flex justify-between items-center border-t border-slate-100 pt-2.5 mt-2.5">
+                                    <span className="text-[9px] text-slate-400 font-medium">
+                                        Bởi: {selectedTrafficAlert.creator_name || 'Hệ thống'}
+                                    </span>
+                                    <span className="text-[9px] text-slate-400 font-medium">
+                                        {new Date(selectedTrafficAlert.created_at).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}
+                                    </span>
+                                </div>
+                            </div>
+                        </Popup>
+                    )}
 
                     {selectedRoadPopup && selectedRoadPopup.geojson_coords && selectedRoadPopup.geojson_coords.length > 0 && (
                         <Popup
@@ -2002,6 +2217,119 @@ const floodGeoJSON: any = useMemo(() => {
                                 Xác nhận
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* TRAFFIC ALERT REPORT MODAL */}
+            {showReportModal && (
+                <div 
+                    style={{
+                        animation: 'fadeIn 250ms ease-out forwards'
+                    }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
+                >
+                    <div 
+                        style={{
+                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+                        }}
+                        className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden mx-4"
+                    >
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4 flex items-center justify-between text-white">
+                            <h3 className="font-extrabold text-sm flex items-center gap-2 tracking-wide uppercase">
+                                <AlertTriangle className="w-5 h-5 animate-pulse" />
+                                Báo cáo sự cố giao thông
+                            </h3>
+                            <button 
+                                onClick={() => setShowReportModal(false)} 
+                                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all active:scale-95"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Form */}
+                        <form onSubmit={handleSubmitTrafficReport} className="p-6 space-y-4 font-sans text-left">
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Mô tả ngắn sự cố (*)</label>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="VD: Kẹt xe nghiêm trọng..."
+                                    value={reportFormData.title}
+                                    onChange={(e) => setReportFormData({ ...reportFormData, title: e.target.value })}
+                                    className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Thông tin chi tiết (Tùy chọn)</label>
+                                <textarea
+                                    placeholder="VD: Các phương tiện di chuyển chậm..."
+                                    rows={2}
+                                    value={reportFormData.description}
+                                    onChange={(e) => setReportFormData({ ...reportFormData, description: e.target.value })}
+                                    className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 resize-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Địa điểm xảy ra (*)</label>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="VD: Đường Bạch Đằng, Hải Châu"
+                                    value={reportFormData.location}
+                                    onChange={(e) => setReportFormData({ ...reportFormData, location: e.target.value })}
+                                    className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Phân loại sự cố</label>
+                                    <select
+                                        value={reportFormData.type}
+                                        onChange={(e) => setReportFormData({ ...reportFormData, type: e.target.value })}
+                                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer bg-white"
+                                    >
+                                        <option value="CONGESTION">Kẹt xe</option>
+                                        <option value="ACCIDENT">Tai nạn</option>
+                                        <option value="CONSTRUCTION">Thi công</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Mức độ nghiêm trọng</label>
+                                    <select
+                                        value={reportFormData.severity}
+                                        onChange={(e) => setReportFormData({ ...reportFormData, severity: e.target.value })}
+                                        className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer bg-white"
+                                    >
+                                        <option value="LOW">Thấp (LOW)</option>
+                                        <option value="MEDIUM">Trung bình (MEDIUM)</option>
+                                        <option value="HIGH">Nghiêm trọng (HIGH)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowReportModal(false)}
+                                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-all"
+                                >
+                                    Hủy bỏ
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl transition-all shadow-md shadow-orange-500/10 active:scale-95 flex items-center gap-1.5"
+                                >
+                                    <CheckCircle2 size={14} />
+                                    Gửi báo cáo
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

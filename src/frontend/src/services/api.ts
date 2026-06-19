@@ -42,7 +42,7 @@ apiClient.interceptors.response.use(
             } catch (err) {
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
-                window.location.href = '/login';
+                window.location.href = `${import.meta.env.BASE_URL}login`;
                 return Promise.reject(err);
             }
         }
@@ -106,6 +106,17 @@ export const adminAPI = {
 
     updateFloodZone: (id: number, isActive: boolean) =>
         apiClient.put(`/admin/flood-zones/${id}`, { is_active: isActive }),
+
+    getTrafficAlerts: () =>
+        apiClient.get('/admin/traffic-alerts'),
+
+    toggleTrafficAlert: (id: number, isActive: boolean) =>
+        apiClient.put(`/admin/traffic-alerts/${id}/toggle`, { is_active: isActive }),
+};
+
+export const trafficAlertAPI = {
+    getTrafficAlerts: () => apiClient.get('/traffic-alerts'),
+    createTrafficAlert: (data: any) => apiClient.post('/traffic-alerts', data),
 };
 
 export default apiClient;

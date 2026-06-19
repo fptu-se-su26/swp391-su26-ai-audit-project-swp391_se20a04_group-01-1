@@ -12,7 +12,7 @@ import {
 import AdminLayout from '../../layouts/AdminLayout';
 import * as authService from '../../services/authService';
 import * as userService from '../../services/userService';
-import { eventAPI, adminAPI } from '../../services/api';
+import { eventAPI, adminAPI, trafficAlertAPI } from '../../services/api';
 import { eventRoadService } from '../../services/eventRoadService';
 import SettingsTab from './SettingsTab';
 import UsersTab from './UsersTab';
@@ -47,11 +47,7 @@ export default function AdminDashboard() {
         status: 'pending', category_id: 1
     });
 
-    const [trafficAlerts, setTrafficAlerts] = useState<TrafficAlert[]>([
-        { id: 1, title: 'Kẹt xe kéo dài cầu sông Hàn', location: 'Cầu Sông Hàn, Sơn Trà', type: 'CONGESTION', severity: 'HIGH', is_active: true, created_at: '10 phút trước' },
-        { id: 2, title: 'Tai nạn xe máy va chạm nhẹ', location: 'Đường Nguyễn Văn Linh, Thanh Khê', type: 'ACCIDENT', severity: 'MEDIUM', is_active: true, created_at: '30 phút trước' },
-        { id: 3, title: 'Thi công sửa đường ống nước', location: 'Đường Điện Biên Phủ, Thanh Khê', type: 'CONSTRUCTION', severity: 'LOW', is_active: true, created_at: '2 giờ trước' }
-    ]);
+        const [trafficAlerts, setTrafficAlerts] = useState<TrafficAlert[]>([]);
 
     const [floodZones, setFloodZones] = useState<FloodZone[]>([]);
 
@@ -63,7 +59,8 @@ export default function AdminDashboard() {
 
     const [showTrafficModal, setShowTrafficModal] = useState(false);
     const [trafficFormData, setTrafficFormData] = useState({
-        title: '', location: '', type: 'CONGESTION' as any, severity: 'MEDIUM' as any
+        title: '', location: '', type: 'CONGESTION' as any, severity: 'MEDIUM' as any,
+        latitude: 16.0544, longitude: 108.2022
     });
 
     const [pwdFormData, setPwdFormData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -119,6 +116,27 @@ export default function AdminDashboard() {
         }
     };
 
+    const fetchTrafficAlerts = async () => {
+        try {
+            const response = await adminAPI.getTrafficAlerts();
+            if (response.data && response.data.success) {
+                const data = response.data.data.map((alert: any) => ({
+                    id: alert.id,
+                    title: alert.title,
+                    location: alert.location,
+                    type: alert.type,
+                    severity: alert.severity,
+                    is_active: alert.is_active,
+                    created_at: new Date(alert.created_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+                }));
+                setTrafficAlerts(data);
+            }
+        } catch (error) {
+            console.error("Lỗi lấy danh sách cảnh báo giao thông:", error);
+            showPremiumToast('Không thể lấy dữ liệu cảnh báo giao thông.', 'error');
+        }
+    };
+
     useEffect(() => {
         fetchEvents();
         fetchAdminSecuritySettings();
@@ -126,6 +144,7 @@ export default function AdminDashboard() {
         fetchUsers();
         fetchRoadClosures();
         fetchFloodZones();
+        fetchTrafficAlerts();
     }, []);
 
     const fetchAdminSecuritySettings = async () => {
@@ -288,15 +307,52 @@ export default function AdminDashboard() {
         }
     };
 
-    const handleCreateTrafficAlert = (e: React.FormEvent) => {
+    const handleCreateTrafficAlert = async (e: React.FormEvent) => {
         e.preventDefault();
-        const newAlert: TrafficAlert = { id: Date.now(), title: trafficFormData.title, location: trafficFormData.location, type: trafficFormData.type, severity: trafficFormData.severity, is_active: true, created_at: 'Vừa xong' };
-        setTrafficAlerts([newAlert, ...trafficAlerts]);
-        setShowTrafficModal(false);
+        try {
+            const body = {
+                title: trafficFormData.title,
+                location: trafficFormData.location,
+                type: trafficFormData.type,
+                severity: trafficFormData.severity,
+                latitude: Number(trafficFormData.latitude),
+                longitude: Number(trafficFormData.longitude)
+            };
+            const response = await trafficAlertAPI.createTrafficAlert(body);
+            if (response.data && response.data.success) {
+                showPremiumToast('Tạo cảnh báo giao thông mới thành công!', 'success');
+                setTrafficFormData({
+                    title: '', location: '', type: 'CONGESTION', severity: 'MEDIUM',
+                    latitude: 16.0544, longitude: 108.2022
+                });
+                setShowTrafficModal(false);
+                fetchTrafficAlerts();
+            } else {
+                showPremiumToast(response.data.message || 'Lỗi khi tạo cảnh báo giao thông.', 'error');
+            }
+        } catch (error) {
+            console.error("Lỗi tạo cảnh báo giao thông:", error);
+            showPremiumToast('Lỗi kết nối máy chủ.', 'error');
+        }
     };
 
-    const toggleTrafficStatus = (id: number) => {
-        setTrafficAlerts(prev => prev.map(a => a.id === id ? { ...a, is_active: !a.is_active } : a));
+    const toggleTrafficStatus = async (id: number) => {
+        const alert = trafficAlerts.find(a => a.id === id);
+        if (!alert) return;
+
+        const nextStatus = !alert.is_active;
+        try {
+            const response = await adminAPI.toggleTrafficAlert(id, nextStatus);
+            if (response.data && response.data.success) {
+                showPremiumToast('Cập nhật trạng thái sự cố thành công!', 'success');
+                setTrafficAlerts(prev => prev.map(a => a.id === id ? { ...a, is_active: nextStatus } : a));
+            } else {
+                showPremiumToast('Cập nhật trạng thái sự cố thất bại.', 'error');
+            }
+        } catch (error) {
+            console.error("Lỗi cập nhật trạng thái sự cố:", error);
+            showPremiumToast('Lỗi hệ thống khi cập nhật trạng thái.', 'error');
+        }
     };
 
     const toggleFloodStatus = async (id: number) => {
@@ -375,7 +431,16 @@ export default function AdminDashboard() {
     };
 
     return (
-        <AdminLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
+        <AdminLayout 
+            activeMenu={activeMenu} 
+            setActiveMenu={setActiveMenu}
+            counts={{
+                events: events.length,
+                flood: floodZones.length,
+                closure: roadClosures.length,
+                traffic: trafficAlerts.length
+            }}
+        >
             {activeMenu === 'overview' && <OverviewTab events={events} trafficAlerts={trafficAlerts} floodZones={floodZones} />}
             {activeMenu === 'events' && (
                 <EventsTab
