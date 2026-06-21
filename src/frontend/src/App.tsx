@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import SplashScreen from './pages/SplashScreen/SplashScreen';
+import MapIntroducePage from './pages/MapIntroducePage/MapIntroducePage';
 import Login from './pages/Login/Login';
 import Home from './pages/Home/Home';
 import ProfilePage from './pages/Profile/ProfilePage';
@@ -19,7 +20,8 @@ export default function App() {
         <Router basename={import.meta.env.BASE_URL}>
             <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
             <Routes>
-                <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <SplashScreen />} />
+                <Route path="/" element={token ? <Navigate to="/dashboard" replace /> : <MapIntroducePage />} />
+                <Route path="/splash" element={<SplashScreen />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
 

@@ -16,7 +16,16 @@ export const API_ENDPOINTS = {
   UPDATE_PROFILE: `${API_BASE_URL}/user/profile`,
   CHANGE_PASSWORD: `${API_BASE_URL}/user/change-password`,
   GET_SECURITY_SETTINGS: `${API_BASE_URL}/user/security-settings`,
-  DISABLE_2FA: `${API_BASE_URL}/user/disable-2fa`
+  DISABLE_2FA: `${API_BASE_URL}/user/disable-2fa`,
+
+  // Preferences
+  GET_PREFERENCES: `${API_BASE_URL}/user/preferences`,
+  UPDATE_PREFERENCES: `${API_BASE_URL}/user/preferences`,
+
+  // Favorite POIs
+  FAVORITE_POIS: `${API_BASE_URL}/user/favorites/pois`,
+  FAVORITE_POIS_DETAILS: `${API_BASE_URL}/user/favorites/pois/details`,
+  TOGGLE_FAVORITE_POI: (id: number) => `${API_BASE_URL}/pois/${id}/favorite`
 };
 
 export default API_BASE_URL;
