@@ -1,9 +1,13 @@
+// backend/emailService.js
 const nodemailer = require('nodemailer');
 
-console.log('📧 Email config:', {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD ? process.env.EMAIL_PASSWORD : 'MISSING',
-});
+// Ẩn log mật khẩu để bảo mật hơn
+if (process.env.NODE_ENV !== 'test') {
+    console.log('📧 Email config:', {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD ? '***' : 'MISSING',
+    });
+}
 
 const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -13,19 +17,22 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-// Test kết nối Gmail
-transporter.verify((error, success) => {
-    if (error) {
-        console.error('❌ Gmail connection failed:', error);
-    } else {
-        console.log('✅ Gmail connection verified!');
-    }
-});
+// CHỈ test kết nối Gmail nếu KHÔNG PHẢI đang chạy Jest Test
+if (process.env.NODE_ENV !== 'test') {
+    transporter.verify((error, success) => {
+        if (error) {
+            console.error('❌ Gmail connection failed:', error);
+        } else {
+            console.log('✅ Gmail connection verified!');
+        }
+    });
+}
 
 const sendOtpEmail = async (to, otp) => {
     try {
-        console.log(`📤 Attempting to send OTP to ${to}`);
-        console.log(`🔐 Using email: ${process.env.EMAIL_USER}`);
+        if (process.env.NODE_ENV !== 'test') {
+            console.log(`📤 Attempting to send OTP to ${to}`);
+        }
         
         const info = await transporter.sendMail({
             from: process.env.EMAIL_USER,
@@ -40,16 +47,16 @@ const sendOtpEmail = async (to, otp) => {
             `,
         });
 
-        console.log(`✅ Email sent successfully!`);
-        console.log(`📬 Message ID: ${info.messageId}`);
+        if (process.env.NODE_ENV !== 'test') {
+            console.log(`✅ Email sent successfully! Message ID: ${info.messageId}`);
+        }
         return true;
     } catch (error) {
-        console.error('❌ Email send FAILED!');
-        console.error('❌ Error code:', error.code);
-        console.error('❌ Error message:', error.message);
-        console.error('❌ Full error:', error);
+        if (process.env.NODE_ENV !== 'test') {
+            console.error('❌ Email send FAILED!', error);
+        }
         return false;
     }
 };
 
-module.exports = { sendOtpEmail };
+module.exports = { sendOtpEmail, transporter };

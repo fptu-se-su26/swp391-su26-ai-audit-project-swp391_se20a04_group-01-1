@@ -1,16 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/mapbox';
 import POIPopup, { POIData } from './POIPopup';
-
-// ✅ Mapping filter ID → tên category trong database (GIỮ NGUYÊN NHƯ FOLDER SWP391)
-const FILTER_TO_CATEGORY: Record<string, string> = {
-    'attractions': 'Điểm tham quan',
-    'restaurants': 'Nhà hàng',
-    'hotels': 'Khách sạn',
-    'entertainment': 'Giải trí',
-    'museums': 'Bảo tàng',
-    'atm': 'ATM',
-};
+import { getCategoryNameByFilter } from './constants/poiCategories';
 
 interface POIsLayerProps {
     pois: POIData[];
@@ -31,13 +22,14 @@ export default function POIsLayer({
 
     // ✅ Chuyển đổi dữ liệu POIs thành GeoJSON FeatureCollection
     const poisGeoJSON = useMemo(() => {
-        // Đã xóa dấu [] thừa gây lỗi
         let filteredPois = pois || [];
 
         // Lọc theo category khi user chọn filter
-        if (selectedFilter && FILTER_TO_CATEGORY[selectedFilter]) {
-            const categoryName = FILTER_TO_CATEGORY[selectedFilter];
-            filteredPois = filteredPois.filter(poi => poi.category_name === categoryName);
+        if (selectedFilter) {
+            const categoryName = getCategoryNameByFilter(selectedFilter);
+            if (categoryName) {
+                filteredPois = filteredPois.filter(poi => poi.category_name === categoryName);
+            }
         }
 
         return {
@@ -105,7 +97,6 @@ export default function POIsLayer({
             const props = features[0].properties;
             if (!props) return;
 
-            // Ngăn sự kiện click lan sang bản đồ
             event.originalEvent?.stopPropagation();
 
             const geometry = features[0].geometry as any;
@@ -159,8 +150,6 @@ export default function POIsLayer({
         };
     }, [map, handleClusterClick, handlePointClick]);
 
-    // ĐÃ XÓA DÒNG if (!pois) return null; ĐỂ TRÁNH LỖI MẤT KẾT NỐI CLICK CỦA MAPBOX
-
     return (
         <>
             <Source
@@ -171,7 +160,6 @@ export default function POIsLayer({
                 clusterMaxZoom={14}
                 clusterRadius={50}
             >
-                {/* Layer 1: Vòng tròn Cluster */}
                 <Layer
                     id="poi-clusters"
                     type="circle"
@@ -179,15 +167,15 @@ export default function POIsLayer({
                     paint={{
                         'circle-color': [
                             'step', ['get', 'point_count'],
-                            '#51bbd6',   // < 10 điểm
-                            10, '#f1f075', // 10-30 điểm
-                            30, '#f28cb1'  // > 30 điểm
+                            '#51bbd6',
+                            10, '#f1f075',
+                            30, '#f28cb1'
                         ],
                         'circle-radius': [
                             'step', ['get', 'point_count'],
-                            18,          
-                            10, 24,      
-                            30, 32       
+                            18,
+                            10, 24,
+                            30, 32
                         ],
                         'circle-stroke-width': 3,
                         'circle-stroke-color': '#ffffff',
@@ -195,7 +183,6 @@ export default function POIsLayer({
                     }}
                 />
 
-                {/* Layer 2: Số lượng hiển thị trên Cluster */}
                 <Layer
                     id="poi-cluster-count"
                     type="symbol"
@@ -210,7 +197,6 @@ export default function POIsLayer({
                     }}
                 />
 
-                {/* Layer 3: Điểm đơn lẻ */}
                 <Layer
                     id="poi-unclustered-point"
                     type="circle"
@@ -224,7 +210,6 @@ export default function POIsLayer({
                     }}
                 />
 
-                {/* Layer 4: Viền sáng cho điểm nổi bật */}
                 <Layer
                     id="poi-featured-glow"
                     type="circle"
@@ -242,7 +227,6 @@ export default function POIsLayer({
                 />
             </Source>
 
-            {/* ✅ Popup khi click vào POI */}
             {selectedPOI && (
                 <POIPopup
                     poi={selectedPOI}

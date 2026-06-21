@@ -1,6 +1,8 @@
 import React from 'react';
 import { Popup } from 'react-map-gl/mapbox';
-import { Star, MapPin, Phone, Navigation, X, Globe } from 'lucide-react';
+import { MapPin, Phone, Navigation, X, Globe } from 'lucide-react';
+import StarRating from './common/StarRating';
+import { FALLBACK_IMAGE, handleImageError } from './utils/formatters';
 
 export interface POIData {
     poi_id: number;
@@ -25,36 +27,6 @@ interface POIPopupProps {
     onDirectionsClick: (poi: POIData) => void;
 }
 
-// Component render sao đánh giá
-const StarRating = ({ rating }: { rating: number | null }) => {
-    if (!rating) return null;
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating - fullStars >= 0.3;
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-
-    return (
-        <div className="flex items-center gap-1">
-            <div className="flex">
-                {Array.from({ length: fullStars }).map((_, i) => (
-                    <Star key={`full-${i}`} size={12} className="text-amber-400 fill-amber-400" />
-                ))}
-                {hasHalfStar && (
-                    <div className="relative">
-                        <Star size={12} className="text-slate-300" />
-                        <div className="absolute inset-0 overflow-hidden w-[6px]">
-                            <Star size={12} className="text-amber-400 fill-amber-400" />
-                        </div>
-                    </div>
-                )}
-                {Array.from({ length: emptyStars }).map((_, i) => (
-                    <Star key={`empty-${i}`} size={12} className="text-slate-300" />
-                ))}
-            </div>
-            <span className="text-[11px] font-bold text-amber-600">{rating.toFixed(1)}</span>
-        </div>
-    );
-};
-
 export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupProps) {
     return (
         <Popup
@@ -68,7 +40,6 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
             maxWidth="280px"
         >
             <div className="w-[260px] bg-white rounded-xl overflow-hidden shadow-2xl font-sans relative">
-                {/* Nút đóng luôn hiển thị ở góc trên bên phải */}
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
@@ -80,21 +51,16 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
                     <X size={16} />
                 </button>
 
-                {/* Header: Hình ảnh */}
                 {poi.image_url && (
                     <div className="relative h-[120px] overflow-hidden">
                         <img
                             src={poi.image_url}
                             alt={poi.name}
                             className="w-full h-full object-cover"
-                            onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400';
-                            }}
+                            onError={handleImageError(FALLBACK_IMAGE.poi)}
                         />
-                        {/* Gradient overlay */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 
-                        {/* Category badge */}
                         <span
                             className="absolute top-2 left-2 text-[9px] font-bold text-white px-2 py-0.5 rounded-full shadow-sm"
                             style={{ backgroundColor: poi.category_color || '#6366F1' }}
@@ -102,7 +68,6 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
                             {poi.category_name}
                         </span>
 
-                        {/* Featured badge - dịch sang bên trái nút đóng */}
                         {poi.is_featured && (
                             <span className="absolute top-2 right-12 text-[9px] font-bold bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full shadow-sm">
                                 ⭐ Nổi bật
@@ -111,24 +76,19 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
                     </div>
                 )}
 
-                {/* Body: Thông tin */}
                 <div className="p-3">
-                    {/* Rating */}
-                    <StarRating rating={poi.rating} />
+                    <StarRating rating={poi.rating} size={12} />
 
-                    {/* Tên */}
                     <h3 className="text-[13px] font-bold text-slate-900 mt-1 leading-tight line-clamp-2">
                         {poi.name}
                     </h3>
 
-                    {/* Mô tả ngắn */}
                     {poi.description && (
                         <p className="text-[10px] text-slate-500 mt-1 line-clamp-2 leading-relaxed">
                             {poi.description}
                         </p>
                     )}
 
-                    {/* Thông tin chi tiết */}
                     <div className="mt-2 space-y-1">
                         {poi.address && (
                             <div className="flex items-start gap-1.5">
@@ -145,21 +105,21 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
                             </div>
                         )}
                         {poi.website_url && (
-                            <div className="flex items-center gap-1.5">
-                                <Globe size={11} className="text-slate-400 shrink-0" />
-                                <a
-                                    href={poi.website_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-[10px] text-blue-600 hover:underline truncate"
-                                >
-                                    Website
-                                </a>
-                            </div>
-                        )}
+    <div className="flex items-center gap-1.5">
+        <Globe size={11} className="text-slate-400 shrink-0" />
+        {/* ĐÃ THÊM THẺ <a BỊ THIẾU Ở ĐÂY */}
+        <a 
+            href={poi.website_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-blue-600 hover:underline truncate"
+        >
+            Website
+        </a>
+    </div>
+)}
                     </div>
 
-                    {/* Nút chỉ đường */}
                     <button
                         onClick={(e) => {
                             e.stopPropagation();

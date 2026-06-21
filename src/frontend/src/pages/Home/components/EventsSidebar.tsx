@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Calendar, MapPin, X, ChevronRight, Clock, Star } from 'lucide-react';
-import { EventData, getEventStatus } from './EventsLayer';
+import { Search, Calendar, MapPin, X, ChevronRight } from 'lucide-react';
+import { EventData } from './EventsLayer';
+import EventStatusBadge from './common/EventStatusBadge';
+import { formatShortDate, handleImageError } from './utils/formatters';
 
 interface CategoryData {
     category_id: number;
@@ -28,18 +30,14 @@ export default function EventsSidebar({
     const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
     const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
-    // Lọc danh sách sự kiện
     const filteredEvents = useMemo(() => {
         return events.filter(evt => {
-            // 1. Tìm kiếm theo tên hoặc địa điểm
-            const matchesSearch = 
+            const matchesSearch =
                 evt.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (evt.location_name && evt.location_name.toLowerCase().includes(searchTerm.toLowerCase()));
-            
-            // 2. Lọc theo category
+
             const matchesCategory = selectedCategory === null || evt.category_id === selectedCategory;
 
-            // 3. Lọc theo tháng
             let matchesMonth = true;
             if (selectedMonth !== null && evt.start_time) {
                 const date = new Date(evt.start_time);
@@ -72,7 +70,6 @@ export default function EventsSidebar({
 
             {/* Bộ lọc & Tìm kiếm */}
             <div className="p-3 border-b border-slate-100 space-y-2.5 shrink-0 bg-slate-50/50">
-                {/* Tìm kiếm */}
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                     <input
@@ -85,7 +82,6 @@ export default function EventsSidebar({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
-                    {/* Danh mục */}
                     <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Danh mục</label>
                         <select
@@ -102,7 +98,6 @@ export default function EventsSidebar({
                         </select>
                     </div>
 
-                    {/* Tháng */}
                     <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Theo tháng</label>
                         <select
@@ -131,34 +126,14 @@ export default function EventsSidebar({
                     </div>
                 ) : (
                     filteredEvents.map((evt) => {
-                        const status = getEventStatus(evt.start_time, evt.end_time);
                         const categoryColor = evt.category_color || '#6366F1';
-                        
-                        let statusText = 'Sắp diễn ra';
-                        let statusClass = 'bg-blue-50 text-blue-600 border-blue-100';
-                        
-                        if (status === 'ongoing') {
-                            statusText = 'Đang diễn ra';
-                            statusClass = 'bg-emerald-50 text-emerald-600 border-emerald-100 animate-pulse-subtle';
-                        } else if (status === 'ended') {
-                            statusText = 'Đã kết thúc';
-                            statusClass = 'bg-slate-100 text-slate-500 border-slate-200';
-                        }
-
-                        // Định dạng ngày hiển thị ngắn gọn
-                        const eventDate = new Date(evt.start_time);
-                        const formattedDate = eventDate.toLocaleDateString('vi-VN', {
-                            day: '2-digit',
-                            month: '2-digit'
-                        });
+                        const status = evt.status; // giữ tham chiếu nếu cần dùng sau
 
                         return (
                             <button
                                 key={evt.event_id}
                                 onClick={() => onEventClick(evt)}
-                                className={`w-full text-left p-2.5 bg-white rounded-xl border border-slate-100 hover:border-indigo-300 hover:shadow-md transition-all flex gap-2.5 group relative ${
-                                    status === 'ended' ? 'opacity-70 hover:opacity-100' : ''
-                                }`}
+                                className="w-full text-left p-2.5 bg-white rounded-xl border border-slate-100 hover:border-indigo-300 hover:shadow-md transition-all flex gap-2.5 group relative"
                             >
                                 {/* Left Thumb */}
                                 <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center border border-slate-100 relative">
@@ -174,10 +149,9 @@ export default function EventsSidebar({
                                     ) : (
                                         <span className="text-xl">{evt.category_icon || '🎆'}</span>
                                     )}
-                                    
-                                    {/* Ngày tổ chức đè lên góc dưới hình */}
+
                                     <div className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[8px] text-center py-0.5 font-bold">
-                                        {formattedDate}
+                                        {formatShortDate(evt.start_time)}
                                     </div>
                                 </div>
 
@@ -195,10 +169,8 @@ export default function EventsSidebar({
 
                                     {/* Badges */}
                                     <div className="flex items-center gap-1.5 mt-1.5">
-                                        <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full border ${statusClass}`}>
-                                            {statusText}
-                                        </span>
-                                        <span 
+                                        <EventStatusBadge startTime={evt.start_time} endTime={evt.end_time} size="sm" />
+                                        <span
                                             className="text-[8px] font-bold text-white px-1.5 py-0.5 rounded-full"
                                             style={{ backgroundColor: categoryColor }}
                                         >
