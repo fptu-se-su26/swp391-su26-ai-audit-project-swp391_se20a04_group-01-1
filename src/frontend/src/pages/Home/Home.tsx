@@ -1,11 +1,17 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import ProfilePage from '../Profile/ProfilePage';
 import Map, { NavigationControl, Marker, Source, Layer, MapRef, Popup } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
 // NEW CODE: Event route avoidance & visualization
 import { eventRoadService, EventRoad } from '../../services/eventRoadService';
 import { findSafeEventRoute } from '../../utils/eventRouteUtils';
+
+// NEW CODE: Preferences & Favorite POIs stores
+import { usePreferenceStore } from '../../store/preferenceStore';
+import { useFavoritePoiStore } from '../../store/favoritePoiStore';
+import { findSafeTrafficRoute } from '../../utils/trafficRouteUtils';
 
 // NEW CODE: Flood route avoidance feature - Import component hiển thị lớp ngập lụt
 // import FloodLayer from '../../components/FloodLayer';
@@ -37,6 +43,8 @@ import POIFeaturedSidebar from './components/POIFeaturedSidebar';
 import EventsLayer, { EventData } from './components/EventsLayer';
 import EventsSidebar from './components/EventsSidebar';
 import EventDetailSidebar from './components/EventDetailSidebar';
+import NotificationCenter from './components/NotificationCenter';
+import { useNotificationStore } from '../../store/notificationStore';
 
 // ✅ ĐÃ SỬA LẠI LỖI FONT CHỮ BỊ HỎNG
 const filterCategories = [
@@ -93,9 +101,23 @@ function getCirclePolygon(
 
 export default function Home() {
     const navigate = useNavigate();
+    const location = useLocation();
+    
+    const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+    const tab = queryParams.get('tab');
+    
     const userRole = localStorage.getItem('userRole');
     const [showAlertPopup, setShowAlertPopup] = useState(true);
     const [showNotificationModal, setShowNotificationModal] = useState(false);
+
+    // Notification store
+    const { unreadCount, startPolling, stopPolling } = useNotificationStore();
+
+    // Bắt đầu polling khi mount, dừng khi unmount
+    useEffect(() => {
+        startPolling();
+        return () => stopPolling();
+    }, [startPolling, stopPolling]);
     const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
     const [countdown, setCountdown] = useState(1);
 
@@ -290,6 +312,37 @@ export default function Home() {
 
     // Tùy chọn định tuyến tránh vùng ngập lụt
     const [avoidFlood, setAvoidFlood] = useState<boolean>(true);
+    // NEW CODE: Tùy chọn định tuyến tránh ùn tắc (kẹt xe)
+    const [avoidCongestion, setAvoidCongestion] = useState<boolean>(false);
+
+    // Profile state & fetch
+    const [userProfile, setUserProfile] = useState<{ username: string; avatar_url?: string } | null>(null);
+
+    const fetchUserProfile = async () => {
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        if (!token) return;
+        try {
+            const res = await fetch('http://localhost:5001/api/user/profile', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            const data = await res.json();
+            if (data?.data) {
+                setUserProfile(data.data);
+            }
+        } catch (err) {
+            console.error('Error fetching user profile in Home:', err);
+        }
+    };
+
+    useEffect(() => {
+        fetchUserProfile();
+    }, []);
+
+    // NEW CODE: Stores hooks
+    const { preferences, fetchPreferences, updateAllPreferences } = usePreferenceStore();
+    const { fetchFavoriteIds } = useFavoritePoiStore();
 
     // Custom confirm modal state
     const [confirmModal, setConfirmModal] = useState<{
@@ -679,7 +732,7 @@ export default function Home() {
             };
             loadSharedRoute();
         }
-    }, []);
+    }, [location.search]);
 
     // EFFECT: Lắng nghe query string ?routeId=ID để tự động vẽ lộ trình đã lưu của người dùng
     useEffect(() => {
@@ -748,7 +801,7 @@ export default function Home() {
             };
             loadSavedRouteById();
         }
-    }, []);
+    }, [location.search]);
 
 
 
@@ -1024,6 +1077,22 @@ const handleMapClick = (event: any) => {
                         alertMsg = result.alertMsg;
                     }
 
+                    // NEW CODE: Tùy chọn tránh ùn tắc (Kẹt xe)
+                    if (avoidCongestion && selectedRoute) {
+                        const result = await findSafeTrafficRoute(
+                            [selectedRoute, ...data.routes.filter((r: any) => r !== selectedRoute)],
+                            trafficAlerts,
+                            origin,
+                            destination,
+                            travelMode,
+                            mapboxToken
+                        );
+                        selectedRoute = result.selectedRoute;
+                        if (result.alertMsg) {
+                            alertMsg = alertMsg ? `${alertMsg}\n${result.alertMsg}` : result.alertMsg;
+                        }
+                    }
+
                     // NEW CODE: Tránh đường cấm do sự kiện đang diễn ra
                     const activeRoadRestrictions = activeOrSelectedEventRoads;
 
@@ -1084,7 +1153,7 @@ const handleMapClick = (event: any) => {
             }
         };
         getShortestRoute();
-    }, [origin, destination, travelMode, avoidFlood, confirmedFloodZoneIds, floodZones, activeOrSelectedEventRoads]);
+    }, [origin, destination, travelMode, avoidFlood, avoidCongestion, confirmedFloodZoneIds, floodZones, activeOrSelectedEventRoads, trafficAlerts]);
     const geojsonData: any = routeData ? {
         type: 'Feature',
         properties: {},
@@ -1244,6 +1313,51 @@ const handleMapClick = (event: any) => {
         fetchUserFavoriteEventIds();
     }, []);
 
+    // NEW CODE: Tải cấu hình và địa điểm yêu thích khi đăng nhập
+    useEffect(() => {
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        if (token) {
+            fetchPreferences();
+            fetchFavoriteIds();
+        }
+    }, [fetchPreferences, fetchFavoriteIds]);
+
+    // NEW CODE: Áp dụng cấu hình đã tải vào các state cục bộ của bản đồ
+    const isPreferencesLoaded = useRef(false);
+    useEffect(() => {
+        if (preferences && !isPreferencesLoaded.current) {
+            setAvoidFlood(preferences.avoid_floods);
+            setAvoidCongestion(preferences.avoid_congestion);
+            setTravelMode(preferences.default_travel_mode);
+            setMapControls(prev => ({
+                ...prev,
+                traffic: preferences.show_traffic_layer
+            }));
+            isPreferencesLoaded.current = true;
+        }
+    }, [preferences]);
+
+    // NEW CODE: Đồng bộ các thay đổi cục bộ ngược lại server
+    useEffect(() => {
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        if (!token || !preferences || !isPreferencesLoaded.current) return;
+
+        const hasChanged = 
+            avoidFlood !== preferences.avoid_floods ||
+            avoidCongestion !== preferences.avoid_congestion ||
+            travelMode !== preferences.default_travel_mode ||
+            mapControls.traffic !== preferences.show_traffic_layer;
+
+        if (hasChanged) {
+            updateAllPreferences({
+                avoid_floods: avoidFlood,
+                avoid_congestion: avoidCongestion,
+                default_travel_mode: travelMode,
+                show_traffic_layer: mapControls.traffic
+            });
+        }
+    }, [avoidFlood, avoidCongestion, travelMode, mapControls.traffic, preferences, updateAllPreferences]);
+
     useEffect(() => {
         const queryParams = new URLSearchParams(window.location.search);
         const routeId = queryParams.get('routeId');
@@ -1251,6 +1365,29 @@ const handleMapClick = (event: any) => {
         const shouldSetAsOrigin = !routeId && !shareToken;
         handleGetCurrentLocation(false, shouldSetAsOrigin);
     }, []);
+
+    // NEW CODE: Tự động mở POI và đặt làm điểm đến nếu có query ?poiId=ID
+    useEffect(() => {
+        if (pois && pois.length > 0) {
+            const queryParams = new URLSearchParams(window.location.search);
+            const poiIdStr = queryParams.get('poiId');
+            if (poiIdStr) {
+                const poiId = parseInt(poiIdStr);
+                const foundPoi = pois.find(p => p.poi_id === poiId);
+                if (foundPoi) {
+                    setDestination({ lng: foundPoi.longitude, lat: foundPoi.latitude, label: foundPoi.name });
+                    setDestinationQuery(foundPoi.name);
+                    setSelectedPOI(foundPoi);
+                    setViewMode('pois');
+                    mapRef.current?.flyTo({
+                        center: [foundPoi.longitude, foundPoi.latitude],
+                        zoom: 15,
+                        duration: 1500
+                    });
+                }
+            }
+        }
+    }, [pois, location.search]);
 
     // Tự động đóng gợi ý tìm kiếm khi click ra ngoài
     useEffect(() => {
@@ -2166,7 +2303,7 @@ const floodGeoJSON: any = useMemo(() => {
                                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
                                     
                                     {/* Tùy chọn định tuyến: Tránh vùng ngập lụt */}
-                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-3 animate-fade-in">
+                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-2 animate-fade-in">
                                         <div className="flex items-center gap-2">
                                             <CloudRain size={14} className="text-blue-500" />
                                             <span className="text-[10px] font-bold text-slate-700">Tránh vùng ngập lụt</span>
@@ -2178,6 +2315,24 @@ const floodGeoJSON: any = useMemo(() => {
                                         >
                                             <span
                                                 style={{ transform: avoidFlood ? 'translateX(18px)' : 'translateX(2px)' }}
+                                                className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
+                                            />
+                                        </button>
+                                    </div>
+
+                                    {/* Tùy chọn định tuyến: Tránh kẹt xe */}
+                                    <div className="flex items-center justify-between p-2 bg-amber-50/50 rounded-xl border border-amber-100/50 mb-3 animate-fade-in">
+                                        <div className="flex items-center gap-2">
+                                            <AlertTriangle size={14} className="text-amber-500" />
+                                            <span className="text-[10px] font-bold text-slate-700">Tránh ùn tắc (Kẹt xe)</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAvoidCongestion(!avoidCongestion)}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${avoidCongestion ? 'bg-amber-600' : 'bg-slate-200'}`}
+                                        >
+                                            <span
+                                                style={{ transform: avoidCongestion ? 'translateX(18px)' : 'translateX(2px)' }}
                                                 className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
                                             />
                                         </button>
@@ -2293,7 +2448,7 @@ const floodGeoJSON: any = useMemo(() => {
                                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
                                     
                                     {/* Tùy chọn định tuyến: Tránh vùng ngập lụt */}
-                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-3 animate-fade-in">
+                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-2 animate-fade-in">
                                         <div className="flex items-center gap-2">
                                             <CloudRain size={14} className="text-blue-500" />
                                             <span className="text-[10px] font-bold text-slate-700">Tránh vùng ngập lụt</span>
@@ -2305,6 +2460,24 @@ const floodGeoJSON: any = useMemo(() => {
                                         >
                                             <span
                                                 style={{ transform: avoidFlood ? 'translateX(18px)' : 'translateX(2px)' }}
+                                                className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
+                                            />
+                                        </button>
+                                    </div>
+
+                                    {/* Tùy chọn định tuyến: Tránh kẹt xe */}
+                                    <div className="flex items-center justify-between p-2 bg-amber-50/50 rounded-xl border border-amber-100/50 mb-3 animate-fade-in">
+                                        <div className="flex items-center gap-2">
+                                            <AlertTriangle size={14} className="text-amber-500" />
+                                            <span className="text-[10px] font-bold text-slate-700">Tránh ùn tắc (Kẹt xe)</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAvoidCongestion(!avoidCongestion)}
+                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${avoidCongestion ? 'bg-amber-600' : 'bg-slate-200'}`}
+                                        >
+                                            <span
+                                                style={{ transform: avoidCongestion ? 'translateX(18px)' : 'translateX(2px)' }}
                                                 className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
                                             />
                                         </button>
@@ -2414,35 +2587,33 @@ const floodGeoJSON: any = useMemo(() => {
 
                 {/* Phải: Thông báo & Nút User / Admin */}
                 <div className="flex items-center gap-3 shrink-0 pointer-events-auto relative">
+                    {/* Bell + NotificationCenter */}
                     <div className="relative">
                         <button
                             onClick={() => setShowNotificationModal(!showNotificationModal)}
-                            className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all"
+                            className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all relative"
                         >
                             <Bell size={18} />
-                            <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                            {unreadCount > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white px-0.5">
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </span>
+                            )}
                         </button>
 
-                        {showNotificationModal && (
-                            <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 z-30 animate-fade-up">
-                                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex justify-between items-center">
-                                    <span>Cảnh báo thiên tai đô thị</span>
-                                    <span className="bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-black text-[9px] animate-pulse">LIVE</span>
-                                </div>
-                                <div className="flex flex-col gap-2.5 max-h-72 overflow-y-auto pr-1 scrollbar-none">
-                                    {mockAlerts.map((alert) => (
-                                        <div key={alert.id} className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 hover:bg-blue-50/40 transition-colors">
-                                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                                                {alert.type === 'flood' ? <CloudRain size={14} className="text-blue-500" /> : <Ban size={14} className="text-red-500" />}
-                                                {alert.title}
-                                            </div>
-                                            <p className="text-[11px] text-slate-600 mt-1 leading-snug">{alert.content}</p>
-                                            <div className="text-[9px] text-slate-400 mt-1">{alert.time}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        <NotificationCenter
+                            isOpen={showNotificationModal}
+                            onClose={() => setShowNotificationModal(false)}
+                            onFlyToZone={(msg) => {
+                                // Parse zone location from message nếu có (feature tương lai)
+                                setShowNotificationModal(false);
+                            }}
+                            onOpenEvent={(eventId) => {
+                                const found = events.find(e => e.event_id === eventId);
+                                if (found) handleEventClick(found);
+                                setShowNotificationModal(false);
+                            }}
+                        />
                     </div>
 
                     {userRole === 'admin' && (
@@ -2457,11 +2628,29 @@ const floodGeoJSON: any = useMemo(() => {
 
                     {userRole !== 'admin' && (
                         <button
-                            onClick={() => navigate('/profile')}
-                            className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all"
+                            onClick={() => navigate('?tab=profile')}
+                            className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 overflow-hidden text-slate-600 hover:text-blue-600 transition-all"
                             title="Hồ sơ cá nhân"
                         >
-                            <User size={18} />
+                            {userProfile?.avatar_url ? (
+                                <img 
+                                    src={userProfile.avatar_url.startsWith('http') ? userProfile.avatar_url : `http://localhost:5001${userProfile.avatar_url}`} 
+                                    alt="Avatar" 
+                                    className="w-full h-full object-cover" 
+                                    onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        const parent = e.currentTarget.parentElement;
+                                        if (parent) {
+                                            const fallback = document.createElement('span');
+                                            fallback.innerHTML = '👤';
+                                            fallback.className = 'text-lg';
+                                            parent.appendChild(fallback);
+                                        }
+                                    }}
+                                />
+                            ) : (
+                                <User size={18} />
+                            )}
                         </button>
                     )}
                 </div>
@@ -3004,6 +3193,16 @@ const floodGeoJSON: any = useMemo(() => {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* PROFILE OVERLAY */}
+            {tab === 'profile' && (
+                <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+                    <ProfilePage isOverlay={true} onClose={() => {
+                        navigate('/dashboard');
+                        fetchUserProfile();
+                    }} />
                 </div>
             )}
 

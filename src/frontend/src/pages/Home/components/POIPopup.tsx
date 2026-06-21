@@ -1,6 +1,8 @@
 import React from 'react';
 import { Popup } from 'react-map-gl/mapbox';
-import { Star, MapPin, Phone, Navigation, X, Globe } from 'lucide-react';
+import { Star, MapPin, Phone, Navigation, X, Globe, Heart } from 'lucide-react';
+import { useFavoritePoiStore } from '../../../store/favoritePoiStore';
+import { showPremiumToast } from '../../../utils/toastUtils';
 
 export interface POIData {
     poi_id: number;
@@ -56,6 +58,24 @@ const StarRating = ({ rating }: { rating: number | null }) => {
 };
 
 export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupProps) {
+    const { favoriteIds, toggleFavorite } = useFavoritePoiStore();
+    const isFav = favoriteIds.has(poi.poi_id);
+
+    const handleFavoriteClick = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        if (!token) {
+            showPremiumToast('Vui lòng đăng nhập để lưu địa điểm yêu thích.', 'error');
+            return;
+        }
+        try {
+            const res = await toggleFavorite(poi.poi_id);
+            showPremiumToast(res ? 'Đã lưu địa điểm vào danh sách yêu thích!' : 'Đã xóa địa điểm khỏi danh sách yêu thích.', 'success');
+        } catch (err) {
+            showPremiumToast('Không thể cập nhật trạng thái yêu thích.', 'error');
+        }
+    };
+
     return (
         <Popup
             longitude={poi.longitude}
@@ -68,6 +88,15 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
             maxWidth="280px"
         >
             <div className="w-[260px] bg-white rounded-xl overflow-hidden shadow-2xl font-sans relative">
+                {/* Nút yêu thích */}
+                <button
+                    onClick={handleFavoriteClick}
+                    className="absolute top-2 right-12 w-8 h-8 bg-black/40 hover:bg-black/60 text-white rounded-full flex items-center justify-center transition-all active:scale-95 z-20"
+                    title={isFav ? "Bỏ lưu địa điểm" : "Lưu địa điểm"}
+                >
+                    <Heart size={16} className={isFav ? "fill-rose-500 text-rose-500" : "text-white"} />
+                </button>
+
                 {/* Nút đóng luôn hiển thị ở góc trên bên phải */}
                 <button
                     onClick={(e) => {
@@ -104,7 +133,7 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
 
                         {/* Featured badge - dịch sang bên trái nút đóng */}
                         {poi.is_featured && (
-                            <span className="absolute top-2 right-12 text-[9px] font-bold bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full shadow-sm">
+                            <span className="absolute top-2 right-22 text-[9px] font-bold bg-amber-400 text-amber-900 px-2 py-0.5 rounded-full shadow-sm">
                                 ⭐ Nổi bật
                             </span>
                         )}
