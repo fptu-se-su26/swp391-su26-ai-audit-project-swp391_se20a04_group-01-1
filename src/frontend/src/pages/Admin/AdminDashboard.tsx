@@ -486,10 +486,13 @@ export default function AdminDashboard() {
         try {
             const result = await authService.confirm2FA(totpConfirmCode, twoFaSecret as string);
             if (result?.success) {
-                setTwoFactorEnabled(true); setShowTwoFaQR(false); localStorage.setItem('is_2fa_enabled', '1');
+                setTwoFactorEnabled(true);
+                setShowTwoFaQR(false);
+                localStorage.setItem('is_2fa_enabled', '1');
+                showPremiumToast('Kích hoạt 2FA thành công!', 'success');
             }
         } catch (error) {
-            alert('Mã xác thực lỗi');
+            showPremiumToast('Mã xác thực lỗi. Vui lòng kiểm tra lại.', 'error');
         }
     };
 
@@ -514,6 +517,8 @@ export default function AdminDashboard() {
             setTwoFaMessage(errorMessage);
         }
     };
+
+
 
     return (
         <AdminLayout 

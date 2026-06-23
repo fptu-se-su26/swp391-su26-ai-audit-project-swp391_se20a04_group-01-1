@@ -1,7 +1,10 @@
 import axios from 'axios';
 
-
-const API_URL = 'http://localhost:5001/api';
+// [TASK 1.1] Dùng biến môi trường thay vì hard-code URL
+// Cấu hình trong src/frontend/.env: VITE_API_URL=http://localhost:5001
+const API_URL = import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : 'http://localhost:5001/api'; // fallback cho dev nếu chưa có .env
 
 const apiClient = axios.create({
     baseURL: API_URL,
@@ -22,31 +25,23 @@ apiClient.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// Interceptor: Xử lý lỗi token
+// [TASK 1.2] Fix token refresh loop:
+// Backend KHÔNG có endpoint /auth/refresh → interceptor cũ gây vòng lặp logout vô hạn.
+// Giải pháp: Khi nhận 401, clear token và redirect về login ngay lập tức.
 apiClient.interceptors.response.use(
     (response) => response,
-    async (error: any) => {
-        const originalRequest = error.config;
-
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            originalRequest._retry = true;
-            try {
-                const token = localStorage.getItem('token');
-                const response = await axios.post(`${API_URL}/auth/refresh`, {
-                    token: token,
-                });
-                const newToken = response.data.token;
-                localStorage.setItem('token', newToken);
-                originalRequest.headers.Authorization = `Bearer ${newToken}`;
-                return apiClient(originalRequest);
-            } catch (err) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                window.location.href = `${import.meta.env.BASE_URL}login`;
-                return Promise.reject(err);
+    (error: any) => {
+        if (error.response?.status === 401) {
+            // Token hết hạn hoặc không hợp lệ
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            localStorage.removeItem('userRole');
+            // Chỉ redirect nếu chưa ở trang login (tránh redirect loop)
+            const currentPath = window.location.pathname;
+            if (!currentPath.includes('/login') && !currentPath.includes('/verify-2fa')) {
+                window.location.href = `${import.meta.env.BASE_URL || '/'}login`;
             }
         }
-
         return Promise.reject(error);
     }
 );

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Eye, EyeOff, User, Lock, Mail, UserCircle, Navigation, MapPin, CheckCircle } from 'lucide-react';
 import { authAPI } from '../../services/api';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 // ── Right panel slides ─────────────────────────────────────────────────
 const slides = [
@@ -80,7 +81,7 @@ export default function Register() {
       // Sử dụng authAPI từ file api.ts
       await authAPI.register(form.username, form.email, form.password);
       
-      alert('Tạo tài khoản thành công! Hãy đăng nhập nhé.');
+      showPremiumToast('Tạo tài khoản thành công! Hãy đăng nhập nhé.', 'success');
       window.location.href = `${import.meta.env.BASE_URL}login`;
 } catch (err: any) {
       console.error(err);

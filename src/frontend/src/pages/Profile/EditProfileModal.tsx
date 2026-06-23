@@ -20,7 +20,8 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
         if (isOpen) {
             setUsername(currentUsername);
             setAvatarFile(null);
-            const fullAvatarUrl = currentAvatar ? (currentAvatar.startsWith('http') || currentAvatar.startsWith('data:') ? currentAvatar : `http://localhost:5001${currentAvatar}`) : '';
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+            const fullAvatarUrl = currentAvatar ? (currentAvatar.startsWith('http') || currentAvatar.startsWith('data:') ? currentAvatar : `${apiBase}${currentAvatar}`) : '';
             setPreviewUrl(fullAvatarUrl); // Hiển thị ảnh cũ nếu có
             setError('');
         }
@@ -65,7 +66,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
                 payload.avatar = base64Avatar;
             }
 
-            const response = await fetch('http://localhost:5001/api/user/profile', {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/user/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json', // ✅ BẮT BUỘC CÓ DÒNG NÀY

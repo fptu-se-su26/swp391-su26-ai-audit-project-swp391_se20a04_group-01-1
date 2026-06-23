@@ -2,6 +2,7 @@ import React from 'react';
 import {
     Users, Key, Shield, CheckCircle2, AlertCircle, Lock, Copy, Eye, EyeOff
 } from 'lucide-react';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 interface Props {
     // Profile
@@ -270,7 +271,7 @@ export default function SettingsTab({
                                         <div className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-600">
                                             <span>Key: {twoFaSecret}</span>
                                             <button
-                                                onClick={() => { navigator.clipboard.writeText(twoFaSecret || ''); alert('Đã copy mã bí mật!'); }}
+                                                onClick={() => { navigator.clipboard.writeText(twoFaSecret || ''); showPremiumToast('Đã copy mã bí mật!', 'success'); }}
                                                 className="text-blue-500 hover:text-blue-600" title="Copy mã bí mật" type="button"
                                             >
                                                 <Copy size={14} />

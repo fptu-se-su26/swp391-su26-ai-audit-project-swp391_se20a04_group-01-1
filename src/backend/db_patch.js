@@ -54,7 +54,7 @@ async function runPatch() {
                 WHERE object_id = OBJECT_ID('Notifications') AND name = 'type'
             )
             BEGIN
-                EXEC('ALTER TABLE Notifications ADD type NVARCHAR(30) NOT NULL DEFAULT ''system''');
+                ALTER TABLE Notifications ADD type NVARCHAR(30) NOT NULL DEFAULT 'system';
                 PRINT 'Added type column to Notifications table';
             END
 
@@ -63,11 +63,24 @@ async function runPatch() {
                 WHERE parent_object_id = OBJECT_ID('Notifications') AND name = 'CHK_Notifications_Type'
             )
             BEGIN
-                EXEC('ALTER TABLE Notifications ADD CONSTRAINT CHK_Notifications_Type CHECK (type IN (''event_reminder'', ''traffic_alert'', ''event_update'', ''system''))');
+                ALTER TABLE Notifications ADD CONSTRAINT CHK_Notifications_Type CHECK (type IN ('event_reminder', 'traffic_alert', 'event_update', 'system'));
                 PRINT 'Added CHK_Notifications_Type constraint to Notifications table';
             END
         `;
         await pool.request().query(checkNotificationsTypeQuery);
+
+        console.log('Checking FloodZones table depth_cm column...');
+        const checkFloodZonesDepthQuery = `
+            IF NOT EXISTS (
+                SELECT * FROM sys.columns 
+                WHERE object_id = OBJECT_ID('FloodZones') AND name = 'depth_cm'
+            )
+            BEGIN
+                ALTER TABLE FloodZones ADD depth_cm INT NULL;
+                PRINT 'Added depth_cm column to FloodZones table';
+            END
+        `;
+        await pool.request().query(checkFloodZonesDepthQuery);
         
         console.log('✅ Database patch applied successfully!');
         process.exit(0);
