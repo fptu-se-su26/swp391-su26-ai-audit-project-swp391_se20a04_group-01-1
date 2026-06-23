@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
-const API_BASE = 'http://localhost:5001';
+// [TASK 1.1] Dùng biến môi trường thay vì hard-code URL
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export interface AppNotification {
     notification_id: number;

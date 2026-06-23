@@ -35,6 +35,14 @@ import {
 } from 'lucide-react';
 import { showPremiumToast } from '../../utils/toastUtils';
 import { savedRouteService, SavedRoute } from '../../services/savedRouteService';
+import { useMapRouting } from './hooks/useMapRouting';
+import { useFloodZones } from './hooks/useFloodZones';
+import { useEventRoads } from './hooks/useEventRoads';
+import { useUserLocation } from './hooks/useUserLocation';
+import { ConfirmModal } from './components/ConfirmModal';
+import { RoutePanel } from './components/RoutePanel';
+import { MapToolbar } from './components/MapToolbar';
+import { AlertBanner } from './components/AlertBanner';
 
 import POIsLayer from './components/POIsLayer';
 import { poiAPI, eventAPI, trafficAlertAPI } from '../../services/api'; // ✅ ĐÃ SỬA LỖI IMPORT TẠI ĐÂY
@@ -44,7 +52,7 @@ import EventsLayer, { EventData } from './components/EventsLayer';
 import EventsSidebar from './components/EventsSidebar';
 import EventDetailSidebar from './components/EventDetailSidebar';
 import NotificationCenter from './components/NotificationCenter';
-import { useNotificationStore } from '../../store/notificationStore';
+import { useNotificationStore, AppNotification } from '../../store/notificationStore';
 
 // ✅ ĐÃ SỬA LẠI LỖI FONT CHỮ BỊ HỎNG
 const filterCategories = [
@@ -122,7 +130,13 @@ export default function Home() {
     const [countdown, setCountdown] = useState(1);
 
     // State lưu trữ dữ liệu ngập lụt
-    const [floodZones, setFloodZones] = useState<any[]>([]);
+    const {
+        floodZones,
+        setFloodZones,
+        confirmedFloodZoneIds,
+        setConfirmedFloodZoneIds,
+        fetchFloodZones
+    } = useFloodZones();
     const [selectedFloodZone, setSelectedFloodZone] = useState<any | null>(null);
     const [hoveredFloodZone, setHoveredFloodZone] = useState<any | null>(null);
 
@@ -139,63 +153,16 @@ export default function Home() {
     const [showEventsSidebar, setShowEventsSidebar] = useState(true);
     
     // State cho Đường cấm sự kiện
-    const [eventRoads, setEventRoads] = useState<EventRoad[]>([]);
+    const {
+        eventRoads,
+        setEventRoads,
+        activeOrSelectedEventRoads,
+        isRoadRestrictionActive,
+        fetchEventRoads
+    } = useEventRoads(selectedEvent);
     const [selectedRoadPopup, setSelectedRoadPopup] = useState<EventRoad | null>(null);
 
-    // NEW CODE: Kiểm tra tuyến đường cấm có đang hoạt động ở thời điểm hiện tại không
-    const isRoadRestrictionActive = (road: EventRoad, now: Date) => {
-        const start = new Date(road.restriction_start);
-        const end = new Date(road.restriction_end);
-        
-        if (now < start || now > end) {
-            return false;
-        }
 
-        if (road.days_of_week) {
-            const currentDay = now.getDay(); // 0: CN, 1: T2, ..., 6: T7
-            const days = road.days_of_week.split(',').map(d => parseInt(d.trim()));
-            if (!days.includes(currentDay)) {
-                return false;
-            }
-        }
-
-        if (road.start_time_of_day && road.end_time_of_day) {
-            const currentHours = now.getHours();
-            const currentMinutes = now.getMinutes();
-            const currentTotalMinutes = currentHours * 60 + currentMinutes;
-
-            const parseTimeToMinutes = (timeStr: string) => {
-                const parts = timeStr.split(':');
-                return parseInt(parts[0] || '0') * 60 + parseInt(parts[1] || '0');
-            };
-
-            const startMin = parseTimeToMinutes(road.start_time_of_day);
-            const endMin = parseTimeToMinutes(road.end_time_of_day);
-
-            return currentTotalMinutes >= startMin && currentTotalMinutes <= endMin;
-        }
-
-        return true;
-    };
-
-    // NEW CODE: Lọc các đường cấm do sự kiện đang diễn ra hoặc thuộc sự kiện được chọn
-    const activeOrSelectedEventRoads = useMemo(() => {
-        const now = new Date();
-        const futureTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 phút tiếp theo
-        
-        return eventRoads.filter(road => {
-            // 1. Đường cấm đang hoạt động ở thời điểm hiện tại
-            const isActiveNow = isRoadRestrictionActive(road, now);
-
-            // 2. Đường cấm chuẩn bị hoạt động trong vòng 30 phút tới
-            const isActiveSoon = isRoadRestrictionActive(road, futureTime);
-
-            // 3. Sự kiện liên quan đang được người dùng chọn xem chi tiết
-            const isSelectedEventRoad = selectedEvent && road.event_id === selectedEvent.event_id;
-
-            return isActiveNow || isActiveSoon || isSelectedEventRoad;
-        });
-    }, [eventRoads, selectedEvent]);
 
     // State cho Cảnh báo giao thông (Traffic Alerts)
     const [trafficAlerts, setTrafficAlerts] = useState<any[]>([]);
@@ -322,7 +289,7 @@ export default function Home() {
         const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
         if (!token) return;
         try {
-            const res = await fetch('http://localhost:5001/api/user/profile', {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/user/profile`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -381,21 +348,36 @@ export default function Home() {
     };
 
     // CÁC STATE CỦA MAPBOX VÀ CHỈ ĐƯỜNG
-    const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null);
-    const [origin, setOrigin] = useState<{ lng: number; lat: number; label: string } | null>(null);
-    const [destination, setDestination] = useState<{ lng: number; lat: number; label: string } | null>(null);
-    const [routeData, setRouteData] = useState<{
-        totalDistanceKm: number;
-        totalTimeMin: number;
-        coordinates: [number, number][];
-    } | null>(null);
-    const [loadingRoute, setLoadingRoute] = useState(false);
+    // Routing and user location states managed by custom hooks
 
-    // NEW CODE: Flood route avoidance feature - Trạng thái cảnh báo khi tìm đường đi né ngập
-    const [routeAlertMessage, setRouteAlertMessage] = useState<string | null>(null);
+    // Thêm các biến state cho tìm kiếm 2 điểm, hoán đổi và đổi phương tiện di chuyển
+    const mapRef = useRef<MapRef>(null);
+    const [activeInputField, setActiveInputField] = useState<'origin' | 'destination' | null>(null);
+    const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const searchContainerRef = useRef<HTMLDivElement>(null);
+    const [pendingDestination, setPendingDestination] = useState<{ lng: number; lat: number } | null>(null);
+    const [loadingSearch, setLoadingSearch] = useState(false);
 
-    // NEW CODE: Flood zone selection confirmation - State lưu danh sách ID vùng ngập đã được người dùng xác nhận đi vào
-    const [confirmedFloodZoneIds, setConfirmedFloodZoneIds] = useState<string[]>([]);
+    const {
+        origin, setOrigin,
+        originQuery, setOriginQuery,
+        destination, setDestination,
+        destinationQuery, setDestinationQuery,
+        travelMode, setTravelMode,
+        routeData, setRouteData,
+        loadingRoute, setLoadingRoute,
+        routeAlertMessage, setRouteAlertMessage,
+        isLoadedRouteRef,
+        applyRouteToState
+    } = useMapRouting(mapRef, {
+        avoidFlood,
+        avoidCongestion,
+        confirmedFloodZoneIds,
+        floodZones,
+        activeEventRoads: activeOrSelectedEventRoads,
+        trafficAlerts
+    });
 
     // NEW CODE: Flood zone confirmation and route avoidance - Dọn dẹp xác nhận không còn liên quan
     useEffect(() => {
@@ -464,19 +446,11 @@ export default function Home() {
         }
     };
 
-
-    // Thêm các biến state cho tìm kiếm 2 điểm, hoán đổi và đổi phương tiện di chuyển
-    const mapRef = useRef<MapRef>(null);
-    const isLoadedRouteRef = useRef(false);
-    const [originQuery, setOriginQuery] = useState('');
-    const [destinationQuery, setDestinationQuery] = useState('');
-    const [activeInputField, setActiveInputField] = useState<'origin' | 'destination' | null>(null);
-    const [suggestions, setSuggestions] = useState<any[]>([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
-    const searchContainerRef = useRef<HTMLDivElement>(null);
-    const [pendingDestination, setPendingDestination] = useState<{ lng: number; lat: number } | null>(null);
-    const [loadingSearch, setLoadingSearch] = useState(false);
-    const [travelMode, setTravelMode] = useState<'driving' | 'walking' | 'cycling'>('driving');
+    const {
+        userLocation,
+        setUserLocation,
+        handleGetCurrentLocation
+    } = useUserLocation(mapRef, validateLocation, setOrigin, setOriginQuery);
 
     // ============ NEW STATE VARIABLES FOR SAVED ROUTES & SHARING ============
     const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
@@ -828,50 +802,7 @@ export default function Home() {
     }, [pendingDestination]);
 
     // ✅ HÀM: Lấy tọa độ GPS (hỗ trợ không hiển thị lỗi tự động khi load)
-    const handleGetCurrentLocation = (showErrorAlert = true, setAsOrigin = true) => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const loc = {
-                        lng: position.coords.longitude,
-                        lat: position.coords.latitude
-                    };
-                    setUserLocation(loc);
-
-                    if (!setAsOrigin) return;
-
-                    // NEW CODE: Flood zone selection confirmation
-                    validateLocation(
-                        loc.lng, loc.lat, 'Vị trí của bạn', 'origin',
-                        () => {
-                            setOrigin({
-                                lng: loc.lng,
-                                lat: loc.lat,
-                                label: 'Vị trí của bạn'
-                            });
-                            setOriginQuery('Vị trí của bạn');
-                            // Kéo camera bản đồ di chuyển mượt mà về tọa độ này
-                            mapRef.current?.flyTo({
-                                center: [loc.lng, loc.lat],
-                                zoom: 15,
-                                duration: 1500 // thời gian di chuyển (ms)
-                            });
-                        },
-                        () => {
-                            setOrigin(null);
-                            setOriginQuery('');
-                        }
-                    );
-                },
-                (error) => {
-                    if (showErrorAlert) {
-                        alert("Không thể lấy vị trí hiện tại. Vui lòng cho phép quyền truy cập GPS.");
-                    }
-                    console.error("Lỗi lấy vị trí GPS:", error);
-                }
-            );
-        }
-    };
+    // Geolocation getCurrentLocation is managed by useUserLocation hook
 
     // ✅ HÀM: Chọn điểm đến khi click lên bản đồ
   // ✅ HÀM: Chọn điểm đến khi click lên bản đồ
@@ -1042,118 +973,7 @@ const handleMapClick = (event: any) => {
     };
 
 
-    // NEW CODE: Flood route avoidance feature - Tìm đường đi và tự động né tránh các đoạn đường ngập lụt
-    useEffect(() => {
-        if (!origin || !destination) return;
-        if (isLoadedRouteRef.current) {
-            isLoadedRouteRef.current = false;
-            return;
-        }
-        const getShortestRoute = async () => {
-            setLoadingRoute(true);
-            try {
-                const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-                // Thêm alternatives=true để lấy các tuyến đường gợi ý thay thế
-                const response = await fetch(
-                    `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&access_token=${mapboxToken}`
-                );
-                const data = await response.json();
-                if (response.ok && data.routes && data.routes.length > 0) {
-                    let selectedRoute = data.routes[0];
-                    let alertMsg: string | null = null;
-
-                    if (avoidFlood) {
-                        // FIX: Avoid flood zones deeper than 10cm when routing
-                        const result = await findSafeRouteZone(
-                            data.routes,
-                            floodZones,
-                            origin,
-                            destination,
-                            travelMode,
-                            mapboxToken,
-                            confirmedFloodZoneIds
-                        );
-                        selectedRoute = result.selectedRoute;
-                        alertMsg = result.alertMsg;
-                    }
-
-                    // NEW CODE: Tùy chọn tránh ùn tắc (Kẹt xe)
-                    if (avoidCongestion && selectedRoute) {
-                        const result = await findSafeTrafficRoute(
-                            [selectedRoute, ...data.routes.filter((r: any) => r !== selectedRoute)],
-                            trafficAlerts,
-                            origin,
-                            destination,
-                            travelMode,
-                            mapboxToken
-                        );
-                        selectedRoute = result.selectedRoute;
-                        if (result.alertMsg) {
-                            alertMsg = alertMsg ? `${alertMsg}\n${result.alertMsg}` : result.alertMsg;
-                        }
-                    }
-
-                    // NEW CODE: Tránh đường cấm do sự kiện đang diễn ra
-                    const activeRoadRestrictions = activeOrSelectedEventRoads;
-
-                    if (activeRoadRestrictions.length > 0 && selectedRoute) {
-                        const result = await findSafeEventRoute(
-                            [selectedRoute, ...data.routes.filter((r: any) => r !== selectedRoute)],
-                            activeRoadRestrictions,
-                            origin,
-                            destination,
-                            travelMode,
-                            mapboxToken
-                        );
-                        selectedRoute = result.selectedRoute;
-                        if (result.alertMsg) {
-                            alertMsg = alertMsg ? `${alertMsg}\n${result.alertMsg}` : result.alertMsg;
-                        }
-                    }
-
-                    setRouteAlertMessage(alertMsg);
-                    if (selectedRoute) {
-                        setRouteData({
-                            totalDistanceKm: parseFloat((selectedRoute.distance / 1000).toFixed(2)),
-                            totalTimeMin: Math.round(selectedRoute.duration / 60),
-                            coordinates: selectedRoute.geometry.coordinates
-                        });
-                        // Căn chỉnh camera hiển thị đầy đủ tuyến đường đi
-                        const coords = selectedRoute.geometry.coordinates;
-                        if (coords.length > 0) {
-                            let minLng = coords[0][0], maxLng = coords[0][0];
-                            let minLat = coords[0][1], maxLat = coords[0][1];
-                            for (const c of coords) {
-                                if (c[0] < minLng) minLng = c[0];
-                                if (c[0] > maxLng) maxLng = c[0];
-                                if (c[1] < minLat) minLat = c[1];
-                                if (c[1] > maxLat) maxLat = c[1];
-                            }
-
-                            mapRef.current?.fitBounds(
-                                [[minLng, minLat], [maxLng, maxLat]],
-                                { padding: 80, duration: 1500 }
-                            );
-                        }
-                    } else {
-                        // FIX: Select shortest route among safe alternatives - Clear route if no safe route found
-                        setRouteData(null);
-                    }
-                } else {
-                    alert('Không tìm thấy đường đi thích hợp cho phương tiện này!');
-                    setRouteData(null);
-                    setRouteAlertMessage(null);
-                }
-            } catch (err) {
-                console.error("Lỗi kết nối API đường đi Mapbox:", err);
-                setRouteData(null);
-                setRouteAlertMessage(null);
-            } finally {
-                setLoadingRoute(false);
-            }
-        };
-        getShortestRoute();
-    }, [origin, destination, travelMode, avoidFlood, avoidCongestion, confirmedFloodZoneIds, floodZones, activeOrSelectedEventRoads, trafficAlerts]);
+    // Map routing effect is managed inside useMapRouting hook
     const geojsonData: any = routeData ? {
         type: 'Feature',
         properties: {},
@@ -1217,22 +1037,7 @@ const handleMapClick = (event: any) => {
         });
     };
 
-   useEffect(() => {
-    const fetchFloodZones = async () => {
-        try {
-            const response = await fetch("http://localhost:5001/api/flood-zones");
-            const result = await response.json();
 
-            if (result.success && Array.isArray(result.data)) {
-                setFloodZones(result.data);
-            }
-        } catch (error) {
-            console.error("Lỗi tải vùng ngập lụt từ database:", error);
-        }
-    };
-
-    fetchFloodZones();
-}, []);
 
     // ✅ ĐÃ SỬA LỖI ĐỂ TẢI ĐƯỢC DANH SÁCH POI
     useEffect(() => {
@@ -1249,18 +1054,7 @@ const handleMapClick = (event: any) => {
         fetchPOIs();
     }, []);
 
-    // Tải danh sách đường cấm sự kiện từ backend
-    useEffect(() => {
-        const fetchEventRoads = async () => {
-            try {
-                const data = await eventRoadService.getEventRoads({ approved_only: true });
-                setEventRoads(data);
-            } catch (error) {
-                console.error("Lỗi tải danh sách đường cấm sự kiện:", error);
-            }
-        };
-        fetchEventRoads();
-    }, []);
+
 
     // Tải danh sách cảnh báo giao thông từ backend
     const fetchTrafficAlerts = async () => {
@@ -2212,204 +2006,39 @@ const floodGeoJSON: any = useMemo(() => {
                 <div className="relative pointer-events-auto shrink-0 flex flex-col gap-2 max-h-[calc(100vh-80px)]">
                     {viewMode === 'pois' ? (
                         <>
-                            <div ref={searchContainerRef} className="relative">
-                                {!destination ? (
-                                    <div className="w-80 h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
-                                        <Search className="text-blue-500 mr-2 shrink-0" size={18} />
-                                        <input
-                                            type="text"
-                                            placeholder="Tìm kiếm địa điểm tại Đà Nẵng..."
-                                            value={destinationQuery}
-                                            onChange={(e) => {
-                                                setDestinationQuery(e.target.value);
-                                                setActiveInputField('destination');
-                                            }}
-                                            onFocus={() => {
-                                                setActiveInputField('destination');
-                                                if (suggestions.length > 0) setShowSuggestions(true);
-                                            }}
-                                            className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
-                                        <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
-                                        <div className="flex items-center gap-3 relative">
-                                            <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
-                                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                            </span>
-                                            <input
-                                                type="text"
-                                                placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
-                                                value={originQuery}
-                                                onChange={(e) => {
-                                                    setOriginQuery(e.target.value);
-                                                    setActiveInputField('origin');
-                                                }}
-                                                onFocus={() => {
-                                                    setActiveInputField('origin');
-                                                    if (suggestions.length > 0) setShowSuggestions(true);
-                                                }}
-                                                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-                                            />
-                                        </div>
-                                        <div className="flex items-center gap-3 relative">
-                                            <span className="text-red-500 z-10 text-sm font-bold shrink-0">📍</span>
-                                            <input
-                                                type="text"
-                                                placeholder="Chọn điểm đến..."
-                                                value={destinationQuery}
-                                                onChange={(e) => {
-                                                    setDestinationQuery(e.target.value);
-                                                    setActiveInputField('destination');
-                                                }}
-                                                onFocus={() => {
-                                                    setActiveInputField('destination');
-                                                    if (suggestions.length > 0) setShowSuggestions(true);
-                                                }}
-                                                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-                                            />
-                                        </div>
-                                        <button
-                                            onClick={handleSwapLocations}
-                                            className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
-                                            title="Đảo ngược vị trí"
-                                        >
-                                            <ArrowUpDown size={14} />
-                                        </button>
-                                    </div>
-                                )}
-                                {showSuggestions && suggestions.length > 0 && (
-                                    <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
-                                        {suggestions.map((item: any) => (
-                                            <button
-                                                key={item.id}
-                                                onClick={() => handleSelectSuggestion(item)}
-                                                className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-start gap-2 text-[11px] font-medium text-slate-700 border-b border-slate-50 last:border-b-0"
-                                            >
-                                                <span className="text-slate-400 mt-0.5">📍</span>
-                                                <div>
-                                                    <div className="font-bold text-slate-800 line-clamp-1">{item.text_vi || item.text}</div>
-                                                    <div className="text-slate-400 text-[10px] line-clamp-1 mt-0.5">{item.place_name_vi || item.place_name}</div>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {routeData && (
-                                <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4">
-                                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
-                                    
-                                    {/* Tùy chọn định tuyến: Tránh vùng ngập lụt */}
-                                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-2 animate-fade-in">
-                                        <div className="flex items-center gap-2">
-                                            <CloudRain size={14} className="text-blue-500" />
-                                            <span className="text-[10px] font-bold text-slate-700">Tránh vùng ngập lụt</span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setAvoidFlood(!avoidFlood)}
-                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${avoidFlood ? 'bg-blue-600' : 'bg-slate-200'}`}
-                                        >
-                                            <span
-                                                style={{ transform: avoidFlood ? 'translateX(18px)' : 'translateX(2px)' }}
-                                                className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
-                                            />
-                                        </button>
-                                    </div>
-
-                                    {/* Tùy chọn định tuyến: Tránh kẹt xe */}
-                                    <div className="flex items-center justify-between p-2 bg-amber-50/50 rounded-xl border border-amber-100/50 mb-3 animate-fade-in">
-                                        <div className="flex items-center gap-2">
-                                            <AlertTriangle size={14} className="text-amber-500" />
-                                            <span className="text-[10px] font-bold text-slate-700">Tránh ùn tắc (Kẹt xe)</span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setAvoidCongestion(!avoidCongestion)}
-                                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 ${avoidCongestion ? 'bg-amber-600' : 'bg-slate-200'}`}
-                                        >
-                                            <span
-                                                style={{ transform: avoidCongestion ? 'translateX(18px)' : 'translateX(2px)' }}
-                                                className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200"
-                                            />
-                                        </button>
-                                    </div>
-                                    
-                                    {/* Hiển thị cảnh báo ngập lụt nếu có */}
-                                    {routeAlertMessage && (
-                                        <div className={`text-[10px] font-bold px-3 py-2 rounded-xl mb-3 border whitespace-pre-line ${
-                                            routeAlertMessage.includes('an toàn') 
-                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' 
-                                                : 'bg-amber-50 text-amber-700 border-amber-200/50'
-                                        }`}>
-                                            {routeAlertMessage}
-                                        </div>
-                                    )}
-
-                                    <div className="flex gap-2 mb-3 bg-slate-50 p-1 rounded-xl">
-                                        <button
-                                            onClick={() => setTravelMode('driving')}
-                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'driving' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
-                                        >
-                                            <Car size={13} /> Lái xe
-                                        </button>
-                                        <button
-                                            onClick={() => setTravelMode('walking')}
-                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'walking' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
-                                        >
-                                            <Footprints size={13} /> Đi bộ
-                                        </button>
-                                        <button
-                                            onClick={() => setTravelMode('cycling')}
-                                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'cycling' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}
-                                        >
-                                            <Bike size={13} /> Xe đạp
-                                        </button>
-                                    </div>
-                                    <div className="flex justify-between items-center bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-                                        <div>
-                                            <p className="text-[10px] text-slate-400 font-semibold">KHOẢNG CÁCH</p>
-                                            <p className="text-lg font-black text-slate-800">{routeData.totalDistanceKm} km</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] text-slate-400 font-semibold">THỜI GIAN DỰ KIẾN</p>
-                                            <p className="text-lg font-black text-blue-600">{routeData.totalTimeMin} phút</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 mt-3">
-                                        <button
-                                            onClick={() => setShowSaveRouteModal(true)}
-                                            className="flex-1 bg-rose-50 text-rose-600 hover:bg-rose-100 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
-                                        >
-                                            <Heart size={13} className="fill-current" /> Lưu lộ trình
-                                        </button>
-                                        <button
-                                            onClick={handleShareRoute}
-                                            disabled={isSharingRoute}
-                                            className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 py-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
-                                        >
-                                            <Share2 size={13} /> {isSharingRoute ? 'Đang tạo...' : 'Chia sẻ'}
-                                        </button>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setRouteData(null);
-                                            setDestination(null);
-                                            setOrigin(null);
-                                            setOriginQuery('');
-                                            setDestinationQuery('');
-                                            setRouteAlertMessage(null);
-                                            setConfirmedFloodZoneIds([]);
-                                        }}
-                                        className="mt-2 w-full bg-slate-100 text-slate-600 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
-                                    >
-                                        Xóa lộ trình
-                                    </button>
-                                </div>
-                            )}
+                            <RoutePanel
+                                viewMode={viewMode}
+                                destination={destination}
+                                origin={origin}
+                                originQuery={originQuery}
+                                destinationQuery={destinationQuery}
+                                showSuggestions={showSuggestions}
+                                suggestions={suggestions}
+                                routeData={routeData}
+                                avoidFlood={avoidFlood}
+                                avoidCongestion={avoidCongestion}
+                                routeAlertMessage={routeAlertMessage}
+                                travelMode={travelMode}
+                                isSharingRoute={isSharingRoute}
+                                searchContainerRef={searchContainerRef}
+                                countdown={countdown}
+                                setDestinationQuery={setDestinationQuery}
+                                setOriginQuery={setOriginQuery}
+                                setActiveInputField={setActiveInputField}
+                                setShowSuggestions={setShowSuggestions}
+                                handleSwapLocations={handleSwapLocations}
+                                handleSelectSuggestion={handleSelectSuggestion}
+                                setAvoidFlood={setAvoidFlood}
+                                setAvoidCongestion={setAvoidCongestion}
+                                setTravelMode={setTravelMode}
+                                setShowSaveRouteModal={setShowSaveRouteModal}
+                                handleShareRoute={handleShareRoute}
+                                setRouteData={setRouteData}
+                                setDestination={setDestination}
+                                setOrigin={setOrigin}
+                                setRouteAlertMessage={setRouteAlertMessage}
+                                setConfirmedFloodZoneIds={setConfirmedFloodZoneIds}
+                            />
 
                             {selectedFilter !== null && (
                                 <POIFeaturedSidebar
@@ -2604,11 +2233,68 @@ const floodGeoJSON: any = useMemo(() => {
                         <NotificationCenter
                             isOpen={showNotificationModal}
                             onClose={() => setShowNotificationModal(false)}
-                            onFlyToZone={(msg) => {
-                                // Parse zone location from message nếu có (feature tương lai)
+                            onFlyToZone={(notif: AppNotification) => {
                                 setShowNotificationModal(false);
+                                if (!notif) return;
+
+                                // 1. Kiểm tra nếu có zone_id trong message (Cảnh báo ngập lụt)
+                                const match = notif.message?.match(/\[zone_id:(\d+)\]/);
+                                if (match) {
+                                    const zoneId = parseInt(match[1]);
+                                    const zone = floodZones.find(z => z.id === zoneId || z.zone_id === zoneId);
+                                    if (zone && Array.isArray(zone.center) && zone.center.length === 2) {
+                                        // Tự động bật layer ngập lụt
+                                        setMapControls(prev => ({ ...prev, flood: true }));
+                                        
+                                        // Bay tới khu vực đó
+                                        mapRef.current?.flyTo({
+                                            center: [zone.center[0], zone.center[1]],
+                                            zoom: 15,
+                                            duration: 1500
+                                        });
+                                        
+                                        // Tự chọn vùng ngập này để mở popup chi tiết
+                                        setSelectedFloodZone({
+                                            lng: zone.center[0],
+                                            lat: zone.center[1],
+                                            properties: {
+                                                id: zone.id,
+                                                name: zone.name,
+                                                depthCm: zone.depthCm,
+                                                risk_level: zone.risk_level,
+                                                typical_flood_months: zone.typical_flood_months,
+                                                description: zone.description
+                                            }
+                                        });
+                                        return;
+                                    }
+                                }
+
+                                // 2. Kiểm tra nếu có alert_id (Cảnh báo sự cố giao thông kẹt xe/tai nạn)
+                                if (notif.alert_id) {
+                                    const alert = trafficAlerts.find(a => a.id === notif.alert_id || a.alert_id === notif.alert_id);
+                                    if (alert) {
+                                        // Tự động bật layer giao thông
+                                        setMapControls(prev => ({ ...prev, traffic: true }));
+                                        
+                                        // Bay tới khu vực đó
+                                        mapRef.current?.flyTo({
+                                            center: [alert.longitude, alert.latitude],
+                                            zoom: 16,
+                                            duration: 1500
+                                        });
+                                        
+                                        // Mở popup chi tiết của sự cố này
+                                        setSelectedTrafficAlert(alert);
+                                        setSelectedPOI(null);
+                                        setSelectedEvent(null);
+                                        setSelectedRoadPopup(null);
+                                    }
+                                }
                             }}
                             onOpenEvent={(eventId) => {
+                                setViewMode('events');
+                                setShowEventsSidebar(true);
                                 const found = events.find(e => e.event_id === eventId);
                                 if (found) handleEventClick(found);
                                 setShowNotificationModal(false);
@@ -2634,7 +2320,7 @@ const floodGeoJSON: any = useMemo(() => {
                         >
                             {userProfile?.avatar_url ? (
                                 <img 
-                                    src={userProfile.avatar_url.startsWith('http') ? userProfile.avatar_url : `http://localhost:5001${userProfile.avatar_url}`} 
+                                    src={userProfile.avatar_url.startsWith('http') ? userProfile.avatar_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${userProfile.avatar_url}`} 
                                     alt="Avatar" 
                                     className="w-full h-full object-cover" 
                                     onError={(e) => {
@@ -2657,108 +2343,21 @@ const floodGeoJSON: any = useMemo(() => {
             </div>
 
             {/* MAP CONTROLS DƯỚI GÓC PHẢI */}
-            <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-10 pointer-events-none">
-                <div className="group relative pointer-events-auto flex justify-end items-center">
-                    <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
-                        Vị trí
-                    </span>
-                    <button
-                        onClick={() => handleGetCurrentLocation(true)}
-                        className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
-                    >
-                        <Navigation size={18} className="rotate-45 -ml-1 -mt-1" />
-                    </button>
-                </div>
-
-                <div className="group relative pointer-events-auto flex justify-end items-center">
-                    <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
-                        Lớp
-                    </span>
-                    <button
-                        onClick={() => toggleMapControl('layers')}
-                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.layers ? 'bg-purple-600 text-white border-purple-700' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
-                    >
-                        <Layers size={18} />
-                    </button>
-                </div>
-
-                <div className="group relative pointer-events-auto flex justify-end items-center">
-                    <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
-                        Giao thông
-                    </span>
-                    <button
-                        onClick={() => toggleMapControl('traffic')}
-                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.traffic ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
-                    >
-                        <TrendingUp size={18} />
-                    </button>
-                </div>
-
-                {userRole === 'admin' && (
-                    <div className="group relative pointer-events-auto flex justify-end items-center">
-                        <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
-                            Lộ trình đã lưu
-                        </span>
-                        <button
-                            onClick={() => {
-                                const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
-                                if (!token) {
-                                    showPremiumToast('Vui lòng đăng nhập để xem lộ trình đã lưu.', 'error');
-                                    setTimeout(() => navigate('/login'), 1500);
-                                    return;
-                                }
-                                const nextState = !showSavedRoutesSidebar;
-                                setShowSavedRoutesSidebar(nextState);
-                                if (nextState) {
-                                    setSelectedPOI(null);
-                                    setSelectedFilter(null);
-                                    setShowEventsSidebar(false);
-                                    setSelectedEvent(null); // Tắt sự kiện đang mở
-                                }
-                            }}
-                            className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${showSavedRoutesSidebar ? 'bg-rose-600 text-white border-rose-700' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
-                        >
-                            <Bookmark size={18} />
-                        </button>
-                    </div>
-                )}
-
-                <div className="group relative pointer-events-auto flex justify-end items-center">
-                    <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
-                        Ngập lụt
-                    </span>
-                    <button
-                        onClick={() => toggleMapControl('flood')}
-                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.flood ? 'bg-blue-50 text-blue-500 border-blue-200' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
-                    >
-                        <CloudRain size={18} />
-                    </button>
-                </div>
-
-                <div className="group relative pointer-events-auto flex justify-end items-center">
-                    <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
-                        Xem Sự Kiện
-                    </span>
-                    <button
-                        onClick={() => {
-                            setViewMode(prev => {
-                                const next = prev === 'pois' ? 'events' : 'pois';
-                                if (next === 'events') {
-                                    setShowEventsSidebar(true);
-                                    setSelectedPOI(null);
-                                    setSelectedFilter(null);
-                                } else {
-                                    setSelectedEvent(null);
-                                }
-                                return next;
-                            });
-                        }}
-                        className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${viewMode === 'events' ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
-                    >
-                        <Calendar size={18} />
-                    </button>
-                </div>
-            </div>
+            <MapToolbar
+                mapControls={mapControls}
+                userRole={userRole}
+                showSavedRoutesSidebar={showSavedRoutesSidebar}
+                viewMode={viewMode}
+                handleGetCurrentLocation={handleGetCurrentLocation}
+                toggleMapControl={toggleMapControl}
+                setShowSavedRoutesSidebar={setShowSavedRoutesSidebar}
+                setSelectedPOI={setSelectedPOI}
+                setSelectedFilter={setSelectedFilter}
+                setShowEventsSidebar={setShowEventsSidebar}
+                setSelectedEvent={setSelectedEvent}
+                setViewMode={setViewMode}
+                navigate={navigate}
+            />
 
             {/* Event detail sidebar (Right side) */}
             {selectedEvent && (
@@ -2870,90 +2469,21 @@ const floodGeoJSON: any = useMemo(() => {
             )}
 
             {/* POPUP CẢNH BÁO */}
-            {showAlertPopup && (
-                <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 w-[460px] bg-white rounded-2xl shadow-2xl border border-red-100 overflow-hidden shadow-danger">
-                    <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <ShieldAlert size={18} className="animate-bounce" />
-                            <div>
-                                <div className="text-xs font-bold">Cảnh báo hôm nay</div>
-                                <div className="text-[10px] opacity-90">Hệ thống ghi nhận thông báo cấm đường và ngập nước</div>
-                            </div>
-                        </div>
-                        <button onClick={() => setShowAlertPopup(false)} className="text-white/80 hover:text-white bg-white/10 p-1 rounded-full text-xs">✕</button>
-                    </div>
-
-                    <div className="p-3 flex flex-col gap-2 max-h-56 overflow-y-auto scrollbar-none">
-                        {mockAlerts.slice(0, 2).map((alert) => (
-                            <div key={alert.id} className="flex gap-2.5 p-2 bg-slate-50 rounded-xl border border-slate-100">
-                                <div className="shrink-0 mt-0.5">
-                                    {alert.type === 'flood' ? <CloudRain className="text-blue-500" size={16} /> : <Ban className="text-red-500" size={16} />}
-                                </div>
-                                <div>
-                                    <h4 className="text-[11px] font-bold text-slate-900">{alert.title}</h4>
-                                    <p className="text-[10px] text-slate-600 mt-0.5 leading-relaxed">{alert.content}</p>
-                                    <span className="text-[9px] text-slate-400 mt-1 block">📍 {alert.location}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="bg-slate-50 text-center py-2 text-[10px] text-red-500 font-bold border-t border-slate-100 tracking-wide">
-                        ⚠️ Cảnh báo sẽ tự động đóng sau {countdown}s
-                    </div>
-                </div>
-            )}
+            <AlertBanner
+                isOpen={showAlertPopup}
+                countdown={countdown}
+                alerts={mockAlerts}
+                onClose={() => setShowAlertPopup(false)}
+            />
 
             {/* CUSTOM CONFIRM MODAL DIALOG */}
-            {confirmModal.isOpen && (
-                <div 
-                    style={{
-                        animation: 'fadeIn 250ms ease-out forwards'
-                    }}
-                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
-                >
-                    <div 
-                        style={{
-                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
-                        }}
-                        className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full mx-4"
-                    >
-                        <div className="flex items-center gap-3 mb-4">
-                            <span className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                                confirmModal.title.includes('nguy hiểm') || confirmModal.title.includes('sâu')
-                                    ? 'bg-red-50 text-red-500' 
-                                    : 'bg-blue-50 text-blue-500'
-                            }`}>
-                                <AlertTriangle size={20} />
-                            </span>
-                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
-                                {confirmModal.title}
-                            </h3>
-                        </div>
-                        <p className="text-xs font-semibold text-slate-500 mb-6 leading-relaxed whitespace-pre-line">
-                            {confirmModal.message}
-                        </p>
-                        <div className="flex gap-3 justify-end">
-                            <button
-                                onClick={confirmModal.onCancel}
-                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
-                            >
-                                Hủy bỏ
-                            </button>
-                            <button
-                                onClick={confirmModal.onConfirm}
-                                className={`px-5 py-2 text-xs font-bold text-white rounded-xl shadow-md transition-all ${
-                                    confirmModal.title.includes('nguy hiểm') || confirmModal.title.includes('sâu')
-                                        ? 'bg-red-500 hover:bg-red-600 shadow-red-100'
-                                        : 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'
-                                }`}
-                            >
-                                Xác nhận
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                onConfirm={confirmModal.onConfirm}
+                onCancel={confirmModal.onCancel}
+            />
 
             {/* TRAFFIC ALERT REPORT MODAL */}
             {showReportModal && (

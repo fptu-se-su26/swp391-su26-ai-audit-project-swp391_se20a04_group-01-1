@@ -215,7 +215,7 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
             const data = await eventRoadService.getEventRoads();
             const originalRoad = data.find(r => r.road_id === id);
             if (!originalRoad) {
-                alert('Không tìm thấy thông tin chi tiết của tuyến đường cấm này.');
+                showPremiumToast('Không tìm thấy thông tin chi tiết của tuyến đường cấm này.', 'error');
                 return;
             }
 
@@ -235,7 +235,7 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
             setEditingId(id);
             setShowAddModal(true);
         } catch (err: any) {
-            alert('Không thể tải chi tiết tuyến đường cấm: ' + err.message);
+            showPremiumToast('Không thể tải chi tiết tuyến đường cấm: ' + err.message, 'error');
         }
     };
 
@@ -369,7 +369,7 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                     ...prev,
                     geojson_coords: JSON.stringify(snappedCoords)
                 }));
-                alert(`Căn chỉnh thành công! Đã lấy ${snappedCoords.length} điểm tọa độ khớp với đường đi thực tế trên bản đồ.`);
+                showPremiumToast(`Căn chỉnh thành công! Đã lấy ${snappedCoords.length} điểm tọa độ khớp với bản đồ.`, 'success');
             } else {
                 throw new Error(data.message || 'Không tìm thấy tuyến đường đi qua các điểm này.');
             }

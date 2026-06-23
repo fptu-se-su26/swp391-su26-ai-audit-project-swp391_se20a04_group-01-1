@@ -55,7 +55,7 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
         setTestNotifMsg('');
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch('http://localhost:5001/api/user/notifications/test', {
+            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/user/notifications/test`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
             });
@@ -131,7 +131,7 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
             return;
         }
 
-        fetch('http://localhost:5001/api/user/profile', {
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/user/profile`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -224,7 +224,7 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
                             fontSize: '16px', overflow: 'hidden'
                         }}>
                             {userData?.avatar_url ? (
-                                <img src={userData.avatar_url.startsWith('http') ? userData.avatar_url : `http://localhost:5001${userData.avatar_url}`} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img src={userData.avatar_url.startsWith('http') ? userData.avatar_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${userData.avatar_url}`} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             ) : (
                                 "👤"
                             )}
@@ -538,7 +538,7 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
                                             {/* Image */}
                                             <div style={{ height: '140px', overflow: 'hidden', position: 'relative', backgroundColor: '#f3f4f6' }}>
                                                 <img 
-                                                    src={poi.image_url ? (poi.image_url.startsWith('http') ? poi.image_url : `http://localhost:5001${poi.image_url}`) : 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400'} 
+                                                    src={poi.image_url ? (poi.image_url.startsWith('http') ? poi.image_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${poi.image_url}`) : 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400'} 
                                                     alt={poi.name} 
                                                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                                     onError={(e) => {

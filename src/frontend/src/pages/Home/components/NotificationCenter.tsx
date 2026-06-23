@@ -9,7 +9,7 @@ import { useNotificationStore, AppNotification } from '../../../store/notificati
 interface NotificationCenterProps {
     isOpen: boolean;
     onClose: () => void;
-    onFlyToZone?: (message: string) => void;
+    onFlyToZone?: (notif: AppNotification) => void;
     onOpenEvent?: (eventId: number) => void;
 }
 
@@ -114,7 +114,7 @@ function NotificationDetailModal({
     notif: AppNotification;
     onClose: () => void;
     onOpenEvent?: (id: number) => void;
-    onFlyToZone?: (msg: string) => void;
+    onFlyToZone?: (notif: AppNotification) => void;
 }) {
     const cfg = getTypeConfig(notif.type);
     const { Icon } = cfg;
@@ -238,7 +238,7 @@ function NotificationDetailModal({
                         )}
                         {notif.type === 'traffic_alert' && onFlyToZone && (
                             <button
-                                onClick={() => { onFlyToZone(notif.message || ''); onClose(); }}
+                                onClick={() => { onFlyToZone(notif); onClose(); }}
                                 className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-red-500 to-rose-600 text-white text-[12px] font-bold shadow-md hover:opacity-90 transition-opacity"
                             >
                                 <MapPin size={14} />
