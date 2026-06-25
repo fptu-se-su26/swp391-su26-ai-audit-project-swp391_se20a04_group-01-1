@@ -25,7 +25,7 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: "Email không hợp lệ!" });
         }
         if (!isValidPassword(password)) {
-            return res.status(400).json({ message: "Mật khẩu phải có ít nhất 6 ký tự!" });
+            return res.status(400).json({ message: "Mật khẩu phải từ 8 đến 32 ký tự!" });
         }
 
         const trimmedUsername = username.trim();
@@ -494,7 +494,7 @@ router.post('/reset-password', async (req, res) => {
         const { email, newPassword } = req.body;
         if (!email || !newPassword) return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu mới!' });
         if (!isValidEmail(email)) return res.status(400).json({ message: 'Email không hợp lệ!' });
-        if (!isValidPassword(newPassword)) return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự!' });
+        if (!isValidPassword(newPassword)) return res.status(400).json({ message: 'Mật khẩu phải từ 8 đến 32 ký tự!' });
 
         const pool = await poolPromise;
         const result = await pool.request()

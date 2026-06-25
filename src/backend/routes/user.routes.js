@@ -127,7 +127,7 @@ router.put('/change-password', authenticateToken, async (req, res) => {
         const { currentPassword, newPassword } = req.body;
 
         if (!isValidPassword(newPassword)) {
-            return res.status(400).json({ message: "Mật khẩu mới phải có ít nhất 6 ký tự!" });
+            return res.status(400).json({ message: "Mật khẩu mới phải từ 8 đến 32 ký tự!" });
         }
 
         const pool = await poolPromise;
