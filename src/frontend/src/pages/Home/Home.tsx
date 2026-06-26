@@ -1101,38 +1101,43 @@ export default function Home() {
     }, [fetchPreferences, fetchFavoriteIds]);
 
     const isPreferencesLoaded = useRef(false);
-    useEffect(() => {
-        if (preferences && !isPreferencesLoaded.current) {
-            setAvoidFlood(preferences.avoid_floods);
-            setAvoidCongestion(preferences.avoid_congestion);
-            setTravelMode(preferences.default_travel_mode);
-            setMapControls(prev => ({
-                ...prev,
-                traffic: preferences.show_traffic_layer
-            }));
-            isPreferencesLoaded.current = true;
-        }
-    }, [preferences]);
+    // Chỉ dùng 1 useEffect này để đồng bộ Store -> UI
+        // 1. Đồng bộ khi Store thay đổi (đảm bảo Home luôn update theo Settings)
+useEffect(() => {
+    if (preferences) {
+        setAvoidFlood(preferences.avoid_floods);
+        setAvoidCongestion(preferences.avoid_congestion);
+        setTravelMode(preferences.default_travel_mode);
+        setMapControls(prev => ({
+            ...prev,
+            traffic: preferences.show_traffic_layer
+        }));
+    }
+}, [preferences]); // Chạy lại mỗi khi preferences thay đổi
 
-    useEffect(() => {
-        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
-        if (!token || !preferences || !isPreferencesLoaded.current) return;
+// 2. Lưu lên Server khi thao tác trực tiếp trên bản đồ
+// Chỉ chạy khi các state cục bộ (avoidFlood, v.v.) thay đổi do hành động người dùng
+useEffect(() => {
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+    if (!token || !preferences) return;
 
-        const hasChanged = 
-            avoidFlood !== preferences.avoid_floods ||
-            avoidCongestion !== preferences.avoid_congestion ||
-            travelMode !== preferences.default_travel_mode ||
-            mapControls.traffic !== preferences.show_traffic_layer;
+    // So sánh để tránh cập nhật dư thừa nếu không thay đổi
+    const hasChanged = 
+        avoidFlood !== preferences.avoid_floods ||
+        avoidCongestion !== preferences.avoid_congestion ||
+        travelMode !== preferences.default_travel_mode ||
+        mapControls.traffic !== preferences.show_traffic_layer;
 
-        if (hasChanged) {
-            updateAllPreferences({
-                avoid_floods: avoidFlood,
-                avoid_congestion: avoidCongestion,
-                default_travel_mode: travelMode,
-                show_traffic_layer: mapControls.traffic
-            });
-        }
-    }, [avoidFlood, avoidCongestion, travelMode, mapControls.traffic, preferences, updateAllPreferences]);
+    if (hasChanged) {
+        updateAllPreferences({
+            avoid_floods: avoidFlood,
+            avoid_congestion: avoidCongestion,
+            default_travel_mode: travelMode,
+            show_traffic_layer: mapControls.traffic
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [avoidFlood, avoidCongestion, travelMode, mapControls.traffic]);
 
     useEffect(() => {
         const queryParams = new URLSearchParams(window.location.search);
@@ -1150,7 +1155,7 @@ export default function Home() {
                 const poiId = parseInt(poiIdStr);
                 const foundPoi = pois.find(p => p.poi_id === poiId);
                 if (foundPoi) {
-                    setDestination({ lng: foundPoi.longitude, lat: foundPoi.latitude, label: foundPoi.name });
+                    setDestination({ lng: foundPoi.longitude, lat: foundPoi.latitude, label: foundPoi.name, poi_id: foundPoi.poi_id });
                     setDestinationQuery(foundPoi.name);
                     setSelectedPOI(foundPoi);
                     setViewMode('pois');
@@ -1771,7 +1776,7 @@ export default function Home() {
                             pois={pois}
                             selectedFilter={selectedFilter}
                             onDirectionsClick={(poi) => {
-                                setDestination({ lng: poi.longitude, lat: poi.latitude, label: poi.name });
+                                setDestination({ lng: poi.longitude, lat: poi.latitude, label: poi.name, poi_id: poi.poi_id });
                                 setDestinationQuery(poi.name);
                                 if (userLocation) {
                                     setOrigin({ lng: userLocation.lng, lat: userLocation.lat, label: 'Vị trí của bạn' });
@@ -1834,7 +1839,7 @@ export default function Home() {
                                         selectedFilter={selectedFilter}
                                         onPOIClick={handlePOIClick}
                                         onDirectionsClick={(poi) => {
-                                            setDestination({ lng: poi.longitude, lat: poi.latitude, label: poi.name });
+                                            setDestination({ lng: poi.longitude, lat: poi.latitude, label: poi.name, poi_id: poi.poi_id });
                                             setDestinationQuery(poi.name);
                                             if (userLocation) {
                                                 setOrigin({ lng: userLocation.lng, lat: userLocation.lat, label: 'Vị trí của bạn' });
@@ -2115,20 +2120,43 @@ export default function Home() {
             )}
 
             {showSaveRouteModal && (
-                <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }} className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm pointer-events-auto">
-                    <div style={{ animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }} className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden mx-4 text-left">
-                        <div className="bg-gradient-to-r from-rose-500 to-pink-500 px-6 py-4 flex justify-between text-white">
-                            <h3 className="font-extrabold text-sm flex gap-2"><Heart className="w-5 h-5 fill-current animate-pulse" /> Lưu lộ trình</h3>
-                            <button onClick={() => setShowSaveRouteModal(false)} className="w-8 h-8 rounded-full bg-white/10 flex justify-center items-center"><X size={16} /></button>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <input required type="text" placeholder="Tên lộ trình" value={saveRouteName} onChange={(e) => setSaveRouteName(e.target.value)} className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500/20" />
-                            <div className="flex justify-end gap-3 pt-3 border-t"><button onClick={handleSaveRoute} disabled={isSavingRoute} className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-rose-500 to-pink-500 rounded-xl">{isSavingRoute ? 'Đang lưu...' : 'Lưu lại'}</button></div>
-                        </div>
-                    </div>
-                </div>
-            )}
+    <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }} className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm pointer-events-auto">
+        <div style={{ animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }} className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden mx-4 text-left">
+            
+            {/* Đổi màu Gradient Header và icon Bookmark */}
+            <div className="bg-gradient-to-r from-amber-500 to-yellow-500 px-6 py-4 flex justify-between text-white">
+                <h3 className="font-extrabold text-sm flex gap-2">
+                    <Bookmark className="w-5 h-5 fill-current animate-pulse" /> Lưu lộ trình
+                </h3>
+                <button onClick={() => setShowSaveRouteModal(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex justify-center items-center">
+                    <X size={16} />
+                </button>
+            </div>
 
+            <div className="p-6 space-y-4">
+                {/* Đổi màu viền focus của input sang màu vàng */}
+                <input 
+                    required 
+                    type="text" 
+                    placeholder="Tên lộ trình" 
+                    value={saveRouteName} 
+                    onChange={(e) => setSaveRouteName(e.target.value)} 
+                    className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all" 
+                />
+                <div className="flex justify-end gap-3 pt-3 border-t">
+                    {/* Đổi màu gradient của nút Lưu lại */}
+                    <button 
+                        onClick={handleSaveRoute} 
+                        disabled={isSavingRoute} 
+                        className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 rounded-xl transition-all disabled:opacity-50"
+                    >
+                        {isSavingRoute ? 'Đang lưu...' : 'Lưu lại'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+)}
             {showShareModal && (
                 <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.4)' }} className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm pointer-events-auto">
                     <div style={{ animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards' }} className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden mx-4 text-left">

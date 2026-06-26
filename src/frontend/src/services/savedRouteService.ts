@@ -42,7 +42,7 @@ export const savedRouteService = {
   getSavedRoutes: async (): Promise<SavedRoute[]> => {
     const response = await apiClient.get<{ success: boolean; routes: SavedRoute[] }>('/saved-routes');
     return response.data.routes || [];
-  },
+},
 
   getRouteById: async (id: number): Promise<SavedRoute> => {
     const response = await apiClient.get<{ success: boolean; route: SavedRoute }>(`/saved-routes/${id}`);
