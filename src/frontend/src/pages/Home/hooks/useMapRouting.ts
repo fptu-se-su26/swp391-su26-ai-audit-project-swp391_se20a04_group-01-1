@@ -16,6 +16,7 @@ export interface LocationPoint {
     lng: number;
     lat: number;
     label: string;
+    poi_id?: number;
 }
 
 export function useMapRouting(

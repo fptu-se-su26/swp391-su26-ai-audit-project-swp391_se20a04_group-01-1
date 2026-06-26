@@ -6,7 +6,6 @@ interface PreferenceState {
   isLoading: boolean;
   error: string | null;
 
-  // Actions
   fetchPreferences: () => Promise<void>;
   updatePreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => Promise<void>;
   updateAllPreferences: (prefs: Partial<UserPreferences>) => Promise<void>;
@@ -31,13 +30,12 @@ export const usePreferenceStore = create<PreferenceState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await getPreferences();
-      set({ preferences: data, isLoading: false });
+      // Đảm bảo dữ liệu từ API luôn được trộn với default nếu thiếu trường
+      set({ preferences: { ...defaultPreferences, ...data }, isLoading: false });
     } catch (err: any) {
-      console.error('Error fetching preferences:', err);
-      // Fallback to default preferences if error (e.g. guest or network error)
       set({ 
-        preferences: get().preferences || defaultPreferences, 
-        error: err.message || 'Không thể lấy cấu hình', 
+        preferences: defaultPreferences, 
+        error: err.message, 
         isLoading: false 
       });
     }
@@ -47,15 +45,15 @@ export const usePreferenceStore = create<PreferenceState>((set, get) => ({
     const currentPrefs = get().preferences || defaultPreferences;
     const updatedPrefs = { ...currentPrefs, [key]: value };
     
-    // Optimistic UI update
+    // Cập nhật ngay lập tức để UI render lại
     set({ preferences: updatedPrefs });
 
     try {
       await updatePreferences({ [key]: value });
     } catch (err: any) {
-      console.error('Error updating preference:', err);
-      // Rollback on error
-      set({ preferences: currentPrefs, error: err.message || 'Lỗi đồng bộ cấu hình' });
+      // Rollback nếu API lỗi
+      set({ preferences: currentPrefs });
+      throw err; // Ném lỗi ra để component có thể show toast thông báo
     }
   },
 
@@ -63,15 +61,14 @@ export const usePreferenceStore = create<PreferenceState>((set, get) => ({
     const currentPrefs = get().preferences || defaultPreferences;
     const updatedPrefs = { ...currentPrefs, ...prefs };
     
-    // Optimistic UI update
+    // Cập nhật ngay lập tức
     set({ preferences: updatedPrefs });
 
     try {
       await updatePreferences(prefs);
     } catch (err: any) {
-      console.error('Error updating preferences:', err);
-      // Rollback on error
-      set({ preferences: currentPrefs, error: err.message || 'Lỗi đồng bộ cấu hình' });
+      set({ preferences: currentPrefs });
+      throw err;
     }
   },
 

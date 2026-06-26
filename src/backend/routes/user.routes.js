@@ -223,13 +223,16 @@ router.put('/preferences', authenticateToken, async (req, res) => {
 
         const pool = await poolPromise;
 
+        // Dùng số nguyên 1/0 thay vì boolean để tránh bug sql.Bit với false
+        const toBit = (val) => (val !== undefined && val !== null) ? (val ? 1 : 0) : null;
+
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
-            .input("avoid_floods", sql.Bit, avoid_floods !== undefined ? (avoid_floods ? 1 : 0) : null)
-            .input("avoid_congestion", sql.Bit, avoid_congestion !== undefined ? (avoid_congestion ? 1 : 0) : null)
-            .input("show_traffic_layer", sql.Bit, show_traffic_layer !== undefined ? (show_traffic_layer ? 1 : 0) : null)
-            .input("show_restricted_roads", sql.Bit, show_restricted_roads !== undefined ? (show_restricted_roads ? 1 : 0) : null)
-            .input("enable_buffer_alerts", sql.Bit, enable_buffer_alerts !== undefined ? (enable_buffer_alerts ? 1 : 0) : null)
+            .input("avoid_floods", sql.Int, toBit(avoid_floods))
+            .input("avoid_congestion", sql.Int, toBit(avoid_congestion))
+            .input("show_traffic_layer", sql.Int, toBit(show_traffic_layer))
+            .input("show_restricted_roads", sql.Int, toBit(show_restricted_roads))
+            .input("enable_buffer_alerts", sql.Int, toBit(enable_buffer_alerts))
             .input("default_travel_mode", sql.NVarChar(20), default_travel_mode || null)
             .query(`
                 MERGE INTO UsersPreferences AS target
