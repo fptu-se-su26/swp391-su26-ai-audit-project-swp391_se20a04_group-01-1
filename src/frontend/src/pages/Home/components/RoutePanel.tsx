@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react'; // Thêm useState
 import { 
     Search, ArrowUpDown, CloudRain, AlertTriangle, 
-    Car, Footprints, Bike, Heart, Share2 
+    Car, Footprints, Bike, Heart, Share2, Navigation // Thêm icon Navigation
 } from 'lucide-react';
+
+import { savedRouteService } from '../../../services/savedRouteService';
+import { showPremiumToast } from '../../../utils/toastUtils';
 
 interface LocationPoint {
     lng: number;
@@ -32,6 +35,7 @@ interface RoutePanelProps {
     isSharingRoute: boolean;
     searchContainerRef: React.RefObject<HTMLDivElement | null>;
     countdown: number;
+    onStartNavigation: () => void;
     
     setDestinationQuery: (val: string) => void;
     setOriginQuery: (val: string) => void;
@@ -82,8 +86,44 @@ export function RoutePanel({
     setDestination,
     setOrigin,
     setRouteAlertMessage,
-    setConfirmedFloodZoneIds
+    setConfirmedFloodZoneIds,
+    onStartNavigation
 }: RoutePanelProps) {
+    const [isStarting, setIsStarting] = useState(false);
+
+    const handleStartTrip = async () => {
+        if (!origin || !destination || !routeData) return;
+
+        setIsStarting(true);
+        try {
+            // Gọi API lưu lộ trình dưới dạng lịch sử di chuyển
+            await savedRouteService.saveRoute({
+                origin_name: originQuery || origin.label || 'Vị trí hiện tại',
+                origin_lat: origin.lat,
+                origin_lng: origin.lng,
+                destination_name: destinationQuery || destination.label || 'Điểm đến',
+                destination_lat: destination.lat,
+                destination_lng: destination.lng,
+                route_name: `Lịch sử: ${originQuery || 'Điểm đi'} ➔ ${destinationQuery || 'Điểm đến'}`,
+                route_data: JSON.stringify(routeData.coordinates),
+                distance_meters: routeData.totalDistanceKm * 1000,
+                duration_seconds: routeData.totalTimeMin * 60,
+                profile: travelMode,
+            });
+            onStartNavigation();
+
+            showPremiumToast('Đã bắt đầu chuyến đi và lưu vào lịch sử!', 'success');
+            
+            // TODO: Tùy ý bổ sung logic thu phóng bản đồ để bắt đầu dẫn đường
+            // Ví dụ: setNavigationMode(true);
+
+        } catch (error) {
+            console.error("Lỗi khi lưu lịch sử lộ trình:", error);
+            showPremiumToast('Đã bắt đầu chuyến đi nhưng không thể lưu lịch sử do lỗi mạng.', 'warning');
+        } finally {
+            setIsStarting(false);
+        }
+    };
     if (viewMode !== 'pois') return null;
 
     return (
@@ -254,6 +294,18 @@ export function RoutePanel({
                             <p className="text-lg font-black text-blue-600">{routeData.totalTimeMin} phút</p>
                         </div>
                     </div>
+
+                    {/* === CHÈN THÊM NÚT BẮT ĐẦU TẠI ĐÂY === */}
+                    <button
+                        onClick={handleStartTrip}
+                        disabled={isStarting}
+                        className="mt-4 w-full bg-blue-600 text-white py-3 rounded-xl text-[13px] font-black flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        <Navigation size={16} className={isStarting ? "animate-pulse" : ""} />
+                        {isStarting ? 'ĐANG KHỞI HÀNH...' : 'BẮT ĐẦU CHUYẾN ĐI'}
+                    </button>
+                    {/* ================================== */}
+
                     <div className="flex gap-2 mt-3">
                         <button
                             onClick={() => setShowSaveRouteModal(true)}

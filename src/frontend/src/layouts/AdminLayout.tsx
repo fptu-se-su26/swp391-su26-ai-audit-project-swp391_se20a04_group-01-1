@@ -20,7 +20,6 @@ const MENU_ITEMS = [
     { id: 'flood', label: 'Ngập lụt', icon: Waves, count: 2 },
     { id: 'closure', label: 'Cấm đường', icon: RouteOff, count: 5 },
     { id: 'users', label: 'Quản lý tài khoản', icon: Users }, // <--- MỤC MỚI
-    { id: 'settings', label: 'Cài đặt', icon: Settings },
 ];
 
 interface AdminLayoutProps {
