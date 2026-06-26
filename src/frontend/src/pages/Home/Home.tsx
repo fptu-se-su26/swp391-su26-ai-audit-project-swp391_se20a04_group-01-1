@@ -10,6 +10,7 @@ import { usePreferenceStore } from '../../store/preferenceStore';
 import { useFavoritePoiStore } from '../../store/favoritePoiStore';
 import { findSafeTrafficRoute } from '../../utils/trafficRouteUtils';
 import { findSafeRoute as findSafeRouteZone, findFloodZoneContainingPoint, isPointInsideFloodZone } from '../../utils/floodZoneRouteUtils';
+import { formatToVNTime } from '../../utils/dateUtils';
 
 import {
     Search, Navigation, Bell, User, Settings, X,
@@ -2067,7 +2068,7 @@ useEffect(() => {
                                             <div className="flex items-center justify-between border-t border-slate-200/50 pt-2 mt-1 text-[9px] font-bold text-slate-400">
                                                 <div className="flex items-center gap-2">
                                                     <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 capitalize">
-                                                        {route.profile === 'driving' ? 'Lái xe' : route.profile === 'walking' ? 'Đi bộ' : 'Xe đạp'}
+                                                        {route.profile === 'driving' ? 'Ô tô/Xe máy' : route.profile === 'walking' ? 'Đi bộ' : 'Xe đạp'}
                                                     </span>
                                                     {isFloodRoute && (
                                                         <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 flex items-center gap-0.5">

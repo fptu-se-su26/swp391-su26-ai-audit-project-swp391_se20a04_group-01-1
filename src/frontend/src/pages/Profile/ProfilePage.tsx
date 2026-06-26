@@ -458,7 +458,7 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
                                                     </div>
 
                                                     <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '11px', color: '#9ca3af', fontWeight: 'bold' }}>
-                                                        <span>PHƯƠNG TIỆN: <span style={{ color: '#4b5563' }}>{route.profile === 'driving' ? '🚗 Lái xe' : route.profile === 'walking' ? '🚶 Đi bộ' : '🚴 Xe đạp'}</span></span>
+                                                        <span>PHƯƠNG TIỆN: <span style={{ color: '#4b5563' }}>{route.profile === 'driving' ? '🚗 Ô tô/Xe máy' : route.profile === 'walking' ? '🚶 Đi bộ' : '🚴 Xe đạp'}</span></span>
                                                         <span>KHOẢNG CÁCH: <span style={{ color: '#4b5563' }}>{(route.distance_meters / 1000).toFixed(2)} km</span></span>
                                                         <span>THỜI GIAN: <span style={{ color: '#4b5563' }}>{Math.round(route.duration_seconds / 60)} phút</span></span>
                                                     </div>
@@ -520,14 +520,21 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
         ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {historyRoutes.map(route => {
-                    const date = new Date(route.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const rawDate = new Date(route.created_at);
+                    const date = new Date(rawDate.getTime() - (7 * 60 * 60 * 1000)).toLocaleDateString('vi-VN', { 
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit', 
+                        });
+
                     return (
                         <div key={route.route_id} style={{ backgroundColor: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
                                 <div style={{ fontWeight: '600', fontSize: '14px', color: '#1f2937', marginBottom: '4px' }}>
                                     {route.route_name.replace('Lịch sử: ', '')}
                                 </div>
-                                <div style={{ fontSize: '11px', color: '#6b7280' }}>{date}</div>
+<div style={{ fontSize: '11px', color: '#6b7280' }}>{date}</div>
                             </div>
                             <button 
                                 onClick={() => navigate(`/dashboard?routeId=${route.route_id}`)}
@@ -768,7 +775,7 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
                                                     backgroundColor: '#f9fafb'
                                                 }}
                                             >
-                                                <option value="driving">🚗 Lái xe (Ô tô/Xe máy)</option>
+                                                <option value="driving">🚗 Ô tô/Xe máy (Ô tô/Xe máy)</option>
                                                 <option value="walking">🚶 Đi bộ</option>
                                                 <option value="cycling">🚲 Xe đạp</option>
                                             </select>

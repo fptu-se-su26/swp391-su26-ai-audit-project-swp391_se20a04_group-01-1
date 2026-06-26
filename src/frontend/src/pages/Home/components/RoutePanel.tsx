@@ -8,7 +8,6 @@ import {
 import { savedRouteService } from '../../../services/savedRouteService';
 import { showPremiumToast } from '../../../utils/toastUtils';
 import { useFavoritePoiStore } from '../../../store/favoritePoiStore';
-
 import { LocationPoint } from '../hooks/useMapRouting';
 
 interface RouteData {
@@ -116,29 +115,23 @@ export function RoutePanel({
         setIsStarting(true);
         const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
         try {
-            // Gọi API lưu lộ trình dưới dạng lịch sử di chuyển (chỉ khi đã đăng nhập)
             if (token) {
                 await savedRouteService.saveRoute({
-                origin_name: originQuery || origin.label || 'Vị trí hiện tại',
-                origin_lat: origin.lat,
-                origin_lng: origin.lng,
-                destination_name: destinationQuery || destination.label || 'Điểm đến',
-                destination_lat: destination.lat,
-                destination_lng: destination.lng,
-                route_name: `Lịch sử: ${originQuery || 'Điểm đi'} ➔ ${destinationQuery || 'Điểm đến'}`,
-                route_data: JSON.stringify(routeData.coordinates),
-                distance_meters: routeData.totalDistanceKm * 1000,
-                duration_seconds: routeData.totalTimeMin * 60,
-                profile: travelMode,
+                    origin_name: originQuery || origin.label || 'Vị trí hiện tại',
+                    origin_lat: origin.lat,
+                    origin_lng: origin.lng,
+                    destination_name: destinationQuery || destination.label || 'Điểm đến',
+                    destination_lat: destination.lat,
+                    destination_lng: destination.lng,
+                    route_name: `Lịch sử: ${originQuery || 'Điểm đi'} ➔ ${destinationQuery || 'Điểm đến'}`,
+                    route_data: JSON.stringify(routeData.coordinates),
+                    distance_meters: routeData.totalDistanceKm * 1000,
+                    duration_seconds: routeData.totalTimeMin * 60,
+                    profile: travelMode,
                 });
             }
             onStartNavigation();
-
             showPremiumToast(token ? 'Đã bắt đầu chuyến đi và lưu vào lịch sử!' : 'Đã bắt đầu chuyến đi!', 'success');
-            
-            // TODO: Tùy ý bổ sung logic thu phóng bản đồ để bắt đầu dẫn đường
-            // Ví dụ: setNavigationMode(true);
-
         } catch (error) {
             console.error("Lỗi khi lưu lịch sử lộ trình:", error);
             showPremiumToast('Đã bắt đầu chuyến đi nhưng không thể lưu lịch sử do lỗi mạng.', 'warning');
@@ -217,7 +210,7 @@ export function RoutePanel({
                     </button>
                 </div>
             )}
-            
+
             {showSuggestions && suggestions.length > 0 && (
                 <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
                     {suggestions.map((item: any) => (
@@ -238,10 +231,10 @@ export function RoutePanel({
 
             {routeData && (
                 <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 mt-2">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình di chuyển</h3>
-                    
-                    {/* Tùy chọn định tuyến */}
-                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-2 animate-fade-in">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">Chi tiết lộ trình</h3>
+
+                    {/* Toggle tránh ngập lụt */}
+                    <div className="flex items-center justify-between p-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mb-2">
                         <div className="flex items-center gap-2">
                             <CloudRain size={14} className="text-blue-500" />
                             <span className="text-[10px] font-bold text-slate-700">Tránh vùng ngập lụt</span>
@@ -255,7 +248,8 @@ export function RoutePanel({
                         </button>
                     </div>
 
-                    <div className="flex items-center justify-between p-2 bg-amber-50/50 rounded-xl border border-amber-100/50 mb-3 animate-fade-in">
+                    {/* Toggle tránh kẹt xe */}
+                    <div className="flex items-center justify-between p-2 bg-amber-50/50 rounded-xl border border-amber-100/50 mb-3">
                         <div className="flex items-center gap-2">
                             <AlertTriangle size={14} className="text-amber-500" />
                             <span className="text-[10px] font-bold text-slate-700">Tránh ùn tắc (Kẹt xe)</span>
@@ -268,16 +262,18 @@ export function RoutePanel({
                             <span style={{ transform: avoidCongestion ? 'translateX(18px)' : 'translateX(2px)' }} className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200" />
                         </button>
                     </div>
-                    
+
+                    {/* Thông báo cảnh báo lộ trình */}
                     {routeAlertMessage && (
                         <div className={`text-[10px] font-bold px-3 py-2 rounded-xl mb-3 border ${routeAlertMessage.includes('an toàn') ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50' : 'bg-amber-50 text-amber-700 border-amber-200/50'}`}>
                             {routeAlertMessage}
                         </div>
                     )}
 
-                    <div className="flex gap-2 mb-3 bg-slate-50 p-1 rounded-xl">
+                    {/* Chế độ di chuyển */}
+                    <div className="flex gap-4 mb-3 bg-slate-50 p-1 rounded-xl">
                         <button onClick={() => setTravelMode('driving')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'driving' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
-                            <Car size={13} /> Lái xe
+                            <Car size={13} /> Ô tô/Xe máy
                         </button>
                         <button onClick={() => setTravelMode('walking')} className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${travelMode === 'walking' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'}`}>
                             <Footprints size={13} /> Đi bộ
@@ -287,6 +283,7 @@ export function RoutePanel({
                         </button>
                     </div>
 
+                    {/* Thông tin khoảng cách & thời gian */}
                     <div className="flex justify-between items-center bg-slate-50/50 p-3 rounded-xl border border-slate-100">
                         <div>
                             <p className="text-[10px] text-slate-400 font-semibold">KHOẢNG CÁCH</p>
@@ -298,30 +295,69 @@ export function RoutePanel({
                         </div>
                     </div>
 
-                    <button onClick={handleStartTrip} disabled={isStarting} className="mt-4 w-full bg-blue-600 text-white py-3 rounded-xl text-[13px] font-black flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all">
-                        <Navigation size={16} className={isStarting ? "animate-pulse" : ""} /> 
+                    {/* Nút bắt đầu chuyến đi */}
+                    <button
+                        onClick={handleStartTrip}
+                        disabled={isStarting}
+                        className="mt-4 w-full bg-blue-600 text-white py-3 rounded-xl text-[13px] font-black flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
+                    >
+                        <Navigation size={16} className={isStarting ? "animate-pulse" : ""} />
                         {isStarting ? 'ĐANG KHỞI HÀNH...' : 'BẮT ĐẦU CHUYẾN ĐI'}
                     </button>
 
-                    <div className="flex gap-2 mt-3">
-                        <button onClick={() => setShowSaveRouteModal(true)} className="flex-1 bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors">
-                            <Bookmark size={13} className="fill-current" /> Lưu lộ trình
-                        </button>
-                        <button onClick={handleShareRoute} disabled={isSharingRoute} className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50">
-                            <Share2 size={13} /> {isSharingRoute ? 'Đang tạo...' : 'Chia sẻ'}
-                        </button>
+                    {/* Nhóm nút phụ */}
+                    <div className="flex flex-col gap-2 mt-3">
+                        {/* Hàng: Lưu lộ trình + Chia sẻ */}
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setShowSaveRouteModal(true)}
+                                className="flex-1 bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
+                            >
+                                <Bookmark size={13} className="fill-current" /> Lưu lộ trình
+                            </button>
+                            <button
+                                onClick={handleShareRoute}
+                                disabled={isSharingRoute}
+                                className="flex-1 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-100 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                            >
+                                <Share2 size={13} /> {isSharingRoute ? 'Đang tạo...' : 'Chia sẻ'}
+                            </button>
+                        </div>
+
+                        {/* Nút yêu thích điểm đến */}
+                        {destinationPoiId ? (
+                            <button
+                                onClick={handleFavDestClick}
+                                className={`w-full py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all border ${
+                                    isFavDest
+                                        ? 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                                }`}
+                            >
+                                <Heart size={13} className={isFavDest ? 'fill-current' : ''} />
+                                {isFavDest ? 'Đã lưu yêu thích' : 'Lưu địa điểm yêu thích'}
+                            </button>
+                        ) : (
+                            <div className="text-[10px] text-center text-slate-400 italic py-1">
+                                Địa điểm này không thể lưu vào yêu thích.
+                            </div>
+                        )}
+
+                        {/* Nút xóa lộ trình */}
+                        <button
+                        onClick={() => {
+                            setRouteData(null);
+                            setDestination(null);
+                            setOrigin(null);
+                            setOriginQuery('');
+                            setDestinationQuery('');
+                            setRouteAlertMessage(null);
+                            }}
+                            className="w-full bg-slate-100 text-slate-600 py-2.5 rounded-xl text-[11px] font-bold hover:bg-rose-50 hover:text-rose-600 transition-all"                         
+                            >
+                                Xóa lộ trình
+                                </button>
                     </div>
-
-                    {destinationPoiId && (
-                        <button onClick={handleFavDestClick} className={`mt-2 w-full py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all border ${isFavDest ? 'bg-rose-100 text-rose-700 border-rose-200 hover:bg-rose-200' : 'bg-white text-slate-500 border-slate-200 hover:bg-rose-50'}`}>
-                            <Heart size={13} className={isFavDest ? 'fill-current' : ''} />
-                            {isFavDest ? 'Đã lưu địa điểm yêu thích' : 'Địa điểm yêu thích'}
-                        </button>
-                    )}
-
-                    <button onClick={() => { setRouteData(null); setDestination(null); setOrigin(null); setOriginQuery(''); setDestinationQuery(''); setRouteAlertMessage(null); setConfirmedFloodZoneIds([]); }} className="mt-2 w-full bg-slate-100 text-slate-600 py-2.5 rounded-xl text-[11px] font-bold hover:bg-rose-50 hover:text-rose-600 transition-all">
-                        Xóa lộ trình
-                    </button>
                 </div>
             )}
         </div>
