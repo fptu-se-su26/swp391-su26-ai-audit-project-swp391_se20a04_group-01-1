@@ -76,12 +76,15 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
     const [isLoadingRoutes, setIsLoadingRoutes] = useState(false);
     const [routeToDelete, setRouteToDelete] = useState<number | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [historyRoutes,setHistoryRoutes]=useState<SavedRoute[]>([]);
 
     const fetchSavedRoutes = async () => {
         setIsLoadingRoutes(true);
         try {
             const routes = await savedRouteService.getSavedRoutes();
-            setSavedRoutes(routes);
+            // Lọc tách biệt ngay tại đây
+            setSavedRoutes(routes.filter(r => !r.route_name?.startsWith('Lịch sử:')));
+            setHistoryRoutes(routes.filter(r => r.route_name?.startsWith('Lịch sử:'))); // <--- LƯU VÀO STATE LỊCH SỬ
         } catch (err) {
             console.error('Error fetching saved routes:', err);
         } finally {
@@ -90,7 +93,7 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
     };
 
     useEffect(() => {
-        if (activeMenu === 'saved_routes') {
+        if (activeMenu === 'saved_routes' || activeMenu === 'events') {
             fetchSavedRoutes();
         } else if (activeMenu === 'favorites') {
             fetchFavoriteDetails();
@@ -500,137 +503,61 @@ export default function ProfilePage({ isOverlay = false, onClose }: ProfilePageP
                         <div>
                             <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>Lịch Sử Di Chuyển</h1>
                             <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Xem lại những địa điểm bạn đã ghé thăm</p>
-                            <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '2px dashed #d1d5db', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
-                                <History size={48} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
-                                <p style={{ color: '#9ca3af', fontSize: '13px' }}>Chưa có lịch sử di chuyển. Hãy bắt đầu khám phá Đà Nẵng!</p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ============ FAVORITES TAB ============ */}
-                    {activeMenu === 'favorites' && (
-                        <div>
-                            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>Địa Điểm Yêu Thích</h1>
-                            <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '20px' }}>Quản lý các địa điểm du lịch, ẩm thực, giải trí mà bạn đã lưu</p>
                             
-                            {isLoadingFavorites ? (
-                                <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>Đang tải danh sách địa điểm yêu thích...</div>
-                            ) : favoriteDetails.length === 0 ? (
+                            {isLoadingRoutes ? (
+                                <div style={{ textAlign: 'center', padding: '40px' }}>
+                                    <div style={{ fontSize: '14px', color: '#6b7280' }}>Đang tải...</div>
+                                </div>
+                            ) : historyRoutes.length === 0 ? (
                                 <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', border: '2px dashed #d1d5db', boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)' }}>
-                                    <Heart size={48} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
-                                    <p style={{ color: '#9ca3af', fontSize: '13px' }}>Chưa có địa điểm yêu thích nào. Hãy lưu các địa điểm thú vị trên bản đồ!</p>
+                                    <History size={48} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
+                                    <p style={{ color: '#9ca3af', fontSize: '13px' }}>Chưa có lịch sử di chuyển. Hãy bắt đầu khám phá Đà Nẵng!</p>
                                 </div>
                             ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
-                                    {favoriteDetails.map(poi => (
-                                        <div 
-                                            key={poi.poi_id} 
-                                            style={{ 
-                                                backgroundColor: 'white', 
-                                                borderRadius: '16px', 
-                                                overflow: 'hidden', 
-                                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)', 
-                                                border: '1px solid #e5e7eb',
-                                                display: 'flex',
-                                                flexDirection: 'column'
-                                            }}
-                                        >
-                                            {/* Image */}
-                                            <div style={{ height: '140px', overflow: 'hidden', position: 'relative', backgroundColor: '#f3f4f6' }}>
-                                                <img 
-                                                    src={poi.image_url ? (poi.image_url.startsWith('http') ? poi.image_url : `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${poi.image_url}`) : 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400'} 
-                                                    alt={poi.name} 
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                    onError={(e) => {
-                                                        e.currentTarget.src = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400';
-                                                    }}
-                                                />
-                                                {/* Category tag */}
-                                                <span 
-                                                    style={{ 
-                                                        position: 'absolute', 
-                                                        top: '12px', 
-                                                        left: '12px', 
-                                                        fontSize: '10px', 
-                                                        fontWeight: 'bold', 
-                                                        color: 'white', 
-                                                        padding: '4px 8px', 
-                                                        borderRadius: '9999px',
-                                                        backgroundColor: poi.category_color || '#6366f1'
-                                                    }}
-                                                >
-                                                    {poi.category_name}
-                                                </span>
-                                            </div>
-                                            
-                                            {/* Body */}
-                                            <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#1f2937', margin: 0, lineHeight: '1.4' }}>
-                                                    {poi.name}
-                                                </h3>
-                                                
-                                                {/* Rating */}
-                                                {poi.rating && (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: '#b45309', fontWeight: 'bold' }}>
-                                                        <Star size={11} className="fill-amber-400 text-amber-400" /> {poi.rating.toFixed(1)}
-                                                    </div>
-                                                )}
-                                                
-                                                {poi.address && (
-                                                    <div style={{ display: 'flex', alignItems: 'start', gap: '6px', fontSize: '11px', color: '#4b5563' }}>
-                                                        <MapPin size={12} style={{ color: '#9ca3af', marginTop: '2px', flexShrink: 0 }} />
-                                                        <span>{poi.address}</span>
-                                                    </div>
-                                                )}
-                                                
-                                                {/* Actions */}
-                                                <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px' }}>
-                                                    <button 
-                                                        onClick={() => {
-                                                            navigate(`/dashboard?poiId=${poi.poi_id}`);
-                                                        }}
-                                                        style={{ 
-                                                            flex: 1, 
-                                                            padding: '8px', 
-                                                            backgroundColor: '#2563eb', 
-                                                            color: 'white', 
-                                                            border: 'none', 
-                                                            borderRadius: '8px', 
-                                                            fontSize: '11px', 
-                                                            fontWeight: 'bold', 
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            gap: '4px'
-                                                        }}
-                                                    >
-                                                        <Navigation size={12} style={{ transform: 'rotate(45deg)' }} /> Chỉ đường
-                                                    </button>
-                                                    <button 
-                                                        onClick={async () => {
-                                                            try {
-                                                                await toggleFavorite(poi.poi_id);
-                                                                showPremiumToast('Đã xóa khỏi danh sách yêu thích!', 'success');
-                                                            } catch (err) {
-                                                                showPremiumToast('Không thể bỏ lưu địa điểm.', 'error');
-                                                            }
-                                                        }}
-                                                        style={{ 
-                                                            padding: '8px 12px', 
-                                                            backgroundColor: '#fef2f2', 
-                                                            color: '#dc2626', 
-                                                            border: '1px solid #fecaca', 
-                                                            borderRadius: '8px', 
-                                                            fontSize: '11px', 
-                                                            fontWeight: 'bold', 
-                                                            cursor: 'pointer'
-                                                        }}
-                                                        title="Xóa khỏi danh sách"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                                    {historyRoutes.map((route) => (
+                                        <div key={route.route_id} style={{ backgroundColor: 'white', borderRadius: '12px', padding: '16px', border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                                    <h3 style={{ fontSize: '15px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+                                                        {route.route_name}
+                                                    </h3>
+                                                    {route.is_emergency && (
+                                                        <span style={{ fontSize: '10px', backgroundColor: '#fef2f2', color: '#ef4444', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold', border: '1px solid #fee2e2' }}>
+                                                            Tránh ngập
+                                                        </span>
+                                                    )}
                                                 </div>
+                                                <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#3b82f6' }}></span>
+                                                        <span><b>Bắt đầu:</b> {route.origin_name || 'Vị trí của bạn'}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ef4444' }}></span>
+                                                        <span><b>Đến:</b> {route.destination_name || 'Điểm đến'}</span>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '16px', marginTop: '12px', fontSize: '11px', color: '#9ca3af', fontWeight: 'bold' }}>
+                                                    <span>PHƯƠNG TIỆN: <span style={{ color: '#4b5563' }}>{route.profile === 'driving' ? 'Lái xe' : route.profile === 'walking' ? 'Đi bộ' : 'Xe đạp'}</span></span>
+                                                    <span>KHOẢNG CÁCH: <span style={{ color: '#4b5563' }}>{(route.distance_meters / 1000).toFixed(2)} km</span></span>
+                                                    <span>THỜI GIAN: <span style={{ color: '#4b5563' }}>{Math.round(route.duration_seconds / 60)} phút</span></span>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    onClick={() => navigate(`/dashboard?routeId=${route.route_id}`)}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#2563EB', color: 'white', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
+                                                >
+                                                    <span>Xem trên bản đồ</span>
+                                                    <ArrowRight size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => triggerDeleteConfirm(route.route_id)}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'white', color: '#ef4444', border: '1px solid #fee2e2', width: '34px', height: '34px', borderRadius: '6px', cursor: 'pointer' }}
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
                                             </div>
                                         </div>
                                     ))}
