@@ -4,7 +4,7 @@ const isValidEmail = (email) => {
 };
 
 const isValidPassword = (password) => {
-    return password && password.length >= 8 && password.length <= 32;
+    return typeof password === "string" && password.trim().length >= 8 && password.length <= 32;
 };
 
 const checkBanStatus = (user) => {

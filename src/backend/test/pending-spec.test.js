@@ -134,3 +134,26 @@ describe("MODULE 6 – Báo cáo cộng đồng (RULE-REP-02): chưa có route R
         "Đây là 2 khái niệm khác nhau cần làm rõ trước khi implement."
     );
 });
+
+describe("Supplemental TC_061-TC_088: pending implementation coverage", () => {
+    test.todo(
+        "TC_066 - Login with UNVERIFIED account should redirect/block until OTP verification. " +
+        "Current /login does not model UNVERIFIED account state."
+    );
+    test.todo("TC_068 - Search keyword containing only whitespace needs a search/autocomplete endpoint or client-side test.");
+    test.todo("TC_070 - Autocomplete below minimum keyword length is currently frontend logic, no backend autocomplete endpoint.");
+    test.todo("TC_072 - Distance filter = 0km should return 400 once /api/pois supports distance filtering.");
+    test.todo("TC_074 - Duplicate custom favorite-place name needs a custom name field; current backend only toggles by POI id.");
+    test.todo("TC_077 - No safe route when every route is flooded needs a routing engine/service.");
+    test.todo("TC_078 - Browser location permission denied belongs to client/browser permission tests.");
+    test.todo("TC_079 - Routing API timeout needs a routing service dependency to mock.");
+    test.todo("TC_080 - Network loss during active navigation belongs to client offline/reconnect tests.");
+    test.todo("TC_081 - Report image upload >10MB needs report upload route/middleware.");
+    test.todo("TC_082 - Report invalid file type needs report upload route/middleware.");
+    test.todo("TC_083 - Blank report description needs CommunityReports model/route.");
+    test.todo("TC_084 - Report description >500 chars needs report validation.");
+    test.todo("TC_085 - Duplicate report near same location/time needs report duplicate detection.");
+    test.todo("TC_086 - Normal user calling admin report approval API needs admin report routes.");
+    test.todo("TC_087 - Re-approving RESOLVED report needs report state machine.");
+    test.todo("TC_088 - Empty report history needs GET /api/user/reports; current tests only cover notification empty history.");
+});

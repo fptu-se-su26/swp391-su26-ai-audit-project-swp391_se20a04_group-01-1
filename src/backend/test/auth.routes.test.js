@@ -434,3 +434,74 @@ describe("POST /api/auth/reset-password", () => {
         expect(res.status).toBe(200);
     });
 });
+
+describe("Supplemental Auth unit tests from TC_061-TC_067", () => {
+    const app = buildApp();
+
+    test("TC_061 - login email bo trong -> 400", async () => {
+        const res = await request(app)
+            .post("/api/auth/login")
+            .send({ email: "", password: "12345678" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/email/i);
+    });
+
+    test("TC_062 - login email co 2 ky tu @ -> 400", async () => {
+        const res = await request(app)
+            .post("/api/auth/login")
+            .send({ email: "user@@gmail.com", password: "12345678" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/Email/);
+    });
+
+    test("TC_063 - password chi gom khoang trang -> 400", async () => {
+        const res = await request(app)
+            .post("/api/auth/register")
+            .send({ username: "testuser", email: "user@gmail.com", password: "        " });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/M/);
+    });
+
+    test("TC_064 - OTP da het han -> 400", async () => {
+        __mockQuery.mockResolvedValueOnce({
+            recordset: [
+                {
+                    otp_id: 99,
+                    otp_code: "482615",
+                    expires_at: new Date(Date.now() - 5 * 60 * 1000),
+                    is_used: 0,
+                },
+            ],
+        });
+
+        const res = await request(app)
+            .post("/api/auth/verify-otp")
+            .send({ email: "user@gmail.com", otp: "482615" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/OTP/);
+    });
+
+    test("TC_065 - OTP 7 ky tu vuot gioi han -> 400", async () => {
+        const res = await request(app)
+            .post("/api/auth/verify-otp")
+            .send({ email: "user@gmail.com", otp: "1234567" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/OTP/);
+    });
+
+    test("TC_067 - forgot password voi email chua dang ky -> 404", async () => {
+        __mockQuery.mockResolvedValueOnce({ recordset: [] });
+
+        const res = await request(app)
+            .post("/api/auth/forgot-password")
+            .send({ email: "notfound@gmail.com" });
+
+        expect(res.status).toBe(404);
+        expect(res.body.message).toMatch(/Email/);
+    });
+});

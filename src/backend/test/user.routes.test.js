@@ -111,3 +111,67 @@ describe("PUT /api/user/change-password", () => {
         expect(res.body.message).toBe("Đổi mật khẩu thành công!");
     });
 });
+
+describe("Favorites and notification history from supplemental test cases", () => {
+    const app = buildApp();
+
+    test("TC_075 - lay danh sach POI yeu thich sau khi xoa het -> mang rong", async () => {
+        __mockQuery.mockResolvedValueOnce({ recordset: [] });
+
+        const res = await request(app)
+            .get("/api/user/favorites/pois")
+            .set("x-test-user", USER);
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data).toEqual([]);
+    });
+
+    test("lay chi tiet POI yeu thich -> tra recordset tu DB", async () => {
+        __mockQuery.mockResolvedValueOnce({
+            recordset: [
+                {
+                    poi_id: 1,
+                    name: "Cầu Rồng",
+                    latitude: 16.061,
+                    longitude: 108.227,
+                    category_name: "Du lịch",
+                },
+            ],
+        });
+
+        const res = await request(app)
+            .get("/api/user/favorites/pois/details")
+            .set("x-test-user", USER);
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data[0].name).toBe("Cầu Rồng");
+    });
+
+    test("TC_088-equivalent - notification history rong -> data rong va pagination total 0", async () => {
+        __mockQuery
+            .mockResolvedValueOnce({ recordset: [] })
+            .mockResolvedValueOnce({ recordset: [{ total: 0 }] });
+
+        const res = await request(app)
+            .get("/api/user/notifications")
+            .set("x-test-user", USER);
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data).toEqual([]);
+        expect(res.body.pagination.total).toBe(0);
+    });
+
+    test("unread notification count -> tra so luong tu DB", async () => {
+        __mockQuery.mockResolvedValueOnce({ recordset: [{ count: 3 }] });
+
+        const res = await request(app)
+            .get("/api/user/notifications/unread-count")
+            .set("x-test-user", USER);
+
+        expect(res.status).toBe(200);
+        expect(res.body.count).toBe(3);
+    });
+});
