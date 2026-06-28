@@ -1,5 +1,4 @@
-import React from 'react';
-import { Navigation, Layers, TrendingUp, Bookmark, CloudRain, Calendar } from 'lucide-react';
+import { Navigation, Layers, TrendingUp, Bookmark, CloudRain, Calendar, CloudSun, WifiOff } from 'lucide-react';
 import { showPremiumToast } from '../../../utils/toastUtils';
 
 interface MapToolbarProps {
@@ -11,6 +10,11 @@ interface MapToolbarProps {
     userRole: string | null;
     showSavedRoutesSidebar: boolean;
     viewMode: 'pois' | 'events';
+    isWeatherExpanded: boolean;
+    onToggleWeather: () => void;
+    isLowBandwidth: boolean;
+    isOffline: boolean;
+    onToggleLowBandwidth: () => void;
     
     handleGetCurrentLocation: (showError: boolean) => void;
     toggleMapControl: (control: 'layers' | 'traffic' | 'flood') => void;
@@ -28,6 +32,11 @@ export function MapToolbar({
     userRole,
     showSavedRoutesSidebar,
     viewMode,
+    isWeatherExpanded,
+    onToggleWeather,
+    isLowBandwidth,
+    isOffline,
+    onToggleLowBandwidth,
     
     handleGetCurrentLocation,
     toggleMapControl,
@@ -115,6 +124,55 @@ export function MapToolbar({
                     className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${mapControls.flood ? 'bg-blue-50 text-blue-500 border-blue-200' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
                 >
                     <CloudRain size={18} />
+                </button>
+            </div>
+
+            <div className="group relative pointer-events-auto flex justify-end items-center">
+                <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
+                    Thời tiết
+                </span>
+                <button
+                    onClick={onToggleWeather}
+                    className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${isWeatherExpanded ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
+                >
+                    <CloudSun size={18} />
+                </button>
+            </div>
+
+            {/* Nút Tiết kiệm băng thông / Ngoại tuyến */}
+            <div className="group relative pointer-events-auto flex justify-end items-center">
+                <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
+                    {isOffline ? 'Chế độ Ngoại tuyến (Đang hoạt động)' : 'Tiết kiệm băng thông'}
+                </span>
+                <button
+                    onClick={() => {
+                        if (isOffline) {
+                            showPremiumToast('Đang ngoại tuyến hoàn toàn do mất kết nối mạng.', 'warning');
+                        } else {
+                            onToggleLowBandwidth();
+                            showPremiumToast(
+                                !isLowBandwidth 
+                                    ? 'Đã bật chế độ Tiết kiệm băng thông (Đổi map tối giản, nén tuyến đường)' 
+                                    : 'Đã tắt chế độ Tiết kiệm băng thông',
+                                'success'
+                            );
+                        }
+                    }}
+                    className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all relative ${
+                        isOffline 
+                            ? 'bg-red-600 text-white border-red-700 animate-pulse' 
+                            : isLowBandwidth 
+                                ? 'bg-amber-600 text-white border-amber-700' 
+                                : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'
+                    }`}
+                >
+                    <WifiOff size={18} />
+                    {isOffline && (
+                        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500"></span>
+                        </span>
+                    )}
                 </button>
             </div>
 

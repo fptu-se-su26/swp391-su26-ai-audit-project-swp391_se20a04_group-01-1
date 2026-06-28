@@ -12,3 +12,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </GoogleOAuthProvider>
   </React.StrictMode>,
 );
+
+// Đăng ký Service Worker phục vụ chế độ Bản đồ Offline
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const base = import.meta.env.BASE_URL || '/';
+    navigator.serviceWorker.register(`${base}sw.js`)
+      .then((reg) => {
+        console.log('[SW] Service Worker registered successfully with scope:', reg.scope);
+      })
+      .catch((err) => {
+        console.error('[SW] Service Worker registration failed:', err);
+      });
+  });
+}

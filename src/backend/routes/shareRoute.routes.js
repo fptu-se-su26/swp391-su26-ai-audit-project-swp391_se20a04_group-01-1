@@ -26,4 +26,43 @@ router.get("/share/:token", async (req, res) => {
     }
 });
 
+const { encodePolyline } = require('../utils/polylineHelper');
+
+// GET /api/routes/calculate - Proxy để tính toán lộ trình và nén Polyline siêu nhẹ khi mạng yếu
+router.get("/calculate", async (req, res) => {
+    try {
+        const { origin, destination, mode, access_token } = req.query;
+
+        if (!origin || !destination || !access_token) {
+            return res.status(400).json({ success: false, message: "Thiếu tham số origin, destination hoặc access_token!" });
+        }
+
+        const travelMode = mode || 'driving';
+        const mapboxUrl = `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin};${destination}?geometries=geojson&overview=full&access_token=${access_token}`;
+
+        const response = await fetch(mapboxUrl);
+        const data = await response.json();
+
+        if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+            return res.status(400).json({ success: false, message: "Không thể tính toán lộ trình từ Mapbox", error: data });
+        }
+
+        const route = data.routes[0];
+        const coordinates = route.geometry.coordinates; // Array of [lng, lat]
+        
+        // Nén coordinates thành chuỗi polyline
+        const compressedPolyline = encodePolyline(coordinates);
+
+        res.json({
+            success: true,
+            distance: route.distance, // meters
+            duration: route.duration, // seconds
+            polyline: compressedPolyline
+        });
+    } catch (error) {
+        console.error("Lỗi tính toán lộ trình proxy:", error);
+        res.status(500).json({ success: false, message: "Lỗi tính toán lộ trình", error: error.message });
+    }
+});
+
 module.exports = router;

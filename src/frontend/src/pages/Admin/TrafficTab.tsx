@@ -225,31 +225,45 @@ export default function TrafficTab({
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phân loại sự cố</label>
-                                            <select
-                                                value={trafficFormData.type}
-                                                onChange={(e) => setTrafficFormData({ ...trafficFormData, type: e.target.value as any })}
-                                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer bg-white"
-                                            >
-                                                <option value="CONGESTION">Kẹt xe nghiêm trọng</option>
-                                                <option value="ACCIDENT">Tai nạn giao thông</option>
-                                                <option value="CONSTRUCTION">Đường đang thi công</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mức độ cảnh báo</label>
-                                            <select
-                                                value={trafficFormData.severity}
-                                                onChange={(e) => setTrafficFormData({ ...trafficFormData, severity: e.target.value as any })}
-                                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer bg-white"
-                                            >
-                                                <option value="LOW">Thấp (LOW)</option>
-                                                <option value="MEDIUM">Trung bình (MEDIUM)</option>
-                                                <option value="HIGH">Báo động Đỏ (HIGH)</option>
-                                            </select>
-                                        </div>
-                                    </div>
+                                         <div>
+                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phân loại sự cố</label>
+                                             <div className="relative">
+                                                 <select
+                                                     value={trafficFormData.type}
+                                                     onChange={(e) => setTrafficFormData({ ...trafficFormData, type: e.target.value as any })}
+                                                     className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer bg-white appearance-none font-medium text-slate-700"
+                                                 >
+                                                     <option value="CONGESTION">Kẹt xe nghiêm trọng</option>
+                                                     <option value="ACCIDENT">Tai nạn giao thông</option>
+                                                     <option value="CONSTRUCTION">Đường đang thi công</option>
+                                                 </select>
+                                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                                                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                     </svg>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                         <div>
+                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mức độ cảnh báo</label>
+                                             <div className="relative">
+                                                 <select
+                                                     value={trafficFormData.severity}
+                                                     onChange={(e) => setTrafficFormData({ ...trafficFormData, severity: e.target.value as any })}
+                                                     className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer bg-white appearance-none font-medium text-slate-700"
+                                                 >
+                                                     <option value="LOW">Thấp (LOW)</option>
+                                                     <option value="MEDIUM">Trung bình (MEDIUM)</option>
+                                                     <option value="HIGH">Báo động Đỏ (HIGH)</option>
+                                                 </select>
+                                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                                                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                     </svg>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                     </div>
                                 </div>
 
                                 {/* Right Side: Interactive Mini Map */}

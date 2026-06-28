@@ -88,33 +88,47 @@ export default function EventsSidebar({
                     {/* Danh mục */}
                     <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Danh mục</label>
-                        <select
-                            value={selectedCategory === null ? '' : selectedCategory}
-                            onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : null)}
-                            className="px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500"
-                        >
-                            <option value="">Tất cả</option>
-                            {categories.map(cat => (
-                                <option key={cat.category_id} value={cat.category_id}>
-                                    {cat.icon} {cat.name}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="relative">
+                            <select
+                                value={selectedCategory === null ? '' : selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : null)}
+                                className="w-full pl-2 pr-6 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 appearance-none"
+                            >
+                                <option value="">Tất cả</option>
+                                {categories.map(cat => (
+                                    <option key={cat.category_id} value={cat.category_id}>
+                                        {cat.icon} {cat.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Tháng */}
                     <div className="flex flex-col gap-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">Theo tháng</label>
-                        <select
-                            value={selectedMonth === null ? '' : selectedMonth}
-                            onChange={(e) => setSelectedMonth(e.target.value ? Number(e.target.value) : null)}
-                            className="px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500"
-                        >
-                            <option value="">Tất cả tháng</option>
-                            {months.map(m => (
-                                <option key={m} value={m}>Tháng {m}</option>
-                            ))}
-                        </select>
+                        <div className="relative">
+                            <select
+                                value={selectedMonth === null ? '' : selectedMonth}
+                                onChange={(e) => setSelectedMonth(e.target.value ? Number(e.target.value) : null)}
+                                className="w-full pl-2 pr-6 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 outline-none cursor-pointer focus:border-indigo-500 appearance-none"
+                            >
+                                <option value="">Tất cả tháng</option>
+                                {months.map(m => (
+                                    <option key={m} value={m}>Tháng {m}</option>
+                                ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-400">
+                                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

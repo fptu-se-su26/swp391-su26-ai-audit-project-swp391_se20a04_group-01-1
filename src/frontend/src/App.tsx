@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage/LandingPage';
 import ForgotPassword from './pages/Login/ForgotPassword';
 import Verify2FA from './pages/Auth/Verify2FA'; 
+import TrackRoutePage from './pages/TrackRoute/TrackRoutePage';
 import { Toaster } from 'react-hot-toast';
 
 export default function App() {
@@ -29,6 +30,8 @@ export default function App() {
 
                 {/* 2. THÊM ĐOẠN ROUTE NÀY VÀO ĐÂY */}
                 <Route path="/verify-2fa" element={<Verify2FA />} />
+                
+                <Route path="/track/:shareToken" element={<TrackRoutePage />} />
 
                 <Route path="/dashboard" element={
                     <ProtectedRoute>

@@ -168,16 +168,23 @@ export default function EventsTab({
                                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                             />
                         </div>
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none cursor-pointer"
-                        >
-                            <option value="all">Tất cả trạng thái</option>
-                            <option value="approved">Đã phê duyệt (Approved)</option>
-                            <option value="pending">Chờ phê duyệt (Pending)</option>
-                            <option value="cancelled">Đã hủy (Cancelled)</option>
-                        </select>
+                        <div className="relative">
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                                className="pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none cursor-pointer appearance-none font-semibold text-slate-700"
+                            >
+                                <option value="all">Tất cả trạng thái</option>
+                                <option value="approved">Đã phê duyệt (Approved)</option>
+                                <option value="pending">Chờ phê duyệt (Pending)</option>
+                                <option value="cancelled">Đã hủy (Cancelled)</option>
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-500">
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
                     </div>
                     <button
                         onClick={() => {
@@ -457,27 +464,41 @@ export default function EventsTab({
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Trạng thái ban đầu</label>
-                                            <select
-                                                value={eventFormData.status}
-                                                onChange={(e) => setEventFormData({ ...eventFormData, status: e.target.value })}
-                                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                                            >
-                                                <option value="pending">Pending (Chờ duyệt)</option>
-                                                <option value="approved">Approved (Duyệt ngay)</option>
-                                                <option value="cancelled">Cancelled (Hủy bỏ)</option>
-                                            </select>
+                                            <div className="relative">
+                                                <select
+                                                    value={eventFormData.status}
+                                                    onChange={(e) => setEventFormData({ ...eventFormData, status: e.target.value })}
+                                                    className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none bg-white font-medium text-slate-700"
+                                                >
+                                                    <option value="pending">Pending (Chờ duyệt)</option>
+                                                    <option value="approved">Approved (Duyệt ngay)</option>
+                                                    <option value="cancelled">Cancelled (Hủy bỏ)</option>
+                                                </select>
+                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Loại danh mục</label>
-                                            <select
-                                                value={eventFormData.category_id}
-                                                onChange={(e) => setEventFormData({ ...eventFormData, category_id: Number(e.target.value) })}
-                                                className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer"
-                                            >
-                                                <option value={1}>Lễ hội lớn (Festival)</option>
-                                                <option value={2}>Hòa nhạc (Music Event)</option>
-                                                <option value={3}>Thể thao (Sports)</option>
-                                            </select>
+                                            <div className="relative">
+                                                <select
+                                                    value={eventFormData.category_id}
+                                                    onChange={(e) => setEventFormData({ ...eventFormData, category_id: Number(e.target.value) })}
+                                                    className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none bg-white font-medium text-slate-700"
+                                                >
+                                                    <option value={1}>Lễ hội lớn (Festival)</option>
+                                                    <option value={2}>Hòa nhạc (Music Event)</option>
+                                                    <option value={3}>Thể thao (Sports)</option>
+                                                </select>
+                                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
