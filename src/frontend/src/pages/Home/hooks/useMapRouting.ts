@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from "react";
-import { MapRef } from "react-map-gl/mapbox";
-import { EventRoad } from "../../../services/eventRoadService";
-import { findSafeRoute as findSafeRouteZone } from "../../../utils/floodZoneRouteUtils";
-import { findSafeTrafficRoute } from "../../../utils/trafficRouteUtils";
-import { findSafeEventRoute } from "../../../utils/eventRouteUtils";
-import { showPremiumToast } from "../../../utils/toastUtils";
+import { useState, useEffect, useRef } from 'react';
+import { MapRef } from 'react-map-gl/mapbox';
+import { EventRoad } from '../../../services/eventRoadService';
+import { findSafeRoute as findSafeRouteZone } from '../../../utils/floodZoneRouteUtils';
+import { findSafeTrafficRoute } from '../../../utils/trafficRouteUtils';
+import { findSafeEventRoute } from '../../../utils/eventRouteUtils';
+import { showPremiumToast } from '../../../utils/toastUtils';
+import { decodePolyline } from '../../../utils/polylineHelper';
 
 export interface RouteData {
   totalDistanceKm: number;
@@ -20,6 +21,21 @@ export interface LocationPoint {
   event_id?: number;
 }
 
+// Hàm tính khoảng cách đường chim bay khẩn cấp khi ngoại tuyến
+function getHaversineDistance(coords1: {lat: number, lng: number}, coords2: {lat: number, lng: number}) {
+  const R = 6371; // Bán kính Trái Đất (km)
+  const dLat = ((coords2.lat - coords1.lat) * Math.PI) / 180;
+  const dLon = ((coords2.lng - coords1.lng) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((coords1.lat * Math.PI) / 180) *
+      Math.cos((coords2.lat * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Khoảng cách dạng km
+}
+
 export function useMapRouting(
   mapRef: React.RefObject<MapRef | null>,
   options: {
@@ -29,6 +45,8 @@ export function useMapRouting(
     avoidFlood: boolean;
     avoidCongestion: boolean;
     confirmedFloodZoneIds: string[];
+    isLowBandwidth: boolean;
+    isOffline: boolean;
   },
 ) {
   const [origin, setOrigin] = useState<LocationPoint | null>(null);
@@ -57,6 +75,69 @@ export function useMapRouting(
       setLoadingRoute(true);
       try {
         const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+
+        // 1. XỬ LÝ NGOẠI TUYẾN (OFFLINE FALLBACK)
+        if (options.isOffline) {
+          const distKm = getHaversineDistance(origin, destination);
+          const speed = travelMode === 'walking' ? 5 : travelMode === 'cycling' ? 15 : 30; // km/h
+          const durationMin = Math.round((distKm / speed) * 60);
+
+          setRouteAlertMessage("⚠️ Chế độ Ngoại tuyến: Đang hiển thị hướng đường chim bay khẩn cấp tới đích.");
+          setRouteData({
+            totalDistanceKm: parseFloat(distKm.toFixed(2)),
+            totalTimeMin: Math.max(1, durationMin),
+            coordinates: [
+              [origin.lng, origin.lat],
+              [destination.lng, destination.lat]
+            ]
+          });
+
+          // Fit camera
+          mapRef.current?.fitBounds(
+            [[origin.lng, origin.lat], [destination.lng, destination.lat]],
+            { padding: 80, duration: 1200 }
+          );
+          setLoadingRoute(false);
+          return;
+        }
+
+        // 2. XỬ LÝ TIẾT KIỆM BĂNG THÔNG QUA BACKEND PROXY (LOW BANDWIDTH)
+        if (options.isLowBandwidth) {
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+          const response = await fetch(
+            `${apiUrl}/api/routes/calculate?origin=${origin.lng},${origin.lat}&destination=${destination.lng},${destination.lat}&mode=${travelMode}&access_token=${mapboxToken}`
+          );
+          const data = await response.json();
+
+          if (response.ok && data.success && data.polyline) {
+            const coords = decodePolyline(data.polyline);
+            setRouteAlertMessage("⚡ Tiết kiệm băng thông: Tuyến đường đã được nén tối ưu truyền tải.");
+            setRouteData({
+              totalDistanceKm: parseFloat((data.distance / 1000).toFixed(2)),
+              totalTimeMin: Math.round(data.duration / 60),
+              coordinates: coords
+            });
+
+            if (coords.length > 0) {
+              let minLng = coords[0][0], maxLng = coords[0][0];
+              let minLat = coords[0][1], maxLat = coords[0][1];
+              for (const c of coords) {
+                if (c[0] < minLng) minLng = c[0];
+                if (c[0] > maxLng) maxLng = c[0];
+                if (c[1] < minLat) minLat = c[1];
+                if (c[1] > maxLat) maxLat = c[1];
+              }
+              mapRef.current?.fitBounds(
+                [[minLng, minLat], [maxLng, maxLat]],
+                { padding: 80, duration: 1200 }
+              );
+            }
+            setLoadingRoute(false);
+            return;
+          }
+        }
+
+        // 3. XỬ LÝ TRỰC TUYẾN BÌNH THƯỜNG
         const response = await fetch(
           `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&access_token=${mapboxToken}`,
         );
@@ -67,14 +148,42 @@ export function useMapRouting(
           let alertMsg: string | null = null;
 
           if (options.avoidFlood) {
+            // Trích xuất các cảnh báo ngập lụt động từ danh sách TrafficAlerts
+            const weatherFloodZones = (options.trafficAlerts || [])
+              .filter((alert: any) =>
+                alert.is_active &&
+                (alert.type === 'FLOOD' || alert.type === 'WEATHER')
+              )
+              .map((alert: any) => ({
+                id: `temp-weather-${alert.id}`,
+                zone_id: alert.id,
+                name: alert.title,
+                district: alert.location || 'Đà Nẵng',
+                center: [alert.longitude, alert.latitude] as [number, number],
+                radius: 800, // Bán kính ảnh hưởng ngập lụt dự báo (~800m)
+                depthCm: 30, // Độ sâu ngập giả định (> 10cm để thuật toán né tránh)
+                level: 'high' as const,
+                description: alert.description
+              }));
+
+            const combinedFloodZones = [
+              ...options.floodZones,
+              ...weatherFloodZones
+            ];
+
+            const combinedConfirmedIds = [
+              ...options.confirmedFloodZoneIds,
+              ...weatherFloodZones.map(w => w.id)
+            ];
+
             const result = await findSafeRouteZone(
               data.routes,
-              options.floodZones,
+              combinedFloodZones,
               origin,
               destination,
               travelMode,
               mapboxToken,
-              options.confirmedFloodZoneIds,
+              combinedConfirmedIds
             );
             selectedRoute = result.selectedRoute;
             alertMsg = result.alertMsg;
@@ -184,6 +293,8 @@ export function useMapRouting(
     options.floodZones,
     options.activeEventRoads,
     options.trafficAlerts,
+    options.isOffline,
+    options.isLowBandwidth,
     mapRef,
   ]);
 

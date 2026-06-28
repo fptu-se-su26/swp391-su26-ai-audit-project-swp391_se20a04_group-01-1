@@ -486,19 +486,26 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                                 <div className="grid grid-cols-2 gap-4 pt-1">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 mb-1.5">Sự kiện kích hoạt *</label>
-                                        <select
-                                            value={formData.event_id}
-                                            onChange={e => setFormData(prev => ({ ...prev, event_id: e.target.value }))}
-                                            className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
-                                            required
-                                        >
-                                            <option value="">-- Chọn sự kiện --</option>
-                                            {events.map(evt => (
-                                                <option key={evt.event_id} value={evt.event_id}>
-                                                    {evt.title} ({evt.status === 'approved' ? 'Đã duyệt' : 'Chờ duyệt'})
-                                                </option>
-                                            ))}
-                                        </select>
+                                        <div className="relative">
+                                            <select
+                                                value={formData.event_id}
+                                                onChange={e => setFormData(prev => ({ ...prev, event_id: e.target.value }))}
+                                                className="w-full text-xs font-semibold pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 appearance-none cursor-pointer"
+                                                required
+                                            >
+                                                <option value="">-- Chọn sự kiện --</option>
+                                                {events.map(evt => (
+                                                    <option key={evt.event_id} value={evt.event_id}>
+                                                        {evt.title} ({evt.status === 'approved' ? 'Đã duyệt' : 'Chờ duyệt'})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div>
@@ -517,16 +524,23 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                                 <div className="grid grid-cols-3 gap-4">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 mb-1.5">Kiểu hạn chế</label>
-                                        <select
-                                            value={formData.restriction_type}
-                                            onChange={e => setFormData(prev => ({ ...prev, restriction_type: e.target.value }))}
-                                            className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
-                                        >
-                                            <option value="CLOSED">Cấm hoàn toàn (CLOSED)</option>
-                                            <option value="LIMITED">Hạn chế đi lại (LIMITED)</option>
-                                            <option value="ONE_WAY">Đường một chiều (ONE_WAY)</option>
-                                            <option value="NO_PARKING">Cấm đỗ xe (NO_PARKING)</option>
-                                        </select>
+                                        <div className="relative">
+                                            <select
+                                                value={formData.restriction_type}
+                                                onChange={e => setFormData(prev => ({ ...prev, restriction_type: e.target.value }))}
+                                                className="w-full text-xs font-semibold pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 appearance-none cursor-pointer"
+                                            >
+                                                <option value="CLOSED">Cấm hoàn toàn (CLOSED)</option>
+                                                <option value="LIMITED">Hạn chế đi lại (LIMITED)</option>
+                                                <option value="ONE_WAY">Đường một chiều (ONE_WAY)</option>
+                                                <option value="NO_PARKING">Cấm đỗ xe (NO_PARKING)</option>
+                                            </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div>

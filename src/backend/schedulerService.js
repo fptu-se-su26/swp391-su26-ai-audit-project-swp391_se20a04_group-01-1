@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const { sql, poolPromise } = require('./db');
+const weatherClient = require('./utils/weatherClient');
 
 // ============================================================
 // HELPER: Tính khoảng cách giữa 2 điểm (Haversine formula) - km
@@ -273,6 +274,139 @@ async function runEventReminderJob() {
 }
 
 // ============================================================
+// JOB 3: WEATHER PREDICTIVE WARNING JOB
+// Chạy mỗi 5 phút — Gọi weather client và kiểm tra lượng mưa
+// ============================================================
+async function runWeatherAlertJob() {
+    try {
+        const pool = await poolPromise;
+        const districts = weatherClient.getSupportedDistricts();
+        
+        // Lấy admin user ID làm người tạo cảnh báo giao thông mặc định
+        const adminResult = await pool.request().query(`
+            SELECT TOP 1 user_id FROM Users WHERE role = 'admin' ORDER BY user_id ASC
+        `);
+        const adminId = adminResult.recordset.length > 0 ? adminResult.recordset[0].user_id : 1;
+
+        for (const district of districts) {
+            const weather = await weatherClient.getWeatherForDistrict(district);
+            const districtCoords = weatherClient.DISTRICTS[district];
+            const hasHeavyRain = weather.rain1h > 50;
+
+            // Kiểm tra xem đã có cảnh báo ngập lụt sớm đang hoạt động cho quận này chưa
+            const checkAlertResult = await pool.request()
+                .input('location_name', sql.NVarChar, `Quận ${district}`)
+                .input('title', sql.NVarChar, '⚠️ Cảnh báo ngập lụt sớm')
+                .query(`
+                    SELECT alert_id 
+                    FROM TrafficAlerts 
+                    WHERE title = @title AND location_name = @location_name AND is_active = 1
+                `);
+
+            const existingAlert = checkAlertResult.recordset[0];
+
+            if (hasHeavyRain) {
+                const alertTitle = '⚠️ Cảnh báo ngập lụt sớm';
+                const alertDesc = `Khu vực Quận ${district} đang có mưa rất lớn (${weather.rain1h} mm/h), các tuyến đường xung quanh có nguy cơ ngập cao trong 30 phút tới. Hãy chuẩn bị lộ trình thay thế.`;
+                
+                let alertId;
+                
+                if (!existingAlert) {
+                    // Tạo TrafficAlert mới
+                    const insertAlertResult = await pool.request()
+                        .input('created_by', sql.Int, adminId)
+                        .input('alert_type', sql.NVarChar, 'FLOOD')
+                        .input('title', sql.NVarChar, alertTitle)
+                        .input('description', sql.NVarChar, alertDesc)
+                        .input('location_name', sql.NVarChar, `Quận ${district}`)
+                        .input('latitude', sql.Decimal(9, 6), districtCoords.lat)
+                        .input('longitude', sql.Decimal(9, 6), districtCoords.lon)
+                        .input('severity', sql.NVarChar, 'High')
+                        .query(`
+                            INSERT INTO TrafficAlerts (
+                                created_by, alert_type, title, description,
+                                location_name, latitude, longitude, severity, is_active, created_at, updated_at
+                            )
+                            OUTPUT INSERTED.alert_id
+                            VALUES (
+                                @created_by, @alert_type, @title, @description,
+                                @location_name, @latitude, @longitude, @severity, 1, GETDATE(), GETDATE()
+                            )
+                        `);
+                    
+                    alertId = insertAlertResult.recordset[0].alert_id;
+                    console.log(`[Scheduler] Created weather warning for ${district} (alert_id: ${alertId})`);
+                    
+                    // Gửi thông báo cho tất cả người dùng có avoid_floods = 1
+                    const usersResult = await pool.request().query(`
+                        SELECT u.user_id
+                        FROM Users u
+                        INNER JOIN UsersPreferences p ON u.user_id = p.user_id
+                        WHERE p.avoid_floods = 1 AND u.is_active = 1
+                    `);
+                    
+                    if (usersResult.recordset.length > 0) {
+                        const table = new sql.Table('Notifications');
+                        table.create = false;
+                        table.columns.add('user_id', sql.Int, { nullable: false });
+                        table.columns.add('event_id', sql.Int, { nullable: true });
+                        table.columns.add('alert_id', sql.Int, { nullable: true });
+                        table.columns.add('zone_id', sql.Int, { nullable: true });
+                        table.columns.add('title', sql.NVarChar(200), { nullable: true });
+                        table.columns.add('message', sql.NVarChar(sql.MAX), { nullable: false });
+                        table.columns.add('is_read', sql.Bit, { nullable: false });
+                        table.columns.add('created_at', sql.DateTime, { nullable: false });
+                        table.columns.add('type', sql.NVarChar(30), { nullable: false });
+
+                        usersResult.recordset.forEach(user => {
+                            table.rows.add(
+                                user.user_id,
+                                null,
+                                alertId,
+                                null,
+                                alertTitle,
+                                alertDesc,
+                                false,
+                                new Date(),
+                                'traffic_alert'
+                            );
+                        });
+
+                        await pool.request().bulk(table);
+                        console.log(`[Scheduler] Sent predictive flood notifications to ${usersResult.recordset.length} users.`);
+                    }
+                } else {
+                    // Nếu cảnh báo đã tồn tại nhưng mưa vẫn lớn, cập nhật thời gian updated_at
+                    alertId = existingAlert.alert_id;
+                    await pool.request()
+                        .input('alert_id', sql.Int, alertId)
+                        .input('description', sql.NVarChar, alertDesc)
+                        .query(`
+                            UPDATE TrafficAlerts 
+                            SET updated_at = GETDATE(), description = @description
+                            WHERE alert_id = @alert_id
+                        `);
+                }
+            } else {
+                // Nếu mưa dưới 50 mm/h hoặc không mưa, và đang có cảnh báo hoạt động -> tắt cảnh báo
+                if (existingAlert) {
+                    await pool.request()
+                        .input('alert_id', sql.Int, existingAlert.alert_id)
+                        .query(`
+                            UPDATE TrafficAlerts 
+                            SET is_active = 0, end_time = GETDATE(), updated_at = GETDATE()
+                            WHERE alert_id = @alert_id
+                        `);
+                    console.log(`[Scheduler] Cleared weather warning for ${district} because rain stopped.`);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Scheduler] Weather alert job error:', err.message);
+    }
+}
+
+// ============================================================
 // KHỞI ĐỘNG CÁC CRON JOBS
 // ============================================================
 function startScheduler() {
@@ -288,7 +422,18 @@ function startScheduler() {
         runEventReminderJob();
     });
 
-    console.log('✅ [Scheduler] Smart Notification jobs started (Flood: 5m, Event: 15m)');
+    // Job 3: Weather Forecast & Predictive Warning — mỗi 5 phút
+    cron.schedule('*/5 * * * *', () => {
+        console.log('[Scheduler] Running weather alert check...');
+        runWeatherAlertJob();
+    });
+
+    console.log('✅ [Scheduler] Smart Notification jobs started (Flood: 5m, Event: 15m, Weather: 5m)');
 }
 
-module.exports = { startScheduler, runFloodAlertJob, runEventReminderJob };
+module.exports = { 
+    startScheduler, 
+    runFloodAlertJob, 
+    runEventReminderJob,
+    runWeatherAlertJob
+};
