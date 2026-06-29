@@ -84,6 +84,7 @@ import {
   useNotificationStore,
   AppNotification,
 } from "../../store/notificationStore";
+import { AIChatbot } from "./components/AIChatbot";
 
 const filterCategories = [
   { id: "attractions", label: "Điểm tham quan", icon: Compass },
@@ -2991,6 +2992,25 @@ export default function Home() {
           ⚡ Đang kích hoạt chế độ Tiết kiệm băng thông (Low-Bandwidth)
         </div>
       ) : null}
+
+      {/* AI Assistant Chatbot */}
+      <AIChatbot
+        origin={origin}
+        setOrigin={setOrigin}
+        setOriginQuery={setOriginQuery}
+        destination={destination}
+        setDestination={setDestination}
+        setDestinationQuery={setDestinationQuery}
+        travelMode={travelMode}
+        setTravelMode={setTravelMode}
+        avoidFlood={avoidFlood}
+        setAvoidFlood={setAvoidFlood}
+        avoidCongestion={avoidCongestion}
+        setAvoidCongestion={setAvoidCongestion}
+        mapRef={mapRef}
+        userLocation={userLocation}
+      />
+
       {tab === "profile" && (
         <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
           <ProfilePage

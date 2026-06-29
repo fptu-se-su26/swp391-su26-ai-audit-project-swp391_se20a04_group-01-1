@@ -37,10 +37,13 @@ router.post('/register', async (req, res) => {
         const checkExist = await pool
             .request()
             .input("email", sql.NVarChar, email.toLowerCase())
-            .query("SELECT user_id FROM Users WHERE LOWER(email) = LOWER(@email)");
+            .input("username", sql.NVarChar, trimmedUsername)
+            .query("SELECT user_id, email FROM Users WHERE LOWER(email) = LOWER(@email) OR username = @username");
 
         if (checkExist.recordset.length > 0) {
-            return res.status(400).json({ message: "Email này đã được đăng ký!" });
+            const emailTaken = checkExist.recordset.some(r => r.email.toLowerCase() === email.toLowerCase());
+            if (emailTaken) return res.status(400).json({ message: "Email này đã được đăng ký!" });
+            return res.status(400).json({ message: "Username này đã được sử dụng!" });
         }
 
         const salt = await bcrypt.genSalt(10);
@@ -362,9 +365,22 @@ router.post('/google', async (req, res) => {
         let user = result.recordset[0];
 
         if (!user) {
+            // Generate unique username to avoid UNIQUE KEY constraint violation
+            let baseUsername = (name || email.split('@')[0]).trim();
+            let finalUsername = baseUsername;
+            let suffix = 1;
+            while (true) {
+                const usernameCheck = await pool
+                    .request()
+                    .input("username", sql.NVarChar, finalUsername)
+                    .query("SELECT user_id FROM Users WHERE username = @username");
+                if (usernameCheck.recordset.length === 0) break;
+                finalUsername = `${baseUsername}${suffix++}`;
+            }
+
             await pool
                 .request()
-                .input("username", sql.NVarChar, name || email.split('@')[0])
+                .input("username", sql.NVarChar, finalUsername)
                 .input("email", sql.NVarChar, email.toLowerCase())
                 .input("role", sql.NVarChar, "user")
                 .query("INSERT INTO Users (username, email, role) VALUES (@username, @email, @role)");
