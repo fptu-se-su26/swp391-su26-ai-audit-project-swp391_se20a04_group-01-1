@@ -1,4 +1,5 @@
 require("dotenv").config();
+const chatbotRoute = require("./routes/chatbotRoute");
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
@@ -20,7 +21,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Rate limiting
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10,                   // limit each IP to 10 requests per windowMs
+    max: 100,                  // limit each IP to 100 requests per windowMs
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Quá nhiều lần thử. Vui lòng thử lại sau 15 phút.' }
@@ -29,9 +30,10 @@ const authLimiter = rateLimit({
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth/verify-otp', authLimiter);
+app.use('/api/chatbot', chatbotRoute);
 app.use('/api/auth/register', rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 5,
+    max: 100,
     message: { success: false, message: 'Quá nhiều tài khoản được tạo. Thử lại sau 1 giờ.' }
 }));
 

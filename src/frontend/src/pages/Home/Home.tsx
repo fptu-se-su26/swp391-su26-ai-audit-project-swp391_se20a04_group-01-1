@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import ChatbotWidget from './components/ChatbotWidget';
 import ProfilePage from "../Profile/ProfilePage";
 import Map, {
   NavigationControl,
@@ -3007,6 +3008,14 @@ export default function Home() {
           />
         </div>
       )}
-    </div>
-  );
+    {tab === 'profile' && (
+                <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+                    <ProfilePage isOverlay={true} onClose={() => { navigate('/dashboard'); fetchUserProfile(); }} />
+                </div>
+            )}
+            <ChatbotWidget />  {/* <--- NẰM Ở ĐÂY, NGAY TRƯỚC THẺ ĐÓNG </div> */}
+        </div>
+        
+    );
 }
+

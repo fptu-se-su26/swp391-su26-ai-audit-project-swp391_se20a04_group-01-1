@@ -246,20 +246,20 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
     }
 
     if (loading && weatherList.length === 0) {
-        return (
-            <div className="absolute bottom-6 right-16 z-20 w-64 bg-white/90 backdrop-blur-md border border-slate-100 rounded-2xl p-4 shadow-xl flex items-center justify-center gap-2 text-xs text-slate-500">
-                <RefreshCw className="w-4 h-4 animate-spin animate-spin-slow" />
-                Đang tải thời tiết...
-            </div>
-        );
-    }
+    return (
+        <div className="absolute bottom-6 right-[80px] z-20 w-64 bg-white/90 backdrop-blur-md border border-slate-100 rounded-2xl p-4 shadow-xl flex items-center justify-center gap-2 text-xs text-slate-500">
+            <RefreshCw className="w-4 h-4 animate-spin animate-spin-slow" />
+            Đang tải thời tiết...
+        </div>
+    );
+}
 
     // Các mốc dự báo ngắn cho Bottom Bar
     const miniForecasts = forecastData.slice(0, 4);
 
     return (
-        <div className="absolute bottom-6 right-16 z-20 w-80 flex flex-col gap-2 pointer-events-auto select-none font-sans">
-            {/* Inject Animation CSS */}
+    <div className="absolute bottom-6 right-[80px] z-20 w-64 bg-white/90 backdrop-blur-md border border-slate-100 rounded-2xl p-4 shadow-xl flex items-center justify-center gap-2 text-xs text-slate-500">
+        {/* Inject Animation CSS */}
             <style>{`
                 @keyframes spin-slow {
                     from { transform: rotate(0deg); }

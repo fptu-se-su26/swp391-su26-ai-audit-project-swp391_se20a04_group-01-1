@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, useInView } from 'framer-motion';
+import { motion, useInView, Variants } from 'framer-motion';
 import {
     MapPin, Calendar, CloudRain, Navigation, Compass,
     AlertTriangle, Bookmark, Map, ArrowRight, Menu, X,
@@ -28,19 +28,19 @@ const Github = ({ className }: { className?: string }) => (
 );
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
-const fadeUp = {
+const fadeUp: Variants = {
     hidden: { opacity: 0, y: 40 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: 'easeOut' } }
 };
-const fadeLeft = {
+const fadeLeft: Variants = {
     hidden: { opacity: 0, x: -50 },
     visible: { opacity: 1, x: 0, transition: { duration: 0.65, ease: 'easeOut' } }
 };
-const fadeRight = {
+const fadeRight: Variants = {
     hidden: { opacity: 0, x: 50 },
     visible: { opacity: 1, x: 0, transition: { duration: 0.65, ease: 'easeOut' } }
 };
-const staggerChildren = {
+const staggerChildren: Variants = {
     hidden: {},
     visible: { transition: { staggerChildren: 0.12 } }
 };

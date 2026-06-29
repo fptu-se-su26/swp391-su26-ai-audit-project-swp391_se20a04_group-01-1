@@ -49,8 +49,8 @@ export function MapToolbar({
     navigate
 }: MapToolbarProps) {
     return (
-        <div className="absolute right-6 top-[200px] z-10 flex flex-col gap-3">
-            <div className="group relative pointer-events-auto flex justify-end items-center">
+<div className="absolute right-6 top-[140px] z-10 flex flex-col gap-3">
+                <div className="group relative pointer-events-auto flex justify-end items-center">
                 <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                     Vị trí
                 </span>
