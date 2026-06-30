@@ -50,6 +50,7 @@ app.use('/api/saved-routes', require('./routes/savedRoutes.routes'));
 app.use('/api/routes', require('./routes/shareRoute.routes'));
 app.use('/api/weather', require('./routes/weather.routes'));
 app.use('/api/location', require('./routes/liveLocation.routes'));
+app.use('/api/ai', require('./routes/ai.routes'));
 
 // Server startup
 const PORT = process.env.PORT || 5001;
