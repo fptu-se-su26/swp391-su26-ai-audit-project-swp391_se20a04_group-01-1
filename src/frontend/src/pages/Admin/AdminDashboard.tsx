@@ -12,7 +12,7 @@ import {
 import AdminLayout from '../../layouts/AdminLayout';
 import * as authService from '../../services/authService';
 import * as userService from '../../services/userService';
-import { eventAPI } from '../../services/api';
+import { eventAPI, adminAPI, trafficAlertAPI } from '../../services/api';
 import { eventRoadService } from '../../services/eventRoadService';
 import SettingsTab from './SettingsTab';
 import UsersTab from './UsersTab';
@@ -23,6 +23,7 @@ import EventsTab from './EventsTab';
 import OverviewTab from './OverviewTab';
 import { DBEvent, TrafficAlert, FloodZone, RoadClosure, ManageUser, EventFormData } from './types';
 import toast from 'react-hot-toast';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 export default function AdminDashboard() {
     const [activeMenu, setActiveMenu] = useState('overview');
@@ -46,17 +47,9 @@ export default function AdminDashboard() {
         status: 'pending', category_id: 1
     });
 
-    const [trafficAlerts, setTrafficAlerts] = useState<TrafficAlert[]>([
-        { id: 1, title: 'Kẹt xe kéo dài cầu sông Hàn', location: 'Cầu Sông Hàn, Sơn Trà', type: 'CONGESTION', severity: 'HIGH', is_active: true, created_at: '10 phút trước' },
-        { id: 2, title: 'Tai nạn xe máy va chạm nhẹ', location: 'Đường Nguyễn Văn Linh, Thanh Khê', type: 'ACCIDENT', severity: 'MEDIUM', is_active: true, created_at: '30 phút trước' },
-        { id: 3, title: 'Thi công sửa đường ống nước', location: 'Đường Điện Biên Phủ, Thanh Khê', type: 'CONSTRUCTION', severity: 'LOW', is_active: true, created_at: '2 giờ trước' }
-    ]);
+        const [trafficAlerts, setTrafficAlerts] = useState<TrafficAlert[]>([]);
 
-    const [floodZones, setFloodZones] = useState<FloodZone[]>([
-        { id: 1, name: 'Vùng trũng Hàm Nghi', district: 'Thanh Khê', risk_level: 'HIGH', is_active: true, last_updated: '2026-05-31' },
-        { id: 2, name: 'Khu vực bến xe trung tâm', district: 'Liên Chiểu', risk_level: 'MEDIUM', is_active: true, last_updated: '2026-05-30' },
-        { id: 3, name: 'Ngã tư Trưng Nữ Vương - Nguyễn Văn Linh', district: 'Hải Châu', risk_level: 'LOW', is_active: false, last_updated: '2026-05-28' }
-    ]);
+    const [floodZones, setFloodZones] = useState<FloodZone[]>([]);
 
     const [roadClosures, setRoadClosures] = useState<RoadClosure[]>([
         { id: 1, road_name: 'Đường Bạch Đằng', event_title: 'Lễ hội Pháo hoa quốc tế DIFF 2026', restriction_type: 'CLOSED', time_frame: '18:00 - 23:00' },
@@ -66,7 +59,8 @@ export default function AdminDashboard() {
 
     const [showTrafficModal, setShowTrafficModal] = useState(false);
     const [trafficFormData, setTrafficFormData] = useState({
-        title: '', location: '', type: 'CONGESTION' as any, severity: 'MEDIUM' as any
+        title: '', location: '', type: 'CONGESTION' as any, severity: 'MEDIUM' as any,
+        latitude: 16.0544, longitude: 108.2022
     });
 
     const [pwdFormData, setPwdFormData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -93,6 +87,42 @@ export default function AdminDashboard() {
 
     const [currentPage, setCurrentPage] = useState(1);
 
+    // Custom confirm modal state
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        onCancel: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        onCancel: () => {}
+    });
+
+    const showCustomConfirm = (
+        title: string,
+        message: string,
+        onConfirm: () => void,
+        onCancel: () => void = () => {}
+    ) => {
+        setConfirmModal({
+            isOpen: true,
+            title,
+            message,
+            onConfirm: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onConfirm();
+            },
+            onCancel: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onCancel();
+            }
+        });
+    };
+
     const fetchUsers = async () => {
         try {
             const response = await userService.getAllUsers();
@@ -102,12 +132,55 @@ export default function AdminDashboard() {
         }
     };
 
+    const fetchFloodZones = async () => {
+        try {
+            const response = await adminAPI.getFloodZones();
+            if (response.data && response.data.success) {
+                const data = response.data.data.map((z: any) => ({
+                    id: Number(z.zone_id),
+                    name: z.name || z.zone_name,
+                    district: z.district,
+                    risk_level: (z.risk_level || 'LOW').toUpperCase(),
+                    is_active: !!z.is_active,
+                    last_updated: z.last_updated || 'Chưa cập nhật'
+                }));
+                setFloodZones(data);
+            }
+        } catch (error) {
+            console.error("Lỗi lấy danh sách vùng ngập lụt:", error);
+            showPremiumToast('Không thể lấy dữ liệu vùng ngập lụt từ server.', 'error');
+        }
+    };
+
+    const fetchTrafficAlerts = async () => {
+        try {
+            const response = await adminAPI.getTrafficAlerts();
+            if (response.data && response.data.success) {
+                const data = response.data.data.map((alert: any) => ({
+                    id: alert.id,
+                    title: alert.title,
+                    location: alert.location,
+                    type: alert.type,
+                    severity: alert.severity,
+                    is_active: alert.is_active,
+                    created_at: new Date(alert.created_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
+                }));
+                setTrafficAlerts(data);
+            }
+        } catch (error) {
+            console.error("Lỗi lấy danh sách cảnh báo giao thông:", error);
+            showPremiumToast('Không thể lấy dữ liệu cảnh báo giao thông.', 'error');
+        }
+    };
+
     useEffect(() => {
         fetchEvents();
         fetchAdminSecuritySettings();
         fetchUserProfile();
         fetchUsers();
         fetchRoadClosures();
+        fetchFloodZones();
+        fetchTrafficAlerts();
     }, []);
 
     const fetchAdminSecuritySettings = async () => {
@@ -215,23 +288,27 @@ export default function AdminDashboard() {
                 ...eventObj,
                 status: nextStatus
             });
-            toast.success(nextStatus === 'approved' ? 'Phê duyệt sự kiện thành công!' : 'Đã chuyển sự kiện về trạng thái chờ duyệt!');
+            showPremiumToast(nextStatus === 'approved' ? 'Phê duyệt sự kiện thành công!' : 'Đã chuyển sự kiện về trạng thái chờ duyệt!', 'success');
             fetchEvents();
         } catch (error) {
-            toast.error('Lỗi phê duyệt sự kiện.');
+            showPremiumToast('Lỗi phê duyệt sự kiện.', 'error');
         }
     };
 
     const handleDeleteEvent = async (id: number) => {
-        if (window.confirm('Bạn có chắc chắn muốn xóa sự kiện này không?')) {
-            try {
-                await eventAPI.deleteEvent(id);
-                toast.success('Xóa sự kiện thành công!');
-                fetchEvents();
-            } catch (error) {
-                toast.error('Lỗi xóa sự kiện.');
+        showCustomConfirm(
+            'Xác nhận xóa',
+            'Bạn có chắc chắn muốn xóa sự kiện này không?',
+            async () => {
+                try {
+                    await eventAPI.deleteEvent(id);
+                    showPremiumToast('Xóa sự kiện thành công!', 'success');
+                    fetchEvents();
+                } catch (error) {
+                    showPremiumToast('Lỗi xóa sự kiện.', 'error');
+                }
             }
-        }
+        );
     };
 
     const handleCreateEvent = async (e: React.FormEvent) => {
@@ -257,32 +334,106 @@ export default function AdminDashboard() {
 
             if (editingEvent) {
                 await eventAPI.updateEvent(editingEvent.event_id, body);
-                toast.success('Cập nhật sự kiện thành công!');
+                showPremiumToast('Cập nhật sự kiện thành công!', 'success');
             } else {
                 await eventAPI.createEvent(body);
-                toast.success('Thêm sự kiện mới thành công!');
+                showPremiumToast('Thêm sự kiện mới thành công!', 'success');
             }
             setShowModal(false);
             setEditingEvent(null);
             fetchEvents();
         } catch (error) {
-            toast.error('Lỗi kết nối máy chủ hoặc lưu sự kiện.');
+            showPremiumToast('Lỗi kết nối máy chủ hoặc lưu sự kiện.', 'error');
         }
     };
 
-    const handleCreateTrafficAlert = (e: React.FormEvent) => {
+    const handleCreateTrafficAlert = async (e: React.FormEvent) => {
         e.preventDefault();
-        const newAlert: TrafficAlert = { id: Date.now(), title: trafficFormData.title, location: trafficFormData.location, type: trafficFormData.type, severity: trafficFormData.severity, is_active: true, created_at: 'Vừa xong' };
-        setTrafficAlerts([newAlert, ...trafficAlerts]);
-        setShowTrafficModal(false);
+        try {
+            const body = {
+                title: trafficFormData.title,
+                location: trafficFormData.location,
+                type: trafficFormData.type,
+                severity: trafficFormData.severity,
+                latitude: Number(trafficFormData.latitude),
+                longitude: Number(trafficFormData.longitude)
+            };
+            const response = await trafficAlertAPI.createTrafficAlert(body);
+            if (response.data && response.data.success) {
+                showPremiumToast('Tạo cảnh báo giao thông mới thành công!', 'success');
+                setTrafficFormData({
+                    title: '', location: '', type: 'CONGESTION', severity: 'MEDIUM',
+                    latitude: 16.0544, longitude: 108.2022
+                });
+                setShowTrafficModal(false);
+                fetchTrafficAlerts();
+            } else {
+                showPremiumToast(response.data.message || 'Lỗi khi tạo cảnh báo giao thông.', 'error');
+            }
+        } catch (error) {
+            console.error("Lỗi tạo cảnh báo giao thông:", error);
+            showPremiumToast('Lỗi kết nối máy chủ.', 'error');
+        }
     };
 
-    const toggleTrafficStatus = (id: number) => {
-        setTrafficAlerts(prev => prev.map(a => a.id === id ? { ...a, is_active: !a.is_active } : a));
+    const toggleTrafficStatus = async (id: number) => {
+        const alert = trafficAlerts.find(a => a.id === id);
+        if (!alert) return;
+
+        const nextStatus = !alert.is_active;
+        try {
+            const response = await adminAPI.toggleTrafficAlert(id, nextStatus);
+            if (response.data && response.data.success) {
+                showPremiumToast('Cập nhật trạng thái sự cố thành công!', 'success');
+                setTrafficAlerts(prev => prev.map(a => a.id === id ? { ...a, is_active: nextStatus } : a));
+            } else {
+                showPremiumToast('Cập nhật trạng thái sự cố thất bại.', 'error');
+            }
+        } catch (error) {
+            console.error("Lỗi cập nhật trạng thái sự cố:", error);
+            showPremiumToast('Lỗi hệ thống khi cập nhật trạng thái.', 'error');
+        }
     };
 
-    const toggleFloodStatus = (id: number) => {
-        setFloodZones(prev => prev.map(z => z.id === id ? { ...z, is_active: !z.is_active, last_updated: 'Hôm nay' } : z));
+    const handleDeleteTrafficAlert = async (id: number) => {
+        showCustomConfirm(
+            'Xác nhận xóa sự cố',
+            'Bạn có chắc chắn muốn xóa báo cáo cảnh báo sự cố giao thông này không?',
+            async () => {
+                try {
+                    const response = await adminAPI.deleteTrafficAlert(id);
+                    if (response.data && response.data.success) {
+                        showPremiumToast('Xóa cảnh báo sự cố thành công!', 'success');
+                        setTrafficAlerts(prev => prev.filter(a => a.id !== id));
+                    } else {
+                        showPremiumToast('Không thể xóa cảnh báo sự cố.', 'error');
+                    }
+                } catch (error) {
+                    console.error("Lỗi khi xóa sự cố giao thông:", error);
+                    showPremiumToast('Lỗi hệ thống khi xóa sự cố.', 'error');
+                }
+            },
+            () => {}
+        );
+    };
+
+    const toggleFloodStatus = async (id: number) => {
+        const zone = floodZones.find(z => z.id === id);
+        if (!zone) return;
+
+        const nextStatus = !zone.is_active;
+        try {
+            const response = await adminAPI.updateFloodZone(id, nextStatus);
+            if (response.data && response.data.success) {
+                showPremiumToast('Cập nhật trạng thái vùng ngập thành công!', 'success');
+                setFloodZones(prev => prev.map(z => z.id === id ? { ...z, is_active: nextStatus, last_updated: 'Vừa xong' } : z));
+            } else {
+                showPremiumToast('Cập nhật trạng thái vùng ngập thất bại.', 'error');
+            }
+        } catch (error) {
+            console.error("Lỗi cập nhật trạng thái vùng ngập:", error);
+            showPremiumToast('Lỗi hệ thống khi cập nhật trạng thái.', 'error');
+        }
     };
 
     const handleChangePasswordSubmit = async (e: React.FormEvent) => {
@@ -298,8 +449,16 @@ export default function AdminDashboard() {
     };
 
     const handleUnbanUser = async (userId: number) => {
-        if (!window.confirm("Bạn có chắc chắn muốn mở khóa cho tài khoản này không?")) return;
-        try { await userService.unbanUser(userId); fetchUsers(); } catch (error) {}
+        showCustomConfirm(
+            'Xác nhận mở khóa',
+            'Bạn có chắc chắn muốn mở khóa cho tài khoản này không?',
+            async () => {
+                try {
+                    await userService.unbanUser(userId);
+                    fetchUsers();
+                } catch (error) {}
+            }
+        );
     };
 
     const handleBanSubmit = async (e: React.FormEvent) => {
@@ -327,22 +486,51 @@ export default function AdminDashboard() {
         try {
             const result = await authService.confirm2FA(totpConfirmCode, twoFaSecret as string);
             if (result?.success) {
-                setTwoFactorEnabled(true); setShowTwoFaQR(false); localStorage.setItem('is_2fa_enabled', '1');
+                setTwoFactorEnabled(true);
+                setShowTwoFaQR(false);
+                localStorage.setItem('is_2fa_enabled', '1');
+                showPremiumToast('Kích hoạt 2FA thành công!', 'success');
             }
         } catch (error) {
-            alert('Mã xác thực lỗi');
+            showPremiumToast('Mã xác thực lỗi. Vui lòng kiểm tra lại.', 'error');
         }
     };
 
     const handleDisable2FA = async () => {
+        setTwoFaMessage('');
+        setTwoFaError(false);
         try {
-            await userService.disable2FA({ password: disable2FaPassword });
-            setTwoFactorEnabled(false); setShowDisable2FaInput(false); localStorage.setItem('is_2fa_enabled', '0');
-        } catch (error) {}
+            const result = await userService.disable2FA({ password: disable2FaPassword });
+            if (result.success) {
+                setTwoFactorEnabled(false);
+                setShowDisable2FaInput(false);
+                setDisable2FaPassword('');
+                localStorage.setItem('is_2fa_enabled', '0');
+                showPremiumToast('Đã tắt xác thực 2 lớp (2FA) thành công!', 'success');
+            } else {
+                setTwoFaError(true);
+                setTwoFaMessage(result.error?.message || result.message || 'Lỗi khi tắt 2FA');
+            }
+        } catch (error: any) {
+            setTwoFaError(true);
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Mật khẩu không chính xác hoặc lỗi hệ thống!';
+            setTwoFaMessage(errorMessage);
+        }
     };
 
+
+
     return (
-        <AdminLayout activeMenu={activeMenu} setActiveMenu={setActiveMenu}>
+        <AdminLayout 
+            activeMenu={activeMenu} 
+            setActiveMenu={setActiveMenu}
+            counts={{
+                events: events.length,
+                flood: floodZones.length,
+                closure: roadClosures.length,
+                traffic: trafficAlerts.length
+            }}
+        >
             {activeMenu === 'overview' && <OverviewTab events={events} trafficAlerts={trafficAlerts} floodZones={floodZones} />}
             {activeMenu === 'events' && (
                 <EventsTab
@@ -358,6 +546,7 @@ export default function AdminDashboard() {
                     trafficAlerts={trafficAlerts} toggleTrafficStatus={toggleTrafficStatus} showTrafficModal={showTrafficModal}
                     setShowTrafficModal={setShowTrafficModal} trafficFormData={trafficFormData} setTrafficFormData={setTrafficFormData}
                     handleCreateTrafficAlert={handleCreateTrafficAlert}
+                    deleteTrafficAlert={handleDeleteTrafficAlert}
                 />
             )}
             {activeMenu === 'flood' && <FloodTab floodZones={floodZones} toggleFloodStatus={toggleFloodStatus} />}
@@ -390,6 +579,48 @@ export default function AdminDashboard() {
                     handleSetup2FA={handleSetup2FA} handleConfirm2FA={handleConfirm2FA} handleDisable2FA={handleDisable2FA}
                     setTwoFaQRCode={setTwoFaQRCode} setTwoFaSecret={setTwoFaSecret} setTwoFaError={setTwoFaError} setTwoFaMessage={setTwoFaMessage}
                 />
+            )}
+            {/* CUSTOM CONFIRM MODAL DIALOG */}
+            {confirmModal.isOpen && (
+                <div 
+                    style={{
+                        animation: 'fadeIn 250ms ease-out forwards'
+                    }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
+                >
+                    <div 
+                        style={{
+                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+                        }}
+                        className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full mx-4 text-left font-sans"
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-blue-50 text-blue-500">
+                                <AlertTriangle size={20} />
+                            </span>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                                {confirmModal.title}
+                            </h3>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mb-6 leading-relaxed whitespace-pre-line">
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={confirmModal.onCancel}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                onClick={confirmModal.onConfirm}
+                                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-100 transition-all"
+                            >
+                                Xác nhận
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </AdminLayout>
     );

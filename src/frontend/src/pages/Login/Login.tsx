@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Eye, EyeOff, Mail, Lock, MapPin, Navigation } from "lucide-react";
+import { Link } from "react-router-dom";
 // CHỈ THÊM IMPORT NÀY:
 import { GoogleLogin } from "@react-oauth/google";
 
@@ -7,31 +8,31 @@ const slides = [
   {
     img: "https://images.pexels.com/photos/14435439/pexels-photo-14435439.jpeg",
     badge: "Bà Nà Hills · Đà Nẵng",
-    title: "Touch the\nSky",
+    title: "Chạm tới\nChân trời",
     sub: "Khám phá các sự kiện độc quyền và cảnh sắc ngoạn mục tại Cầu Vàng nổi tiếng.",
   },
   {
     img: "https://images.pexels.com/photos/2162459/pexels-photo-2162459.jpeg",
     badge: "Sông Hàn · Đà Nẵng",
-    title: "City of\nBridges",
+    title: "Thành phố của\nNhững cây cầu",
     sub: "Tham gia các lễ hội ven sông và thưởng thức những màn phun lửa rực rỡ vào cuối tuần.",
   },
   {
     img: "https://images.pexels.com/photos/26550067/pexels-photo-26550067.jpeg",
     badge: "Biển Mỹ Khê",
-    title: "Sun, Sand\n& Events",
+    title: "Nắng vàng, Cát trắng\n& Sự kiện",
     sub: "Cập nhật nhanh nhất các buổi hòa nhạc trên biển, giải lướt sóng và marathon.",
   },
   {
     img: "https://i2.ex-cdn.com/crystalbay.com/files/content/2024/10/09/deo-hai-van-da-nang-kham-pha-cung-duong-deo-dep-nhat-viet-nam-2-1123.jpg",
     badge: "Đèo Hải Vân",
-    title: "Scenic\nRoutes",
+    title: "Cung đường\nThơ mộng",
     sub: "Tìm kiếm tuyến đường đẹp nhất và an toàn nhất cho những chuyến phượt ngoại ô.",
   },
   {
     img: "https://images.pexels.com/photos/33501215/pexels-photo-33501215.jpeg",
     badge: "Phố Cổ Hội An",
-    title: "Vibrant\nCulture",
+    title: "Văn hóa\nSôi động",
     sub: "Không bỏ lỡ đêm hội hoa đăng, phố lồng đèn và các hoạt động văn hóa đặc sắc.",
   },
 ];
@@ -62,7 +63,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5001/api/auth/login", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -79,7 +80,7 @@ export default function Login() {
           localStorage.setItem("pending_user_email", data.email);
 
           // Chuyển hướng ngay sang trang xác minh mã 2FA
-          window.location.href = "/verify-2fa";
+          window.location.href = `${import.meta.env.BASE_URL}verify-2fa`;
           return; // Dừng hàm lại ở đây
         }
         // =======================================================================
@@ -93,11 +94,11 @@ export default function Login() {
           localStorage.setItem("user", JSON.stringify(data.user));
         }
 
-        // ✅ Redirect dựa trên role
+        // ✅ Redirect dựa trên role, giữ lại query parameters (như ?share=TOKEN)
         if (data.role === "admin") {
-          window.location.href = "/admin/dashboard"; // ← Admin dashboard
+          window.location.href = `${import.meta.env.BASE_URL}admin/dashboard${window.location.search}`; // ← Admin dashboard
         } else {
-          window.location.href = "/dashboard"; // ← User dashboard
+          window.location.href = `${import.meta.env.BASE_URL}dashboard${window.location.search}`; // ← User dashboard
         }
       } else {
         setErrorMsg(data.message || "Email hoặc mật khẩu không chính xác!");
@@ -118,18 +119,18 @@ export default function Login() {
       <div className="auth-left">
         <div className="auth-left-inner">
           {/* Logo */}
-          <a href="/" className="auth-logo">
+          <Link to="/" className="auth-logo">
             <div className="auth-logo-icon">
               <Navigation size={20} color="#fff" />
             </div>
             <span className="auth-logo-text">
               DaNang <span>EventMap</span>
             </span>
-          </a>
+          </Link>
 
-          <h1 className="auth-heading">Welcome back 👋</h1>
+          <h1 className="auth-heading">Chào mừng quay trở lại 👋</h1>
           <p className="auth-subheading">
-            Sign in to your account to continue exploring.
+            Đăng nhập tài khoản của bạn để tiếp tục khám phá.
           </p>
 
           {/* Error Message */}
@@ -171,7 +172,7 @@ export default function Login() {
 
             {/* Password Input */}
             <div className="form-group">
-              <label className="form-label">Password</label>
+              <label className="form-label">Mật khẩu</label>
               <div className="input-wrapper">
                 <span className="input-icon">
                   <Lock size={17} />
@@ -200,11 +201,11 @@ export default function Login() {
             <div className="form-row">
               <label className="remember-label">
                 <input type="checkbox" id="remember-me" />
-                Remember me
+                Ghi nhớ đăng nhập
               </label>
-              <a href="/forgot-password" className="link-forgot">
-                Forgot password?
-              </a>
+              <Link to="/forgot-password" className="link-forgot">
+                Quên mật khẩu?
+              </Link>
             </div>
 
             {/* Submit Button */}
@@ -217,12 +218,12 @@ export default function Login() {
                 cursor: loading ? "not-allowed" : "pointer",
               }}
             >
-              {loading ? "Signing In..." : "Sign In"}
+              {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
           </form>
 
           {/* ================= PHẦN CHỈ THÊM MỚI TẠI ĐÂY ================= */}
-          <div className="divider">Or sign in with Google</div>
+          <div className="divider">Hoặc đăng nhập với Google</div>
           <div
             style={{
               display: "flex",
@@ -236,7 +237,7 @@ export default function Login() {
                 try {
                   setLoading(true);
                   const res = await fetch(
-                    "http://localhost:5001/api/auth/google",
+                    `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/auth/google`,
                     {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -254,7 +255,9 @@ export default function Login() {
                       localStorage.setItem("user", JSON.stringify(data.user));
                     }
                     window.location.href =
-                      data.role === "admin" ? "/admin/dashboard" : "/dashboard";
+                      data.role === "admin"
+                        ? `${import.meta.env.BASE_URL}admin/dashboard${window.location.search}`
+                        : `${import.meta.env.BASE_URL}dashboard${window.location.search}`;
                   } else {
                     setErrorMsg(data.message || "Đăng nhập Google thất bại");
                   }
@@ -273,7 +276,7 @@ export default function Login() {
 
           {/* Sign Up Link */}
           <p className="auth-bottom-text">
-            Don't have an account? <a href="/register">Sign up</a>
+            Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
           </p>
         </div>
       </div>

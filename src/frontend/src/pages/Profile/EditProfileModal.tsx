@@ -20,7 +20,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
         if (isOpen) {
             setUsername(currentUsername);
             setAvatarFile(null);
-            setPreviewUrl(currentAvatar); // Hiển thị ảnh cũ nếu có
+            const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+            const fullAvatarUrl = currentAvatar ? (currentAvatar.startsWith('http') || currentAvatar.startsWith('data:') ? currentAvatar : `${apiBase}${currentAvatar}`) : '';
+            setPreviewUrl(fullAvatarUrl); // Hiển thị ảnh cũ nếu có
             setError('');
         }
     }, [isOpen, currentUsername, currentAvatar]);
@@ -46,14 +48,25 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
         try {
             const token = localStorage.getItem('token');
             
-            // ✅ SỬA Ở ĐÂY: Dùng object JSON thông thường thay vì FormData
-            const payload = {
+            let base64Avatar: string | null = null;
+            if (avatarFile) {
+                base64Avatar = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(avatarFile);
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = (error) => reject(error);
+                });
+            }
+
+            const payload: any = {
                 username: username
-                // Tạm thời chưa gửi avatarFile vì Backend chưa cấu hình thư viện nhận File (như multer).
-                // Ảnh vẫn có thể xem trước ở Frontend, nhưng chỉ có tên là được lưu vào Database.
             };
 
-            const response = await fetch('http://localhost:5001/api/user/profile', {
+            if (base64Avatar) {
+                payload.avatar = base64Avatar;
+            }
+
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/user/profile`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json', // ✅ BẮT BUỘC CÓ DÒNG NÀY
@@ -117,7 +130,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
                             />
                         </label>
                         <span style={{fontSize: '10px', color: '#9ca3af', marginTop: '4px'}}>
-                            (Tạm thời tính năng lưu ảnh đang vô hiệu hóa)
+                            (Hỗ trợ định dạng JPEG, PNG, WEBP)
                         </span>
                     </div>
 

@@ -20,26 +20,31 @@ const MENU_ITEMS = [
     { id: 'flood', label: 'Ngập lụt', icon: Waves, count: 2 },
     { id: 'closure', label: 'Cấm đường', icon: RouteOff, count: 5 },
     { id: 'users', label: 'Quản lý tài khoản', icon: Users }, // <--- MỤC MỚI
-    { id: 'settings', label: 'Cài đặt', icon: Settings },
 ];
 
 interface AdminLayoutProps {
     activeMenu: string;
     setActiveMenu: (menu: string) => void;
     children?: React.ReactNode;
+    counts?: {
+        events?: number;
+        flood?: number;
+        closure?: number;
+        traffic?: number;
+    };
 }
 
-export default function AdminLayout({ activeMenu, setActiveMenu, children }: AdminLayoutProps) {
+export default function AdminLayout({ activeMenu, setActiveMenu, children, counts }: AdminLayoutProps) {
     
     const handleLogout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('userRole');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        window.location.href = `${import.meta.env.BASE_URL}login`;
     };
 
     const handleBackToApp = () => {
-        window.location.href = '/dashboard';
+        window.location.href = `${import.meta.env.BASE_URL}dashboard`;
     };
 
     return (
@@ -69,6 +74,10 @@ export default function AdminLayout({ activeMenu, setActiveMenu, children }: Adm
                     {MENU_ITEMS.map((item) => {
                         const Icon = item.icon;
                         const isActive = activeMenu === item.id;
+                        
+                        const displayCount = counts && item.id in counts
+                            ? counts[item.id as keyof typeof counts]
+                            : item.count;
 
                         return (
                             <button
@@ -85,9 +94,9 @@ export default function AdminLayout({ activeMenu, setActiveMenu, children }: Adm
                                 </div>
 
                                 {/* Badge số lượng */}
-                                {item.count && item.count > 0 && (
+                                {displayCount !== undefined && displayCount > 0 && (
                                     <span className="bg-red-500/90 text-white text-[11px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                                        {item.count}
+                                        {displayCount}
                                     </span>
                                 )}
                             </button>

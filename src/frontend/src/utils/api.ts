@@ -39,7 +39,7 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('userRole');
-      window.location.href = '/login';
+      window.location.href = `${import.meta.env.BASE_URL}login`;
       toast.error('Phiên đăng nhập đã hết hạn');
     } else if (error.response?.status === 403) {
       toast.error('Bạn không có quyền truy cập');

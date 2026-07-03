@@ -27,6 +27,7 @@ interface POIFeaturedSidebarProps {
     selectedFilter: string | null;
     onPOIClick: (poi: POIData) => void;
     onDirectionsClick: (poi: POIData) => void;
+    hasRoute?: boolean;
 }
 
 // Component sao đánh giá
@@ -63,6 +64,7 @@ export default function POIFeaturedSidebar({
     selectedFilter,
     onPOIClick,
     onDirectionsClick,
+    hasRoute = false,
 }: POIFeaturedSidebarProps) {
     const [isVisible, setIsVisible] = useState(true);
 
@@ -114,8 +116,8 @@ export default function POIFeaturedSidebar({
                 </button>
             </div>
 
-            {/* Danh sách cuộn — tối đa 3.5 card hiển thị cùng lúc */}
-            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent" style={{ maxHeight: '260px' }}>
+            {/* Danh sách cuộn */}
+            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent" style={{ maxHeight: hasRoute ? '180px' : '480px' }}>
                 {filteredPois.map((poi, idx) => (
                     <div
                         key={poi.poi_id}

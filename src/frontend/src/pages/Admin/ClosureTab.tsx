@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { RouteOff, Plus, Trash2, Calendar, Clock, AlertCircle, Sparkles, RefreshCw, Edit2 } from 'lucide-react';
+import { RouteOff, Plus, Trash2, Calendar, Clock, AlertCircle, Sparkles, RefreshCw, Edit2, AlertTriangle } from 'lucide-react';
 import { RoadClosure, DBEvent } from './types';
 import { eventRoadService } from '../../services/eventRoadService';
 import toast from 'react-hot-toast';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 interface Props {
     roadClosures: RoadClosure[];
@@ -27,6 +28,42 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
     const [showStartSuggestions, setShowStartSuggestions] = useState(false);
     const [showEndSuggestions, setShowEndSuggestions] = useState(false);
     const [focusField, setFocusField] = useState<'start' | 'end' | null>(null);
+
+    // Custom confirm modal state
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        onCancel: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        onCancel: () => {}
+    });
+
+    const showCustomConfirm = (
+        title: string,
+        message: string,
+        onConfirm: () => void,
+        onCancel: () => void = () => {}
+    ) => {
+        setConfirmModal({
+            isOpen: true,
+            title,
+            message,
+            onConfirm: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onConfirm();
+            },
+            onCancel: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                onCancel();
+            }
+        });
+    };
     const [generatingPath, setGeneratingPath] = useState(false);
 
     // Fetch start suggestions
@@ -133,15 +170,19 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
     });
 
     const handleDelete = async (id: number) => {
-        if (window.confirm('Bạn có chắc chắn muốn xóa tuyến đường hạn chế này không?')) {
-            try {
-                await eventRoadService.deleteEventRoad(id);
-                toast.success('Xóa đường cấm thành công!');
-                onRefresh();
-            } catch (err: any) {
-                toast.error('Không thể xóa: ' + err.message);
+        showCustomConfirm(
+            'Xác nhận xóa',
+            'Bạn có chắc chắn muốn xóa tuyến đường hạn chế này không?',
+            async () => {
+                try {
+                    await eventRoadService.deleteEventRoad(id);
+                    showPremiumToast('Xóa đường cấm thành công!', 'success');
+                    onRefresh();
+                } catch (err: any) {
+                    showPremiumToast('Không thể xóa: ' + err.message, 'error');
+                }
             }
-        }
+        );
     };
 
     const handleCloseModal = () => {
@@ -174,7 +215,7 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
             const data = await eventRoadService.getEventRoads();
             const originalRoad = data.find(r => r.road_id === id);
             if (!originalRoad) {
-                alert('Không tìm thấy thông tin chi tiết của tuyến đường cấm này.');
+                showPremiumToast('Không tìm thấy thông tin chi tiết của tuyến đường cấm này.', 'error');
                 return;
             }
 
@@ -194,7 +235,7 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
             setEditingId(id);
             setShowAddModal(true);
         } catch (err: any) {
-            alert('Không thể tải chi tiết tuyến đường cấm: ' + err.message);
+            showPremiumToast('Không thể tải chi tiết tuyến đường cấm: ' + err.message, 'error');
         }
     };
 
@@ -246,17 +287,17 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
 
             if (editingId) {
                 await eventRoadService.updateEventRoad(editingId, roadData);
-                toast.success('Cập nhật đường cấm thành công!');
+                showPremiumToast('Cập nhật đường cấm thành công!', 'success');
             } else {
                 await eventRoadService.createEventRoad(roadData);
-                toast.success('Đăng ký đường cấm thành công!');
+                showPremiumToast('Đăng ký đường cấm thành công!', 'success');
             }
 
             handleCloseModal();
             onRefresh();
         } catch (err: any) {
             setError(err.message || 'Lỗi khi lưu thông tin cấm đường.');
-            toast.error(err.message || 'Lỗi khi lưu thông tin cấm đường.');
+            showPremiumToast(err.message || 'Lỗi khi lưu thông tin cấm đường.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -328,7 +369,7 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                     ...prev,
                     geojson_coords: JSON.stringify(snappedCoords)
                 }));
-                alert(`Căn chỉnh thành công! Đã lấy ${snappedCoords.length} điểm tọa độ khớp với đường đi thực tế trên bản đồ.`);
+                showPremiumToast(`Căn chỉnh thành công! Đã lấy ${snappedCoords.length} điểm tọa độ khớp với bản đồ.`, 'success');
             } else {
                 throw new Error(data.message || 'Không tìm thấy tuyến đường đi qua các điểm này.');
             }
@@ -445,19 +486,26 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                                 <div className="grid grid-cols-2 gap-4 pt-1">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 mb-1.5">Sự kiện kích hoạt *</label>
-                                        <select
-                                            value={formData.event_id}
-                                            onChange={e => setFormData(prev => ({ ...prev, event_id: e.target.value }))}
-                                            className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
-                                            required
-                                        >
-                                            <option value="">-- Chọn sự kiện --</option>
-                                            {events.map(evt => (
-                                                <option key={evt.event_id} value={evt.event_id}>
-                                                    {evt.title} ({evt.status === 'approved' ? 'Đã duyệt' : 'Chờ duyệt'})
-                                                </option>
-                                            ))}
-                                        </select>
+                                        <div className="relative">
+                                            <select
+                                                value={formData.event_id}
+                                                onChange={e => setFormData(prev => ({ ...prev, event_id: e.target.value }))}
+                                                className="w-full text-xs font-semibold pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 appearance-none cursor-pointer"
+                                                required
+                                            >
+                                                <option value="">-- Chọn sự kiện --</option>
+                                                {events.map(evt => (
+                                                    <option key={evt.event_id} value={evt.event_id}>
+                                                        {evt.title} ({evt.status === 'approved' ? 'Đã duyệt' : 'Chờ duyệt'})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div>
@@ -476,16 +524,23 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                                 <div className="grid grid-cols-3 gap-4">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-500 mb-1.5">Kiểu hạn chế</label>
-                                        <select
-                                            value={formData.restriction_type}
-                                            onChange={e => setFormData(prev => ({ ...prev, restriction_type: e.target.value }))}
-                                            className="w-full text-xs font-semibold px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
-                                        >
-                                            <option value="CLOSED">Cấm hoàn toàn (CLOSED)</option>
-                                            <option value="LIMITED">Hạn chế đi lại (LIMITED)</option>
-                                            <option value="ONE_WAY">Đường một chiều (ONE_WAY)</option>
-                                            <option value="NO_PARKING">Cấm đỗ xe (NO_PARKING)</option>
-                                        </select>
+                                        <div className="relative">
+                                            <select
+                                                value={formData.restriction_type}
+                                                onChange={e => setFormData(prev => ({ ...prev, restriction_type: e.target.value }))}
+                                                className="w-full text-xs font-semibold pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 appearance-none cursor-pointer"
+                                            >
+                                                <option value="CLOSED">Cấm hoàn toàn (CLOSED)</option>
+                                                <option value="LIMITED">Hạn chế đi lại (LIMITED)</option>
+                                                <option value="ONE_WAY">Đường một chiều (ONE_WAY)</option>
+                                                <option value="NO_PARKING">Cấm đỗ xe (NO_PARKING)</option>
+                                            </select>
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
+                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div>
@@ -713,6 +768,48 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+            {/* CUSTOM CONFIRM MODAL DIALOG */}
+            {confirmModal.isOpen && (
+                <div 
+                    style={{
+                        animation: 'fadeIn 250ms ease-out forwards'
+                    }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
+                >
+                    <div 
+                        style={{
+                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+                        }}
+                        className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full mx-4 text-left font-sans"
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-red-50 text-red-500">
+                                <AlertTriangle size={20} />
+                            </span>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                                {confirmModal.title}
+                            </h3>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mb-6 leading-relaxed whitespace-pre-line">
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={confirmModal.onCancel}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                onClick={confirmModal.onConfirm}
+                                className="px-5 py-2 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl shadow-md shadow-red-100 transition-all"
+                            >
+                                Xác nhận
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

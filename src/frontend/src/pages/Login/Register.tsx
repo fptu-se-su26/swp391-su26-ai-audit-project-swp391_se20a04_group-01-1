@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Eye, EyeOff, User, Lock, Mail, UserCircle, Navigation, MapPin, CheckCircle } from 'lucide-react';
 import { authAPI } from '../../services/api';
+import { showPremiumToast } from '../../utils/toastUtils';
 
 // ── Right panel slides ─────────────────────────────────────────────────
 const slides = [
   {
     img: 'https://images.pexels.com/photos/34373624/pexels-photo-34373624.jpeg',
     badge: 'Cầu Rồng · Đà Nẵng',
-    title: 'Iconic\nLandmark',
+    title: 'Địa danh\nBiểu tượng',
     sub: 'Chiêm ngưỡng toàn cảnh Cầu Rồng vươn mình tráng lệ từ trên cao và không bỏ lỡ các sự kiện đôi bờ sông Hàn.',
   },
   {
     img: 'https://images.pexels.com/photos/36761634/pexels-photo-36761634.jpeg',
     badge: 'Thành phố Đà Nẵng',
-    title: 'City of\nLights',
+    title: 'Thành phố\nÁnh sáng',
     sub: 'Thu trọn vẻ đẹp lung linh của thành phố vào tầm mắt và khám phá những tuyến phố đi bộ nhộn nhịp về đêm.',
   }
 ];
@@ -29,7 +31,7 @@ function getStrength(pw: string): 0 | 1 | 2 | 3 | 4 {
   return score as 0 | 1 | 2 | 3 | 4;
 }
 
-const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+const strengthLabels = ['', 'Yếu', 'Trung bình', 'Khá', 'Mạnh'];
 const strengthColors = ['', '#EF4444', '#F59E0B', '#10B981', '#059669'];
 const segmentClass = ['', 'weak', 'fair', 'good', 'strong'];
 
@@ -79,8 +81,8 @@ export default function Register() {
       // Sử dụng authAPI từ file api.ts
       await authAPI.register(form.username, form.email, form.password);
       
-      alert('Tạo tài khoản thành công! Hãy đăng nhập nhé.');
-      window.location.href = '/login';
+      showPremiumToast('Tạo tài khoản thành công! Hãy đăng nhập nhé.', 'success');
+      window.location.href = `${import.meta.env.BASE_URL}login`;
 } catch (err: any) {
       console.error(err);
       // Lấy câu thông báo lỗi từ backend trả về
@@ -109,9 +111,9 @@ export default function Register() {
             </span>
           </div>
           {/* Heading */}
-          <h1 className="auth-heading animate-fade-up delay-1">Create account ✨</h1>
+          <h1 className="auth-heading animate-fade-up delay-1">Tạo tài khoản ✨</h1>
           <p className="auth-subheading animate-fade-up delay-2">
-            Join thousands exploring events and smart navigation.
+            Tham gia cùng hàng ngàn người khám phá sự kiện và định vị thông minh.
           </p>
 
           {/* Khung báo lỗi màu đỏ nếu đăng ký thất bại */}
@@ -125,14 +127,14 @@ export default function Register() {
           <form onSubmit={handleRegister}>
             {/* Username */}
             <div className="form-group animate-fade-up delay-2">
-              <label className="form-label" htmlFor="reg-username">Username</label>
+              <label className="form-label" htmlFor="reg-username">Tên đăng nhập</label>
               <div className="input-wrapper">
                 <span className="input-icon"><User size={17} strokeWidth={2} /></span>
                 <input
                   id="reg-username"
                   type="text"
                   className="form-input"
-                  placeholder="e.g. johndoe123"
+                  placeholder="Ví dụ: johndoe123"
                   value={form.username}
                   onChange={set('username')}
                   autoComplete="username"
@@ -143,14 +145,14 @@ export default function Register() {
 
             {/* Email */}
             <div className="form-group animate-fade-up delay-2">
-              <label className="form-label" htmlFor="reg-email">Email Address</label>
+              <label className="form-label" htmlFor="reg-email">Địa chỉ Email</label>
               <div className="input-wrapper">
                 <span className="input-icon"><Mail size={17} strokeWidth={2} /></span>
                 <input
                   id="reg-email"
                   type="email"
                   className="form-input"
-                  placeholder="you@example.com"
+                  placeholder="name@example.com"
                   value={form.email}
                   onChange={set('email')}
                   autoComplete="email"
@@ -161,14 +163,14 @@ export default function Register() {
 
             {/* Full name */}
             <div className="form-group animate-fade-up delay-3">
-              <label className="form-label" htmlFor="reg-fullname">Full Name</label>
+              <label className="form-label" htmlFor="reg-fullname">Họ và tên</label>
               <div className="input-wrapper">
                 <span className="input-icon"><UserCircle size={17} strokeWidth={2} /></span>
                 <input
                   id="reg-fullname"
                   type="text"
                   className="form-input"
-                  placeholder="John Doe"
+                  placeholder="Nguyễn Văn A"
                   value={form.fullName}
                   onChange={set('fullName')}
                   autoComplete="name"
@@ -179,14 +181,14 @@ export default function Register() {
 
             {/* Password */}
             <div className="form-group animate-fade-up delay-3">
-              <label className="form-label" htmlFor="reg-password">Password</label>
+              <label className="form-label" htmlFor="reg-password">Mật khẩu</label>
               <div className="input-wrapper">
                 <span className="input-icon"><Lock size={17} strokeWidth={2} /></span>
                 <input
                   id="reg-password"
                   type={showPw ? 'text' : 'password'}
                   className="form-input"
-                  placeholder="Min 8 characters"
+                  placeholder="Tối thiểu 8 ký tự"
                   value={form.password}
                   onChange={set('password')}
                   autoComplete="new-password"
@@ -196,7 +198,7 @@ export default function Register() {
                   type="button"
                   className="input-suffix-btn"
                   onClick={() => setShowPw(v => !v)}
-                  aria-label={showPw ? 'Hide' : 'Show'}
+                  aria-label={showPw ? 'Ẩn' : 'Hiện'}
                 >
                   {showPw ? <EyeOff size={17} strokeWidth={2} /> : <Eye size={17} strokeWidth={2} />}
                 </button>
@@ -226,14 +228,14 @@ export default function Register() {
 
             {/* Confirm password */}
             <div className="form-group animate-fade-up delay-4">
-              <label className="form-label" htmlFor="reg-confirm">Confirm Password</label>
+              <label className="form-label" htmlFor="reg-confirm">Xác nhận mật khẩu</label>
               <div className="input-wrapper">
                 <span className="input-icon"><Lock size={17} strokeWidth={2} /></span>
                 <input
-id="reg-confirm"
+                  id="reg-confirm"
                   type={showConfirm ? 'text' : 'password'}
                   className="form-input"
-                  placeholder="Re-enter password"
+                  placeholder="Nhập lại mật khẩu"
                   value={form.confirmPassword}
                   onChange={set('confirmPassword')}
                   autoComplete="new-password"
@@ -246,7 +248,7 @@ id="reg-confirm"
                   type="button"
                   className="input-suffix-btn"
                   onClick={() => setShowConfirm(v => !v)}
-                  aria-label={showConfirm ? 'Hide' : 'Show'}
+                  aria-label={showConfirm ? 'Ẩn' : 'Hiện'}
                 >
                   {showConfirm ? <EyeOff size={17} strokeWidth={2} /> : <Eye size={17} strokeWidth={2} />}
                 </button>
@@ -268,7 +270,7 @@ id="reg-confirm"
               </div>
               {pwMismatch && (
                 <p style={{ fontSize: '0.75rem', color: '#EF4444', marginTop: '0.25rem' }}>
-                  Passwords do not match
+                  Mật khẩu nhập lại không khớp
                 </p>
               )}
             </div>
@@ -281,14 +283,14 @@ id="reg-confirm"
               disabled={loading}
               style={{ marginTop: '0.5rem', opacity: loading ? 0.7 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
             >
-              {loading ? 'Creating Account...' : 'Create Account'}
+              {loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản'}
             </button>
           </form>
 
           {/* Bottom link */}
           <p className="auth-bottom-text animate-fade-up delay-6">
-            Already have an account?{' '}
-            <a href="/login">Sign in</a>
+            Đã có tài khoản?{' '}
+            <Link to="/login">Đăng nhập</Link>
           </p>
         </div>
       </div>
@@ -311,7 +313,7 @@ id="reg-confirm"
         >
           <div className="stat-card" style={{ minWidth: 'auto' }}>
             <div className="stat-value">50K+</div>
-<div className="stat-label">Active Users</div>
+            <div className="stat-label">Người Dùng Hoạt Động</div>
           </div>
         </div>
 
@@ -346,9 +348,9 @@ id="reg-confirm"
             }}
           >
             {[
-              'Real-time flood & traffic alerts',
-              'Smart multi-route navigation',
-              'City event discovery & notifications',
+              'Cảnh báo ngập lụt & giao thông thời gian thực',
+              'Định tuyến thông minh đa lộ trình',
+              'Khám phá & nhận thông báo sự kiện thành phố',
             ].map(f => (
               <div
                 key={f}

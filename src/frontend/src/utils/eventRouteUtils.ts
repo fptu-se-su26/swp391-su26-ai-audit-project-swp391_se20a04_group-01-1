@@ -136,6 +136,7 @@ export async function findSafeEventRoute(
   interface CandidateRoute {
     route: any;
     crossedCount: number;
+    crossedScore: number;
     crossed: EventRoad[];
     name: string;
   }
@@ -148,13 +149,17 @@ export async function findSafeEventRoute(
   for (let i = 0; i < initialRoutes.length; i++) {
     const r = initialRoutes[i];
     const crossed = getBlockedRoadsForRoute(r.geometry.coordinates, eventRoads, origin, destination);
+    // Điểm phạt: Cấm hoàn toàn (CLOSED) phạt nặng 1000 điểm, hạn chế (LIMITED/ONE_WAY) phạt nhẹ 1 điểm
+    const crossedScore = crossed.reduce((sum, road) => sum + (road.restriction_type === 'CLOSED' ? 1000 : 1), 0);
+    
     candidates.push({
       route: r,
       crossedCount: crossed.length,
+      crossedScore: crossedScore,
       crossed: crossed,
       name: `Lộ trình mặc định ${i + 1}`
     });
-    if (crossed.length === 0) {
+    if (crossedScore === 0) {
       foundSafeRoute = true;
     }
   }
@@ -204,6 +209,7 @@ export async function findSafeEventRoute(
         const key = `${pt[0].toFixed(5)},${pt[1].toFixed(5)}`;
         if (!seen.has(key)) {
           seen.add(key);
+          seen.add(key);
           uniqueWaypoints.push(pt);
         }
       }
@@ -226,10 +232,12 @@ export async function findSafeEventRoute(
           for (let i = 0; i < detourData.routes.length; i++) {
             const detourRoute = detourData.routes[i];
             const crossed = getBlockedRoadsForRoute(detourRoute.geometry.coordinates, eventRoads, origin, destination);
+            const crossedScore = crossed.reduce((sum, road) => sum + (road.restriction_type === 'CLOSED' ? 1000 : 1), 0);
 
             candidates.push({
               route: detourRoute,
               crossedCount: crossed.length,
+              crossedScore: crossedScore,
               crossed: crossed,
               name: `${set.name} (Lộ trình tránh ${i + 1})`
             });
@@ -242,11 +250,11 @@ export async function findSafeEventRoute(
   }
 
   // Sắp xếp các phương án lộ trình ứng viên:
-  // 1. Ưu tiên lộ trình đi qua ít đoạn đường cấm nhất
+  // 1. Ưu tiên lộ trình có điểm phạt crossedScore thấp nhất (tránh đường cấm CLOSED trước, hạn chế LIMITED sau)
   // 2. Ưu tiên lộ trình có thời gian di chuyển ngắn nhất
   candidates.sort((a, b) => {
-    if (a.crossedCount !== b.crossedCount) {
-      return a.crossedCount - b.crossedCount;
+    if (a.crossedScore !== b.crossedScore) {
+      return a.crossedScore - b.crossedScore;
     }
     return a.route.duration - b.route.duration;
   });
@@ -257,10 +265,24 @@ export async function findSafeEventRoute(
     selectedRoute = bestCandidate.route;
     blockedRoads = bestCandidate.crossed;
 
-    if (bestCandidate.crossedCount > 0) {
-      alertMsg = `Cảnh báo: Không tìm thấy lộ trình hoàn toàn sạch cấm đường. Tuyến đi vẫn giao cắt với: ${bestCandidate.crossed.map(r => r.road_name).join(', ')}`;
+    const crossedClosed = bestCandidate.crossed.filter(r => r.restriction_type === 'CLOSED');
+    const crossedRestricted = bestCandidate.crossed.filter(r => r.restriction_type !== 'CLOSED');
+
+    if (crossedClosed.length > 0) {
+      alertMsg = `⚠️ CẢNH BÁO NGUY HIỂM: Tuyến đi bắt buộc phải đi qua ĐƯỜNG CẤM HOÀN TOÀN: ${crossedClosed.map(r => r.road_name).join(', ')} do sự kiện "${crossedClosed[0].event_title || 'Sự kiện'}". Vui lòng chọn lộ trình khác!`;
+      if (crossedRestricted.length > 0) {
+        alertMsg += ` Tuyến đi cũng đi qua các đoạn hạn chế: ${crossedRestricted.map(r => r.road_name).join(', ')}.`;
+      }
+    } else if (crossedRestricted.length > 0) {
+      alertMsg = `⚠️ Cảnh báo: Tuyến đường đi qua khu vực HẠN CHẾ DI CHUYỂN: ${crossedRestricted.map(r => r.road_name).join(', ')} do sự kiện "${crossedRestricted[0].event_title || 'Sự kiện'}". Vui lòng chú ý biển báo điều phối giao thông!`;
     } else if (originalBlockedList.length > 0) {
-      alertMsg = `Tuyến đường mặc định đi qua khu vực cấm đường do sự kiện: ${originalBlockedList.map(r => r.road_name).join(', ')}. Hệ thống đã tự động điều hướng đi vòng.`;
+      const origClosed = originalBlockedList.filter(r => r.restriction_type === 'CLOSED');
+      const origRestricted = originalBlockedList.filter(r => r.restriction_type !== 'CLOSED');
+      if (origClosed.length > 0) {
+        alertMsg = `✅ Hệ thống đã tự động điều hướng đi vòng để tránh đoạn ĐƯỜNG CẤM: ${origClosed.map(r => r.road_name).join(', ')}.`;
+      } else {
+        alertMsg = `✅ Hệ thống đã tự động tìm lộ trình tối ưu tránh đoạn đường HẠN CHẾ DI CHUYỂN: ${origRestricted.map(r => r.road_name).join(', ')}.`;
+      }
     }
   }
 

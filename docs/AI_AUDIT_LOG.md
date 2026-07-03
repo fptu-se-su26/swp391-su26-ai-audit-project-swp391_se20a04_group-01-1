@@ -2,18 +2,18 @@
 
 ## 1. Thông tin chung
 
-| Thông tin | Nội dung |
-|---|---|
-| Môn học |  |
-| Mã môn học |  |
-| Lớp |  |
-| Học kỳ |  |
-| Tên bài tập / Project |  |
-| Tên sinh viên / Nhóm |  |
-| MSSV / Danh sách MSSV |  |
-| Giảng viên hướng dẫn |  |
-| Ngày bắt đầu |  |
-| Ngày hoàn thành |  |
+| Thông tin             | Nội dung |
+| --------------------- | -------- |
+| Môn học               |          |
+| Mã môn học            |          |
+| Lớp                   |          |
+| Học kỳ                |          |
+| Tên bài tập / Project |          |
+| Tên sinh viên / Nhóm  |          |
+| MSSV / Danh sách MSSV |          |
+| Giảng viên hướng dẫn  |          |
+| Ngày bắt đầu          |          |
+| Ngày hoàn thành       |          |
 
 ---
 
@@ -54,12 +54,12 @@ Ví dụ:
 
 ### Mô tả mục tiêu sử dụng AI
 
-```text
+````text
 Viết tại đây...
 
 ## 4. Nhật ký sử dụng AI chi tiết
 
-> Mỗi lần sử dụng AI cho một phần quan trọng của bài tập/project, sinh viên cần ghi lại theo mẫu bên dưới.  
+> Mỗi lần sử dụng AI cho một phần quan trọng của bài tập/project, sinh viên cần ghi lại theo mẫu bên dưới.
 > Sinh viên/nhóm có thể nhân bản mẫu “Lần sử dụng AI” nhiều lần tùy theo số lần sử dụng AI thực tế.
 
 ---
@@ -78,7 +78,7 @@ Viết tại đây...
 
 ```text
 Dán nguyên văn prompt đã hỏi AI tại đây.
-```
+````
 
 #### 4.2. Kết quả AI gợi ý
 
@@ -106,14 +106,14 @@ Viết tại đây...
 
 #### 4.5. Minh chứng
 
-| Loại minh chứng | Nội dung |
-|---|---|
-| Link commit |  |
-| File liên quan |  |
-| Screenshot |  |
-| Kết quả chạy/test |  |
-| Link video demo |  |
-| Ghi chú khác |  |
+| Loại minh chứng   | Nội dung |
+| ----------------- | -------- |
+| Link commit       |          |
+| File liên quan    |          |
+| Screenshot        |          |
+| Kết quả chạy/test |          |
+| Link video demo   |          |
+| Ghi chú khác      |          |
 
 #### 4.6. Nhận xét cá nhân/nhóm
 
@@ -127,13 +127,13 @@ Viết tại đây...
 
 ### Lần sử dụng AI số 2
 
-| Nội dung | Thông tin |
-|---|---|
-| Ngày sử dụng |  |
-| Công cụ AI | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác |
-| Mục đích sử dụng |  |
+| Nội dung            | Thông tin                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| Ngày sử dụng        |                                                                                                        |
+| Công cụ AI          | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác                               |
+| Mục đích sử dụng    |                                                                                                        |
 | Phần việc liên quan | Requirement / Design / Database / Frontend / Backend / Testing / Debug / Report / Presentation / Other |
-| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung |
+| Mức độ sử dụng      | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung                                  |
 
 #### 4.1. Prompt đã sử dụng
 
@@ -161,14 +161,14 @@ Viết tại đây...
 
 #### 4.5. Minh chứng
 
-| Loại minh chứng | Nội dung |
-|---|---|
-| Link commit |  |
-| File liên quan |  |
-| Screenshot |  |
-| Kết quả chạy/test |  |
-| Link video demo |  |
-| Ghi chú khác |  |
+| Loại minh chứng   | Nội dung |
+| ----------------- | -------- |
+| Link commit       |          |
+| File liên quan    |          |
+| Screenshot        |          |
+| Kết quả chạy/test |          |
+| Link video demo   |          |
+| Ghi chú khác      |          |
 
 #### 4.6. Nhận xét cá nhân/nhóm
 
@@ -180,13 +180,13 @@ Viết tại đây...
 
 ### Lần sử dụng AI số 3
 
-| Nội dung | Thông tin |
-|---|---|
-| Ngày sử dụng |  |
-| Công cụ AI | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác |
-| Mục đích sử dụng |  |
+| Nội dung            | Thông tin                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------ |
+| Ngày sử dụng        |                                                                                                        |
+| Công cụ AI          | ChatGPT / Gemini / Claude / GitHub Copilot / Cursor / Antigravity / Khác                               |
+| Mục đích sử dụng    |                                                                                                        |
 | Phần việc liên quan | Requirement / Design / Database / Frontend / Backend / Testing / Debug / Report / Presentation / Other |
-| Mức độ sử dụng | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung |
+| Mức độ sử dụng      | Hỗ trợ ý tưởng / Hỗ trợ một phần / Hỗ trợ nhiều / Sinh chính nội dung                                  |
 
 #### 4.1. Prompt đã sử dụng
 
@@ -214,14 +214,14 @@ Viết tại đây...
 
 #### 4.5. Minh chứng
 
-| Loại minh chứng | Nội dung |
-|---|---|
-| Link commit |  |
-| File liên quan |  |
-| Screenshot |  |
-| Kết quả chạy/test |  |
-| Link video demo |  |
-| Ghi chú khác |  |
+| Loại minh chứng   | Nội dung |
+| ----------------- | -------- |
+| Link commit       |          |
+| File liên quan    |          |
+| Screenshot        |          |
+| Kết quả chạy/test |          |
+| Link video demo   |          |
+| Ghi chú khác      |          |
 
 #### 4.6. Nhận xét cá nhân/nhóm
 
@@ -235,21 +235,21 @@ Viết tại đây...
 
 Đánh dấu mức độ AI hỗ trợ ở từng hạng mục.
 
-| Hạng mục | Không dùng AI | AI hỗ trợ ít | AI hỗ trợ nhiều | AI sinh chính | Ghi chú |
-|---|:---:|:---:|:---:|:---:|---|
-| Phân tích yêu cầu |  |  |  |  |  |
-| Viết user story/use case |  |  |  |  |  |
-| Thiết kế database |  |  |  |  |  |
-| Thiết kế kiến trúc hệ thống |  |  |  |  |  |
-| Thiết kế giao diện |  |  |  |  |  |
-| Code frontend |  |  |  |  |  |
-| Code backend |  |  |  |  |  |
-| Debug lỗi |  |  |  |  |  |
-| Viết test case |  |  |  |  |  |
-| Kiểm thử sản phẩm |  |  |  |  |  |
-| Tối ưu code |  |  |  |  |  |
-| Viết báo cáo |  |  |  |  |  |
-| Làm slide thuyết trình |  |  |  |  |  |
+| Hạng mục                    | Không dùng AI | AI hỗ trợ ít | AI hỗ trợ nhiều | AI sinh chính | Ghi chú |
+| --------------------------- | :-----------: | :----------: | :-------------: | :-----------: | ------- |
+| Phân tích yêu cầu           |               |              |                 |               |         |
+| Viết user story/use case    |               |              |                 |               |         |
+| Thiết kế database           |               |              |                 |               |         |
+| Thiết kế kiến trúc hệ thống |               |              |                 |               |         |
+| Thiết kế giao diện          |               |              |                 |               |         |
+| Code frontend               |               |              |                 |               |         |
+| Code backend                |               |              |                 |               |         |
+| Debug lỗi                   |               |              |                 |               |         |
+| Viết test case              |               |              |                 |               |         |
+| Kiểm thử sản phẩm           |               |              |                 |               |         |
+| Tối ưu code                 |               |              |                 |               |         |
+| Viết báo cáo                |               |              |                 |               |         |
+| Làm slide thuyết trình      |               |              |                 |               |         |
 
 ---
 
@@ -258,10 +258,10 @@ Viết tại đây...
 Ghi lại các trường hợp AI trả lời sai, thiếu, chưa phù hợp hoặc sinh code không chạy.
 
 | STT | Lỗi/hạn chế từ AI | Cách phát hiện | Cách xử lý/cải tiến |
-|---:|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
+| --: | ----------------- | -------------- | ------------------- |
+|   1 |                   |                |                     |
+|   2 |                   |                |                     |
+|   3 |                   |                |                     |
 
 ---
 
@@ -303,11 +303,11 @@ Viết tại đây...
 ### 8.2. Đối với bài nhóm
 
 | Thành viên | MSSV | Nhiệm vụ chính | Có sử dụng AI không? | Minh chứng đóng góp |
-|---|---|---|---|---|
-|  |  |  | Có / Không |  |
-|  |  |  | Có / Không |  |
-|  |  |  | Có / Không |  |
-|  |  |  | Có / Không |  |
+| ---------- | ---- | -------------- | -------------------- | ------------------- |
+|            |      |                | Có / Không           |                     |
+|            |      |                | Có / Không           |                     |
+|            |      |                | Có / Không           |                     |
+|            |      |                | Có / Không           |                     |
 
 ---
 
@@ -362,5 +362,5 @@ Sinh viên/nhóm cam kết rằng:
 - Hiểu rằng việc sử dụng AI không khai báo có thể ảnh hưởng đến kết quả đánh giá.
 
 | Đại diện sinh viên/nhóm | Ngày xác nhận |
-|---|---|
-|  |  |
+| ----------------------- | ------------- |
+|                         |               |
