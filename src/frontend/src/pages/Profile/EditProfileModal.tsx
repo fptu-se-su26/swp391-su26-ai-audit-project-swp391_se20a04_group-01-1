@@ -31,8 +31,22 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
+            
+            // 1. Kiểm tra loại file ở client
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!validTypes.includes(file.type)) {
+                setError('Chỉ hỗ trợ file ảnh định dạng JPG, PNG, WEBP.');
+                return;
+            }
+
+            // 2. Kiểm tra dung lượng ở client (2MB)
+            if (file.size > 2 * 1024 * 1024) {
+                setError('Dung lượng ảnh tối đa là 2MB.');
+                return;
+            }
+
+            setError(''); // Xóa lỗi nếu file hợp lệ
             setAvatarFile(file);
-            // Tạo URL tạm thời để xem trước ảnh
             setPreviewUrl(URL.createObjectURL(file));
         }
     };

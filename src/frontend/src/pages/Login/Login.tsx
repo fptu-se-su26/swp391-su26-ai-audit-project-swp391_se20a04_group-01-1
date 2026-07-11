@@ -3,6 +3,7 @@ import { Eye, EyeOff, Mail, Lock, MapPin, Navigation } from "lucide-react";
 import { Link } from "react-router-dom";
 // CHỈ THÊM IMPORT NÀY:
 import { GoogleLogin } from "@react-oauth/google";
+import { showPremiumToast } from "../../utils/toastUtils";
 
 const slides = [
   {
@@ -101,6 +102,18 @@ export default function Login() {
           window.location.href = `${import.meta.env.BASE_URL}dashboard${window.location.search}`; // ← User dashboard
         }
       } else {
+        // 🔴 THAY ĐỔI: Kiểm tra requiresEmailVerification
+        if (data.requiresEmailVerification) {
+          showPremiumToast(
+            "Vui lòng xác minh email trước khi đăng nhập.",
+            "warning"
+          );
+
+          window.location.href =
+            `${import.meta.env.BASE_URL}verify-otp?email=${encodeURIComponent(email)}`;
+
+          return;
+        }
         setErrorMsg(data.message || "Email hoặc mật khẩu không chính xác!");
       }
     } catch (err) {

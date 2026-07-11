@@ -10,8 +10,16 @@ import Map, {
   Popup,
 } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { io } from 'socket.io-client';
+import { io } from "socket.io-client";
 
+import { useNavigationEngine } from "./hooks/useNavigationEngine";
+import {
+  calculateDistanceInMeters,
+  getMinDistanceToPolylineMeters,
+} from "../../utils/polylineHelper"; // Import từ file dùng chung
+import BottomSheet from "./components/BottomSheet";
+import { useMediaQuery } from "./hooks/useMediaQuery";
+import { useVoiceGuidance } from "./hooks/useVoiceGuidance";
 import { eventRoadService, EventRoad } from "../../services/eventRoadService";
 import { findSafeEventRoute } from "../../utils/eventRouteUtils";
 import { usePreferenceStore } from "../../store/preferenceStore";
@@ -62,7 +70,7 @@ import {
   savedRouteService,
   SavedRoute,
 } from "../../services/savedRouteService";
-import { useMapRouting } from "./hooks/useMapRouting";
+import { useMapRouting, RouteData } from "./hooks/useMapRouting";
 import { useFloodZones } from "./hooks/useFloodZones";
 import { useEventRoads } from "./hooks/useEventRoads";
 import { useUserLocation } from "./hooks/useUserLocation";
@@ -163,10 +171,23 @@ function getCirclePolygon(
 }
 
 export default function Home() {
+  // Dùng chung cho toàn bộ quyết định render Sidebar (panel) hay BottomSheet (mobile)
+  const isMobile = useMediaQuery("(max-width: 768px)");
+
+  const [currentPos, setCurrentPos] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+
   // KHOẢNG KHAI BÁO STATE VÀ REFS BẮT BUỘC PHẢI Ở TRONG COMPONENT
   const mapRef = useRef<MapRef>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const watchPositionId = useRef<number | null>(null);
+
+  const { speak } = useVoiceGuidance();
+  const isReroutingRef = useRef(false);
+  const offRouteStartTimeRef = useRef<number | null>(null); // Dùng để debounce 5s khi lệch đường
+  const routeDataRef = useRef<RouteData | null>(null); // Luôn giữ bản routeData mới nhất cho watchPosition
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -191,56 +212,71 @@ export default function Home() {
 
   // Quản lý trạng thái mở rộng/thu nhỏ của WeatherWidget
   const [isWeatherExpanded, setIsWeatherExpanded] = useState<boolean>(() => {
-    return localStorage.getItem('weather_widget_collapsed') !== 'true';
+    return localStorage.getItem("weather_widget_collapsed") !== "true";
   });
 
   const handleToggleWeather = () => {
     const nextState = !isWeatherExpanded;
     setIsWeatherExpanded(nextState);
-    localStorage.setItem('weather_widget_collapsed', (!nextState).toString());
+    localStorage.setItem("weather_widget_collapsed", (!nextState).toString());
   };
 
   // States cho Chế độ Tiết kiệm băng thông & Ngoại tuyến
   const [isLowBandwidth, setIsLowBandwidth] = useState<boolean>(() => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
-    return typeof localStorage !== 'undefined' && localStorage.getItem('low_bandwidth_mode') === 'true';
+    if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+    return (
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem("low_bandwidth_mode") === "true"
+    );
   });
-  const [isOffline, setIsOffline] = useState<boolean>(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [isOffline, setIsOffline] = useState<boolean>(() =>
+    typeof navigator !== "undefined" ? !navigator.onLine : false,
+  );
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      showPremiumToast('Đã khôi phục kết nối mạng internet.', 'success');
+      showPremiumToast("Đã khôi phục kết nối mạng internet.", "success");
     };
     const handleOffline = () => {
       setIsOffline(true);
       setIsLowBandwidth(true);
-      showPremiumToast('Mất kết nối mạng. Đã chuyển sang chế độ Ngoại tuyến khẩn cấp.', 'warning');
+      showPremiumToast(
+        "Mất kết nối mạng. Đã chuyển sang chế độ Ngoại tuyến khẩn cấp.",
+        "warning",
+      );
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     const conn = (navigator as any).connection;
     if (conn) {
       const checkConnectionSpeed = () => {
-        if (conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g' || conn.effectiveType === '3g') {
+        if (
+          conn.effectiveType === "2g" ||
+          conn.effectiveType === "slow-2g" ||
+          conn.effectiveType === "3g"
+        ) {
           setIsLowBandwidth(true);
-          showPremiumToast('Phát hiện sóng di động yếu (2G/3G). Đã tự động kích hoạt Tiết kiệm băng thông.', 'info');
+          showPremiumToast(
+            "Phát hiện sóng di động yếu (2G/3G). Đã tự động kích hoạt Tiết kiệm băng thông.",
+            "info",
+          );
         }
       };
-      conn.addEventListener('change', checkConnectionSpeed);
+      conn.addEventListener("change", checkConnectionSpeed);
       checkConnectionSpeed();
       return () => {
-        window.removeEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
-        conn.removeEventListener('change', checkConnectionSpeed);
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+        conn.removeEventListener("change", checkConnectionSpeed);
       };
     }
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
@@ -254,7 +290,8 @@ export default function Home() {
   useEffect(() => {
     return () => {
       if (socketRef.current) socketRef.current.disconnect();
-      if (shareWatchId.current !== null) navigator.geolocation.clearWatch(shareWatchId.current);
+      if (shareWatchId.current !== null)
+        navigator.geolocation.clearWatch(shareWatchId.current);
     };
   }, []);
 
@@ -268,7 +305,7 @@ export default function Home() {
       return;
     }
     if (!navigator.geolocation) {
-      showPremiumToast('Thiết bị không hỗ trợ định vị GPS.', 'error');
+      showPremiumToast("Thiết bị không hỗ trợ định vị GPS.", "error");
       setIsSharingLocation(false);
       return;
     }
@@ -276,16 +313,16 @@ export default function Home() {
       (position) => {
         const { latitude, longitude, heading } = position.coords;
         if (socketRef.current && socketRef.current.connected) {
-          socketRef.current.emit('update-location', {
+          socketRef.current.emit("update-location", {
             shareToken: liveShareToken,
             lat: latitude,
             lng: longitude,
-            heading: heading || 0
+            heading: heading || 0,
           });
         }
       },
-      (err) => console.error('❌ [Share GPS] Lỗi định vị:', err),
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+      (err) => console.error("❌ [Share GPS] Lỗi định vị:", err),
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 },
     );
     return () => {
       if (shareWatchId.current !== null) {
@@ -442,7 +479,51 @@ export default function Home() {
     isLowBandwidth,
     isOffline,
   });
+  useEffect(() => {
+    routeDataRef.current = routeData;
+  }, [routeData]);
+  useEffect(() => {
+    if (isReroutingRef.current && routeData) {
+      console.log("[Reroute] Đã có tuyến đường mới.");
+      speak("Đã tính lại lộ trình mới.");
+      isReroutingRef.current = false;
+    }
+  }, [routeData]);
+  // 4. GIỜ MỚI TÍNH TOÁN routeSteps (Sử dụng routeData từ useMapRouting ở trên)
+  const routeSteps = routeData?.steps || [];
 
+  // Kiểm tra vị trí hiện tại có đang trong vùng ngập sâu không
+  const isNearFloodZone = useMemo(() => {
+    if (!currentPos || !floodZones?.length) return false;
+    const zone = findFloodZoneContainingPoint(
+      [currentPos.lng, currentPos.lat],
+      floodZones,
+    );
+    return !!zone && zone.depthCm > 10;
+  }, [currentPos, floodZones]);
+
+  // Kiểm tra vị trí hiện tại có đang gần đường bị hạn chế do sự kiện không
+  const isNearRestrictedEvent = useMemo(() => {
+    if (!currentPos || !activeOrSelectedEventRoads?.length) return false;
+    return activeOrSelectedEventRoads.some((road) => {
+      if (!["CLOSED", "LIMITED", "ONE_WAY"].includes(road.restriction_type)) {
+        return false;
+      }
+      return road.geojson_coords?.some(
+        ([lng, lat]) =>
+          calculateDistanceInMeters(currentPos.lat, currentPos.lng, lat, lng) <
+          50,
+      );
+    });
+  }, [currentPos, activeOrSelectedEventRoads]);
+
+  // Gọi Hook
+  useNavigationEngine(
+    currentPos,
+    routeSteps,
+    isNearFloodZone,
+    isNearRestrictedEvent,
+  );
   // CÁC HÀM XỬ LÝ DẪN ĐƯỜNG (NAVIGATION)
   const handleStartNavigation = () => {
     if (!navigator.geolocation) {
@@ -450,14 +531,49 @@ export default function Home() {
       return;
     }
 
+    speak("Bắt đầu dẫn đường. Hãy chú ý quan sát an toàn."); // <-- THÊM LẠI DÒNG NÀY
+
     if (watchPositionId.current !== null) return;
     setIsNavigating(true);
 
     watchPositionId.current = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, heading } = position.coords;
-        // Nếu bạn có hàm setUserLocation từ useUserLocation, bạn có thể gọi ở đây
-        // setUserLocation({ lat: latitude, lng: longitude });
+        setUserLocation({ lat: latitude, lng: longitude });
+        setCurrentPos({ lat: latitude, lng: longitude });
+
+        const currentRoute = routeDataRef.current; // luôn là bản mới nhất
+
+        if (
+          currentRoute &&
+          currentRoute.coordinates &&
+          currentRoute.coordinates.length > 0
+        ) {
+          const distanceToRoute = getMinDistanceToPolylineMeters(
+            latitude,
+            longitude,
+            currentRoute.coordinates,
+          );
+          const isNearRoute = distanceToRoute <= 50;
+
+          if (!isNearRoute) {
+            if (!offRouteStartTimeRef.current) {
+              offRouteStartTimeRef.current = Date.now();
+            } else if (Date.now() - offRouteStartTimeRef.current > 5000) {
+              console.log("[Reroute] Lệch tuyến quá 5s, đang tính lại...");
+              isReroutingRef.current = true;
+              setOrigin({
+                lng: longitude,
+                lat: latitude,
+                label: "Vị trí hiện tại của bạn",
+              });
+              setOriginQuery("Vị trí hiện tại của bạn");
+              offRouteStartTimeRef.current = null;
+            }
+          } else {
+            offRouteStartTimeRef.current = null;
+          }
+        }
 
         mapRef.current?.flyTo({
           center: [longitude, latitude],
@@ -471,11 +587,7 @@ export default function Home() {
         console.error(err);
         showPremiumToast("Không thể lấy GPS.", "error");
       },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000,
-      },
+      { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 },
     );
   };
 
@@ -568,53 +680,75 @@ export default function Home() {
   };
 
   const handleToggleShareLocation = async () => {
-    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+    const token =
+      localStorage.getItem("token") || localStorage.getItem("auth_token");
     if (!token) {
-      showPremiumToast('Vui lòng đăng nhập để sử dụng tính năng chia sẻ vị trí.', 'error');
+      showPremiumToast(
+        "Vui lòng đăng nhập để sử dụng tính năng chia sẻ vị trí.",
+        "error",
+      );
       return;
     }
     if (isSharingLocation) {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5001";
         const res = await fetch(`${apiUrl}/api/location/stop`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ share_token: liveShareToken })
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ share_token: liveShareToken }),
         });
         const data = await res.json();
         if (data.success) {
           setIsSharingLocation(false);
           setLiveShareToken(null);
-          if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
-          showPremiumToast('Đã dừng chia sẻ vị trí trực tiếp.', 'success');
+          if (socketRef.current) {
+            socketRef.current.disconnect();
+            socketRef.current = null;
+          }
+          showPremiumToast("Đã dừng chia sẻ vị trí trực tiếp.", "success");
         } else {
-          showPremiumToast(data.message || 'Lỗi dừng chia sẻ.', 'error');
+          showPremiumToast(data.message || "Lỗi dừng chia sẻ.", "error");
         }
       } catch (err) {
-        showPremiumToast('Lỗi kết nối máy chủ.', 'error');
+        showPremiumToast("Lỗi kết nối máy chủ.", "error");
       }
     } else {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+        const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5001";
         const res = await fetch(`${apiUrl}/api/location/share`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
         });
         const data = await res.json();
         if (data.success && data.share_token) {
           const shareToken = data.share_token;
           setLiveShareToken(shareToken);
           socketRef.current = io(apiUrl);
-          socketRef.current.on('connect', () => { socketRef.current.emit('join-session', { shareToken }); });
+          socketRef.current.on("connect", () => {
+            socketRef.current.emit("join-session", { shareToken });
+          });
           setIsSharingLocation(true);
           const shareLink = `${window.location.origin}/track/${shareToken}`;
           navigator.clipboard.writeText(shareLink);
-          showPremiumToast(`Đã bật chia sẻ vị trí trực tiếp! Link theo dõi đã được sao chép: ${shareLink}`, 'success', 6000);
+          showPremiumToast(
+            `Đã bật chia sẻ vị trí trực tiếp! Link theo dõi đã được sao chép: ${shareLink}`,
+            "success",
+            6000,
+          );
         } else {
-          showPremiumToast(data.message || 'Lỗi khởi tạo chia sẻ vị trí.', 'error');
+          showPremiumToast(
+            data.message || "Lỗi khởi tạo chia sẻ vị trí.",
+            "error",
+          );
         }
       } catch (err) {
-        showPremiumToast('Lỗi kết nối máy chủ.', 'error');
+        showPremiumToast("Lỗi kết nối máy chủ.", "error");
       }
     }
   };
@@ -1707,7 +1841,11 @@ export default function Home() {
           }}
           interactiveLayerIds={["flood-zones-fill"]}
           style={{ width: "100%", height: "100%" }}
-          mapStyle={isLowBandwidth ? "mapbox://styles/mapbox/light-v11" : "mapbox://styles/mapbox/streets-v12"}
+          mapStyle={
+            isLowBandwidth
+              ? "mapbox://styles/mapbox/light-v11"
+              : "mapbox://styles/mapbox/streets-v12"
+          }
           mapboxAccessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
         >
           <NavigationControl position="bottom-right" showCompass={true} />
@@ -2372,82 +2510,100 @@ export default function Home() {
       <div className="absolute top-6 left-6 right-6 z-10 flex items-start justify-between gap-4 pointer-events-none">
         <div className="relative pointer-events-auto shrink-0 flex flex-col gap-2 max-h-[calc(100vh-80px)]">
           {!isNavigating && (
-              <>
-                <RoutePanel
-                  viewMode={viewMode}
-                  destination={destination}
-                  origin={origin}
-                  originQuery={originQuery}
-                  destinationQuery={destinationQuery}
-                  showSuggestions={showSuggestions}
-                  suggestions={suggestions}
-                  routeData={routeData}
-                  avoidFlood={avoidFlood}
-                  avoidCongestion={avoidCongestion}
-                  routeAlertMessage={routeAlertMessage}
-                  travelMode={travelMode}
-                  isSharingRoute={isSharingRoute}
-                  searchContainerRef={searchContainerRef}
-                  countdown={countdown}
-                  setDestinationQuery={setDestinationQuery}
-                  setOriginQuery={setOriginQuery}
-                  setActiveInputField={setActiveInputField}
-                  setShowSuggestions={setShowSuggestions}
-                  handleSwapLocations={handleSwapLocations}
-                  handleSelectSuggestion={handleSelectSuggestion}
-                  setAvoidFlood={setAvoidFlood}
-                  setAvoidCongestion={setAvoidCongestion}
-                  setTravelMode={setTravelMode}
-                  setShowSaveRouteModal={setShowSaveRouteModal}
-                  handleShareRoute={handleShareRoute}
-                  setRouteData={setRouteData}
-                  setDestination={setDestination}
-                  setOrigin={setOrigin}
-                  setRouteAlertMessage={setRouteAlertMessage}
-                  setConfirmedFloodZoneIds={setConfirmedFloodZoneIds}
-                  onStartNavigation={handleStartNavigation}
-                  // TRUYỀN ĐẦY ĐỦ 2 PROPS NÀY VÀO TẤT CẢ CÁC NƠI GỌI ROUTEPANEL:
-                  favoriteEventIds={favoriteEventIds}
-                  onToggleEventFavorite={async (eventId: number) => {
-                    const eventObj = events.find((e) => e.event_id === eventId);
-                    if (eventObj) {
-                      await handleFavoriteEventToggle(eventObj);
-                      return !favoriteEventIds.has(eventId);
-                    }
-                    return false;
-                  }}
-                />
-                {viewMode === "pois" ? (
-                  <>
-                    {selectedFilter !== null && (
-                      <POIFeaturedSidebar
-                        pois={pois}
-                        selectedFilter={selectedFilter}
-                        onPOIClick={handlePOIClick}
-                        onDirectionsClick={(poi) => {
-                          setDestination({
-                            lng: poi.longitude,
-                            lat: poi.latitude,
-                            label: poi.name,
-                            poi_id: poi.poi_id,
+            <>
+              <RoutePanel
+                viewMode={viewMode}
+                destination={destination}
+                origin={origin}
+                originQuery={originQuery}
+                destinationQuery={destinationQuery}
+                showSuggestions={showSuggestions}
+                suggestions={suggestions}
+                routeData={routeData}
+                avoidFlood={avoidFlood}
+                avoidCongestion={avoidCongestion}
+                routeAlertMessage={routeAlertMessage}
+                travelMode={travelMode}
+                isSharingRoute={isSharingRoute}
+                searchContainerRef={searchContainerRef}
+                countdown={countdown}
+                setDestinationQuery={setDestinationQuery}
+                setOriginQuery={setOriginQuery}
+                setActiveInputField={setActiveInputField}
+                setShowSuggestions={setShowSuggestions}
+                handleSwapLocations={handleSwapLocations}
+                handleSelectSuggestion={handleSelectSuggestion}
+                setAvoidFlood={setAvoidFlood}
+                setAvoidCongestion={setAvoidCongestion}
+                setTravelMode={setTravelMode}
+                setShowSaveRouteModal={setShowSaveRouteModal}
+                handleShareRoute={handleShareRoute}
+                setRouteData={setRouteData}
+                setDestination={setDestination}
+                setOrigin={setOrigin}
+                setRouteAlertMessage={setRouteAlertMessage}
+                setConfirmedFloodZoneIds={setConfirmedFloodZoneIds}
+                onStartNavigation={handleStartNavigation}
+                // TRUYỀN ĐẦY ĐỦ 2 PROPS NÀY VÀO TẤT CẢ CÁC NƠI GỌI ROUTEPANEL:
+                favoriteEventIds={favoriteEventIds}
+                onToggleEventFavorite={async (eventId: number) => {
+                  const eventObj = events.find((e) => e.event_id === eventId);
+                  if (eventObj) {
+                    await handleFavoriteEventToggle(eventObj);
+                    return !favoriteEventIds.has(eventId);
+                  }
+                  return false;
+                }}
+              />
+              {viewMode === "pois" ? (
+                <>
+                  {selectedFilter !== null && (
+                    <POIFeaturedSidebar
+                      pois={pois}
+                      selectedFilter={selectedFilter}
+                      onPOIClick={handlePOIClick}
+                      onDirectionsClick={(poi) => {
+                        setDestination({
+                          lng: poi.longitude,
+                          lat: poi.latitude,
+                          label: poi.name,
+                          poi_id: poi.poi_id,
+                        });
+                        setDestinationQuery(poi.name);
+                        if (userLocation) {
+                          setOrigin({
+                            lng: userLocation.lng,
+                            lat: userLocation.lat,
+                            label: "Vị trí của bạn",
                           });
-                          setDestinationQuery(poi.name);
-                          if (userLocation) {
-                            setOrigin({
-                              lng: userLocation.lng,
-                              lat: userLocation.lat,
-                              label: "Vị trí của bạn",
-                            });
-                            setOriginQuery("Vị trí của bạn");
-                          }
-                        }}
-                        hasRoute={!!routeData}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {!destination && showEventsSidebar && (
+                          setOriginQuery("Vị trí của bạn");
+                        }
+                      }}
+                      hasRoute={!!routeData}
+                    />
+                  )}
+                </>
+              ) : (
+                <>
+                  {!destination &&
+                    showEventsSidebar &&
+                    (isMobile ? (
+                      <BottomSheet
+                        isOpen={true}
+                        onClose={() => setShowEventsSidebar(false)}
+                        snapPoints={[25, 50, 90]}
+                        initialSnapIndex={1}
+                      >
+                        <EventsSidebar
+                          events={events}
+                          categories={eventCategories}
+                          onEventClick={handleEventClick}
+                          onClose={() => setShowEventsSidebar(false)}
+                          hasRoute={!!routeData}
+                          variant="sheet"
+                        />
+                      </BottomSheet>
+                    ) : (
                       <EventsSidebar
                         events={events}
                         categories={eventCategories}
@@ -2455,11 +2611,11 @@ export default function Home() {
                         onClose={() => setShowEventsSidebar(false)}
                         hasRoute={!!routeData}
                       />
-                    )}
-                  </>
-                )}
-              </>
-            )}
+                    ))}
+                </>
+              )}
+            </>
+          )}
         </div>
 
         {/* Các nút Filters */}
@@ -2630,7 +2786,7 @@ export default function Home() {
           onToggleLowBandwidth={() => {
             const val = !isLowBandwidth;
             setIsLowBandwidth(val);
-            localStorage.setItem('low_bandwidth_mode', val.toString());
+            localStorage.setItem("low_bandwidth_mode", val.toString());
           }}
         />
       )}
@@ -2964,7 +3120,10 @@ export default function Home() {
         isCollapsed={!isWeatherExpanded}
         onToggleCollapse={(collapsed) => {
           setIsWeatherExpanded(!collapsed);
-          localStorage.setItem('weather_widget_collapsed', collapsed.toString());
+          localStorage.setItem(
+            "weather_widget_collapsed",
+            collapsed.toString(),
+          );
         }}
         isLowBandwidth={isLowBandwidth}
         isOffline={isOffline}
@@ -2972,22 +3131,52 @@ export default function Home() {
 
       {/* Offline / Low-Bandwidth status banner */}
       {isOffline ? (
-        <div style={{
-          position: 'absolute', top: '84px', left: '50%', transform: 'translateX(-50%)', zIndex: 999,
-          backgroundColor: 'rgba(254, 243, 199, 0.95)', border: '1px solid #f59e0b', color: '#d97706',
-          padding: '8px 24px', borderRadius: '30px', fontSize: '12px', fontWeight: 'bold',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(4px)'
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            top: "84px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 999,
+            backgroundColor: "rgba(254, 243, 199, 0.95)",
+            border: "1px solid #f59e0b",
+            color: "#d97706",
+            padding: "8px 24px",
+            borderRadius: "30px",
+            fontSize: "12px",
+            fontWeight: "bold",
+            boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            backdropFilter: "blur(4px)",
+          }}
+        >
           <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
           ⚠️ Mất mạng — Đang ở chế độ Ngoại tuyến khẩn cấp
         </div>
       ) : isLowBandwidth ? (
-        <div style={{
-          position: 'absolute', top: '84px', left: '50%', transform: 'translateX(-50%)', zIndex: 999,
-          backgroundColor: 'rgba(239, 246, 255, 0.95)', border: '1px solid #3b82f6', color: '#1d4ed8',
-          padding: '8px 24px', borderRadius: '30px', fontSize: '12px', fontWeight: 'bold',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(4px)'
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            top: "84px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 999,
+            backgroundColor: "rgba(239, 246, 255, 0.95)",
+            border: "1px solid #3b82f6",
+            color: "#1d4ed8",
+            padding: "8px 24px",
+            borderRadius: "30px",
+            fontSize: "12px",
+            fontWeight: "bold",
+            boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            backdropFilter: "blur(4px)",
+          }}
+        >
           <span className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
           ⚡ Đang kích hoạt chế độ Tiết kiệm băng thông (Low-Bandwidth)
         </div>
