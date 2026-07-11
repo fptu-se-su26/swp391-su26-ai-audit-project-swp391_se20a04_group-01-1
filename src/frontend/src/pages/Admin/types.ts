@@ -57,6 +57,7 @@ export interface ManageUser {
     role: string;
     is_active: boolean;
     ban_reason?: string;
+    avatar_url?: string;
 }
 
 export interface EventFormData {

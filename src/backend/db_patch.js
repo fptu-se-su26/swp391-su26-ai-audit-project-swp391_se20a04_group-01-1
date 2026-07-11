@@ -5,6 +5,24 @@ async function runPatch() {
         console.log('Connecting to database...');
         const pool = await poolPromise;
         
+        // 🔴 THÊM MỚI: Kiểm tra và thêm cột is_email_verified vào Users table
+        console.log('Checking Users table for is_email_verified column...');
+        const checkEmailVerifiedQuery = `
+            IF NOT EXISTS (
+                SELECT * FROM sys.columns 
+                WHERE object_id = OBJECT_ID('Users') AND name = 'is_email_verified'
+            )
+            BEGIN
+                ALTER TABLE Users ADD is_email_verified BIT NOT NULL DEFAULT 0;
+                PRINT 'Added is_email_verified column to Users table';
+            END
+            ELSE
+            BEGIN
+                PRINT 'is_email_verified column already exists';
+            END
+        `;
+        await pool.request().query(checkEmailVerifiedQuery);
+
         console.log('Checking UsersPreferences table...');
         const checkPreferencesQuery = `
             IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UsersPreferences')

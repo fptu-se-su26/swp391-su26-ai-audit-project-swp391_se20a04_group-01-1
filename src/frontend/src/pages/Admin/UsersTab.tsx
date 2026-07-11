@@ -28,54 +28,81 @@ export default function UsersTab({
                     <p className="text-xs text-slate-400 mb-6">Danh sách người dùng đăng ký ứng dụng. Cho phép Admin khóa/mở khóa tài khoản vi phạm chính sách.</p>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                    <th className="py-3 px-4">User</th>
-                                    <th className="py-3 px-4">Email</th>
-                                    <th className="py-3 px-4">Vai trò</th>
-                                    <th className="py-3 px-4 text-center">Hành động</th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-xs font-medium text-slate-700 divide-y divide-slate-100">
-                                {adminUsers?.map((user) => (
-                                    <tr key={user.user_id} className="hover:bg-slate-50/50 transition">
-                                        <td className="py-3 px-4">
-                                            <div className="flex flex-col text-left">
-                                                <span className="font-bold text-slate-800">{user.username}</span>
-                                                {user.ban_reason && (
-                                                    <span className="text-[10px] text-red-500 font-semibold mt-0.5">Lý do khóa: {user.ban_reason}</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4 text-slate-500 text-left">{user.email}</td>
-                                        <td className="py-3 px-4 text-left">
-                                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
-                                                {user.role}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4 text-center">
-                                            {user.role === 'admin' ? (
-                                                <span className="text-[10px] text-slate-400 font-medium italic">Không thể khóa Admin</span>
-                                            ) : user.is_active ? (
-                                                <button
-                                                    onClick={() => { setUserToBan(user); setBanReason(''); setShowBanModal(true); }}
-                                                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold transition"
-                                                >
-                                                    Khóa (Ban)
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleUnbanUser(user.user_id)}
-                                                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg font-bold transition"
-                                                >
-                                                    Mở khóa
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+    <thead>
+        <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            <th className="py-3 px-4 w-12 text-center">Ảnh</th>
+            <th className="py-3 px-4">Người dùng</th>
+            <th className="py-3 px-4">Email</th>
+            <th className="py-3 px-4">Vai trò</th>
+            <th className="py-3 px-4 text-center">Hành động</th>
+        </tr>
+    </thead>
+    <tbody className="text-xs font-medium text-slate-700 divide-y divide-slate-100">
+        {adminUsers?.map((user) => (
+            <tr key={user.user_id} className="hover:bg-slate-50/50 transition">
+                {/* 1. Cột Ảnh */}
+                <td className="py-3 px-4 text-center">
+                    {user.avatar_url ? (
+                        <img 
+                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}${user.avatar_url}`} 
+                            alt={user.username}
+                            className="w-9 h-9 rounded-full object-cover border border-slate-200 mx-auto"
+                            onError={(e) => {
+                                // Nếu ảnh lỗi, hiển thị ảnh mặc định
+                                (e.target as HTMLImageElement).src = 'https://ui-avatars.com/api/?name=' + user.username + '&background=random';
+                            }}
+                        />
+                    ) : (
+                        <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 text-xs font-bold mx-auto">
+                            {user.username.charAt(0).toUpperCase()}
+                        </div>
+                    )}
+                </td>
+
+                {/* 2. Cột Người dùng */}
+                <td className="py-3 px-4">
+                    <div className="flex flex-col text-left">
+                        <span className="font-bold text-slate-800">{user.username}</span>
+                        {user.ban_reason && (
+                            <span className="text-[10px] text-red-500 font-semibold mt-0.5">Lý do khóa: {user.ban_reason}</span>
+                        )}
+                    </div>
+                </td>
+
+                {/* 3. Cột Email */}
+                <td className="py-3 px-4 text-slate-500 text-left">{user.email}</td>
+
+                {/* 4. Cột Vai trò */}
+                <td className="py-3 px-4 text-left">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'}`}>
+                        {user.role}
+                    </span>
+                </td>
+
+                {/* 5. Cột Hành động */}
+                <td className="py-3 px-4 text-center">
+                    {user.role === 'admin' ? (
+                        <span className="text-[10px] text-slate-400 font-medium italic">Không thể khóa Admin</span>
+                    ) : user.is_active ? (
+                        <button
+                            onClick={() => { setUserToBan(user); setBanReason(''); setShowBanModal(true); }}
+                            className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold transition"
+                        >
+                            Khóa (Ban)
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => handleUnbanUser(user.user_id)}
+                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 border border-emerald-200 rounded-lg font-bold transition"
+                        >
+                            Mở khóa
+                        </button>
+                    )}
+                </td>
+            </tr>
+        ))}
+    </tbody>
+</table>
                     </div>
                 </div>
             </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, X } from 'lucide-react';
+import PasswordChecklist from '../../components/PasswordChecklist';
 
 interface ChangePasswordModalProps {
     isOpen: boolean;
@@ -311,6 +312,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
                                 }}>
                                     Độ mạnh: {strengthLabels[strength]}
                                 </p>
+                                <PasswordChecklist password={newPassword} />
                             </div>
                         )}
                     </div>
