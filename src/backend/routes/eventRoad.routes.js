@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { sql, poolPromise } = require('../db');
-
+const { authenticateToken, authorizeRole } = require('../middleware/auth');
 const parseTimeToDate = (timeStr) => {
     if (!timeStr) return null;
     const parts = timeStr.split(':').map(Number);
@@ -128,7 +128,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/event-roads - Thêm mới một đoạn đường cấm/hạn chế
-router.post("/", async (req, res) => {
+router.post("/", authenticateToken, authorizeRole('admin'), async (req, res) => {
     try {
         const {
             event_id,
@@ -187,7 +187,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/event-roads/:id - Cập nhật thông tin đường cấm/hạn chế
-router.put("/:id", async (req, res) => {
+router.put("/:id", authenticateToken, authorizeRole('admin'), async (req, res) => {
     try {
         const { id } = req.params;
         const {
@@ -257,7 +257,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE /api/event-roads/:id - Xóa đường cấm/hạn chế
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authenticateToken, authorizeRole('admin'), async (req, res) => {
     try {
         const { id } = req.params;
         const pool = await poolPromise;

@@ -4,7 +4,8 @@ const isValidEmail = (email) => {
 };
 
 const isValidPassword = (password) => {
-    return password && password.length >= 6;
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/;
+    return regex.test(password);
 };
 
 const checkBanStatus = (user) => {

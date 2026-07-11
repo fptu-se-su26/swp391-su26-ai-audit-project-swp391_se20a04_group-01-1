@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Eye, EyeOff, User, Lock, Mail, UserCircle, Navigation, MapPin, CheckCircle } from 'lucide-react';
 import { authAPI } from '../../services/api';
 import { showPremiumToast } from '../../utils/toastUtils';
+import PasswordChecklist from '../../components/PasswordChecklist';
 
 // ── Right panel slides ─────────────────────────────────────────────────
 const slides = [
@@ -66,35 +67,57 @@ export default function Register() {
     setForm(f => ({ ...f, [k]: e.target.value }));
 
   // ── LOGIC GỌI API ĐĂNG KÝ ──────────────────────────────────────────
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault(); 
-    setErrorMsg('');
+const handleRegister = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setErrorMsg('');
 
-    if (pwMismatch) {
-      setErrorMsg('Mật khẩu nhập lại không khớp!');
-      return;
-    }
+  if (pwMismatch) {
+    setErrorMsg('Mật khẩu nhập lại không khớp!');
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      // Sử dụng authAPI từ file api.ts
-      await authAPI.register(form.username, form.email, form.password);
-      
-      showPremiumToast('Tạo tài khoản thành công! Hãy đăng nhập nhé.', 'success');
+  try {
+    // Nếu backend yêu cầu fullName thì truyền thêm form.fullName
+    // Nếu chưa thì giữ 3 tham số như hiện tại.
+    const res = await authAPI.register(
+      form.username,
+      form.email,
+      form.password
+      // form.fullName
+    );
+
+    // Backend mới trả về requiresEmailVerification
+    if (res.data?.requiresEmailVerification) {
+      showPremiumToast(
+        'Tạo tài khoản thành công! Vui lòng kiểm tra email để xác minh.',
+        'success'
+      );
+
+      window.location.href = `${
+        import.meta.env.BASE_URL
+      }verify-otp?email=${encodeURIComponent(form.email)}`;
+    } else {
+      showPremiumToast(
+        'Tạo tài khoản thành công! Hãy đăng nhập nhé.',
+        'success'
+      );
+
       window.location.href = `${import.meta.env.BASE_URL}login`;
-} catch (err: any) {
-      console.error(err);
-      // Lấy câu thông báo lỗi từ backend trả về
-      if (err.response && err.response.data && err.response.data.message) {
-        setErrorMsg(err.response.data.message);
-      } else {
-        setErrorMsg('Không thể kết nối đến máy chủ. Vui lòng thử lại!');
-      }
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (err: any) {
+    console.error(err);
+
+    if (err.response?.data?.message) {
+      setErrorMsg(err.response.data.message);
+    } else {
+      setErrorMsg('Không thể kết nối đến máy chủ.');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="auth-wrapper">
@@ -222,6 +245,7 @@ export default function Register() {
                   }}>
                     {strengthLabels[strength]}
                   </p>
+                  <PasswordChecklist password={form.password} />
                 </div>
               )}
             </div>

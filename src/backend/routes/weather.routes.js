@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const weatherClient = require('../utils/weatherClient');
 const { runWeatherAlertJob } = require('../schedulerService');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, authorizeRole } = require('../middleware/auth');
 
 // GET /api/weather/current - Lấy thời tiết hiện tại của tất cả các quận tại Đà Nẵng
 router.get('/current', async (req, res) => {
@@ -32,7 +32,10 @@ router.get('/current', async (req, res) => {
 
 // POST /api/admin/weather/simulate - Giả lập thời tiết cho một quận (Admin/Dev)
 // Hỗ trợ kiểm thử mà không cần đăng nhập token (hoặc có thể dùng authenticateToken nếu cần, nhưng để tiện kiểm thử nhanh thì cho phép gọi hoặc check Admin)
-router.post('/simulate', async (req, res) => {
+router.post('/simulate', authenticateToken, authorizeRole('admin'), async (req, res) => {
+    if (process.env.ENABLE_WEATHER_SIMULATOR !== 'true') {
+        return res.status(403).json({ success: false, message: "Tính năng giả lập đã bị tắt!" });
+    }
     try {
         const { district, temp, status, description, rain1h } = req.body;
 
