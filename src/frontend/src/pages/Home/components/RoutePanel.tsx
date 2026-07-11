@@ -17,6 +17,9 @@ import { savedRouteService } from "../../../services/savedRouteService";
 import { showPremiumToast } from "../../../utils/toastUtils";
 import { useFavoritePoiStore } from "../../../store/favoritePoiStore";
 import { LocationPoint } from "../hooks/useMapRouting";
+import { Volume2, VolumeX } from "lucide-react";
+import { usePreferenceStore } from "../../../store/preferenceStore";
+import { useVoiceGuidance } from "../hooks/useVoiceGuidance";
 
 interface RouteData {
   totalDistanceKm: number;
@@ -104,6 +107,10 @@ export function RoutePanel({
   // Lấy ID của POI hoặc Event từ destination
   const destinationPoiId = destination?.poi_id;
   const destinationEventId = (destination as any)?.event_id;
+
+  const { preferences, updatePreference } = usePreferenceStore();
+  const { supported } = useVoiceGuidance();
+  const isVoiceEnabled = preferences?.enable_voice_guide ?? true;
 
   // 1. ĐỒNG BỘ LOGIC YÊU THÍCH: Lấy trực tiếp từ favoriteEventIds của Home truyền xuống
   // Không dùng useState cục bộ ở đây nữa!
@@ -395,18 +402,39 @@ export function RoutePanel({
             </div>
           </div>
 
-          {/* Nút bắt đầu chuyến đi */}
-          <button
-            onClick={handleStartTrip}
-            disabled={isStarting}
-            className="mt-4 w-full bg-blue-600 text-white py-3 rounded-xl text-[13px] font-black flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
-          >
-            <Navigation
-              size={16}
-              className={isStarting ? "animate-pulse" : ""}
-            />
-            {isStarting ? "ĐANG KHỞI HÀNH..." : "BẮT ĐẦU CHUYẾN ĐI"}
-          </button>
+          {/* Khu vực chứa nút Âm thanh & Bắt đầu chuyến đi */}
+          <div className="flex items-center gap-2 mt-4">
+            {/* Nút Bật/Tắt Giọng nói */}
+            {supported && (
+              <button
+                type="button"
+                onClick={() =>
+                  updatePreference("enable_voice_guide", !isVoiceEnabled)
+                }
+                className={`p-3 rounded-xl border flex items-center justify-center transition-all ${
+                  isVoiceEnabled
+                    ? "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
+                    : "bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100"
+                }`}
+                title={
+                  isVoiceEnabled
+                    ? "Tắt chỉ đường giọng nói"
+                    : "Bật chỉ đường giọng nói"
+                }
+              >
+                {isVoiceEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+              </button>
+            )}
+
+            {/* Nút Bắt đầu duy nhất */}
+            <button
+              onClick={onStartNavigation}
+              className="flex-1 bg-blue-600 text-white py-3 rounded-xl text-[13px] font-black flex items-center justify-center gap-2 hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all"
+            >
+              <Navigation size={18} />
+              BẮT ĐẦU CHUYẾN ĐI
+            </button>
+          </div>
 
           {/* Nhóm nút phụ */}
           <div className="flex flex-col gap-2 mt-3">
