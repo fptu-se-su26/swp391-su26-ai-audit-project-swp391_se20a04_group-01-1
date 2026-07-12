@@ -980,4 +980,4 @@ UNION ALL
 SELECT 'POIs', COUNT(*)
 FROM POIs;
 
-PRINT N'✅ Seed POIs Data thành công! (6 categories + 55 POIs)';
+PRINT N' Seed POIs Data thành công! (6 categories + 55 POIs)';

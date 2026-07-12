@@ -20,7 +20,7 @@ async function seedEventRoads() {
             await transaction.request().query(sqlContent);
 
             await transaction.commit();
-            console.log('✅ EventRoads seeding completed successfully!');
+            console.log(' EventRoads seeding completed successfully!');
         } catch (err) {
             console.error('Error during transaction, rolling back...', err);
             await transaction.rollback();

@@ -100,7 +100,7 @@ async function runPatch() {
         `;
         await pool.request().query(checkFloodZonesDepthQuery);
         
-        console.log('✅ Database patch applied successfully!');
+        console.log(' Database patch applied successfully!');
         process.exit(0);
     } catch (err) {
         console.error('❌ Database patch failed:', err);

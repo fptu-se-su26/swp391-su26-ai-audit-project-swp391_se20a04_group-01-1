@@ -257,7 +257,7 @@ export default function AdminDashboard() {
                 user.username = profileForm.username;
                 localStorage.setItem('user', JSON.stringify(user));
             }
-            setProfileMessage('✅ Cập nhật tên hiển thị thành công!');
+            setProfileMessage(' Cập nhật tên hiển thị thành công!');
             setTimeout(() => setProfileMessage(''), 3000);
         } catch (error: any) {
             setProfileError(true);
@@ -441,7 +441,7 @@ export default function AdminDashboard() {
         setPwdError(false); setPwdMessage('');
         try {
             await userService.changePassword({ currentPassword: pwdFormData.currentPassword || '', newPassword: pwdFormData.newPassword, confirmPassword: pwdFormData.confirmPassword });
-            setPwdMessage('✅ Cập nhật mật khẩu thành công!');
+            setPwdMessage(' Cập nhật mật khẩu thành công!');
             setPwdFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
         } catch (error: any) {
             setPwdError(true); setPwdMessage(error.response?.data?.message || 'Có lỗi xảy ra!');

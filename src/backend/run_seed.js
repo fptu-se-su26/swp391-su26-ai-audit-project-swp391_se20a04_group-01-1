@@ -24,7 +24,7 @@ async function seed() {
             await transaction.request().query(sqlContent);
 
             await transaction.commit();
-            console.log('✅ Seeding completed successfully!');
+            console.log(' Seeding completed successfully!');
         } catch (err) {
             console.error('Error during transaction, rolling back...', err);
             await transaction.rollback();
