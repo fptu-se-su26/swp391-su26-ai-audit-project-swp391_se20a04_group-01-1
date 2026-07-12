@@ -279,9 +279,9 @@ export async function findSafeEventRoute(
       const origClosed = originalBlockedList.filter(r => r.restriction_type === 'CLOSED');
       const origRestricted = originalBlockedList.filter(r => r.restriction_type !== 'CLOSED');
       if (origClosed.length > 0) {
-        alertMsg = `✅ Hệ thống đã tự động điều hướng đi vòng để tránh đoạn ĐƯỜNG CẤM: ${origClosed.map(r => r.road_name).join(', ')}.`;
+        alertMsg = ` Hệ thống đã tự động điều hướng đi vòng để tránh đoạn ĐƯỜNG CẤM: ${origClosed.map(r => r.road_name).join(', ')}.`;
       } else {
-        alertMsg = `✅ Hệ thống đã tự động tìm lộ trình tối ưu tránh đoạn đường HẠN CHẾ DI CHUYỂN: ${origRestricted.map(r => r.road_name).join(', ')}.`;
+        alertMsg = ` Hệ thống đã tự động tìm lộ trình tối ưu tránh đoạn đường HẠN CHẾ DI CHUYỂN: ${origRestricted.map(r => r.road_name).join(', ')}.`;
       }
     }
   }

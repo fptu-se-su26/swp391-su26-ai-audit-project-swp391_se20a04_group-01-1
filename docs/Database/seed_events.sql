@@ -264,4 +264,4 @@ UNION ALL
 SELECT 'Events', COUNT(*)
 FROM Events;
 
-PRINT N'✅ Seed Events Data thành công! (7 categories + 8 Events)';
+PRINT N' Seed Events Data thành công! (7 categories + 8 Events)';

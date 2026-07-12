@@ -12,9 +12,9 @@ const transporter = nodemailer.createTransport({
 // Test kết nối Gmail
 transporter.verify((error, success) => {
     if (error) {
-        console.error('❌ Gmail connection failed:', error);
+        console.error(' Gmail connection failed:', error);
     } else {
-        console.log('✅ Gmail connection verified!');
+        console.log(' Gmail connection verified!');
     }
 });
 

@@ -420,7 +420,7 @@ router.post("/chat", async (req, res) => {
                         
                         // Sanitize dữ liệu: chuyển Date/Decimal thành kiểu JSON thuần
                         data = JSON.parse(JSON.stringify(rawData));
-                        console.log(`✅ Tool ${name} trả về ${Array.isArray(data) ? data.length + ' bản ghi' : 'dữ liệu'}`);
+                        console.log(` Tool ${name} trả về ${Array.isArray(data) ? data.length + ' bản ghi' : 'dữ liệu'}`);
                     } catch (err) {
                         console.error(`Lỗi thực thi hàm ${name}:`, err.message);
                         data = { error: err.message };

@@ -40,6 +40,12 @@ export function useNavigationEngine(
       setCurrentStepIndex(0);
 
       cancel();
+
+      //  FIX: Thông báo ngay khi bắt đầu dẫn đường, thay vì im lặng cho tới khi
+      // xe đến gần điểm rẽ đầu tiên (có thể mất vài phút nếu chặng đầu dài).
+      if (routeSteps[0]) {
+        speak(`Bắt đầu dẫn đường. ${routeSteps[0].maneuver.instruction}`);
+      }
     }
     if (currentStepIndex >= routeSteps.length) return;
 

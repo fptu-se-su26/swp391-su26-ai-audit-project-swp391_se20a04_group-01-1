@@ -24,7 +24,7 @@ const VerifyOTP: React.FC<VerifyOTPProps> = ({ email, onSuccess }) => {
         otp
       });
 
-      console.log('✅ OTP verified:', response.data);
+      console.log(' OTP verified:', response.data);
       
       // Save token
       localStorage.setItem('token', response.data.data.token);

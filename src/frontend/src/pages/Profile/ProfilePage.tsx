@@ -119,7 +119,7 @@ export default function ProfilePage({
       const data = await res.json();
       setTestNotifMsg(
         data.success
-          ? "✅ Đã gửi! Mở chuông 🔔 để xem thông báo."
+          ? " Đã gửi! Mở chuông 🔔 để xem thông báo."
           : "❌ " + data.message,
       );
     } catch {
@@ -2042,7 +2042,7 @@ export default function ProfilePage({
                         <span
                           style={{
                             fontSize: "11px",
-                            color: testNotifMsg.startsWith("✅")
+                            color: testNotifMsg.startsWith("")
                               ? "#10b981"
                               : "#ef4444",
                           }}
@@ -2069,7 +2069,7 @@ export default function ProfilePage({
                         <div>
                             <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
                                 Trạng thái: {' '}
-                                {offlineStatus === 'downloaded' && <span style={{ color: '#10b981' }}>✅ Đã tải về ({offlineDate})</span>}
+                                {offlineStatus === 'downloaded' && <span style={{ color: '#10b981' }}> Đã tải về ({offlineDate})</span>}
                                 {offlineStatus === 'downloading' && <span style={{ color: '#2563eb' }}>⚡ Đang tải ({downloadProgress}%)</span>}
                                 {offlineStatus === 'failed' && <span style={{ color: '#ef4444' }}>❌ Lỗi tải về</span>}
                                 {offlineStatus === 'idle' && <span style={{ color: '#6b7280' }}>Chưa tải về</span>}
