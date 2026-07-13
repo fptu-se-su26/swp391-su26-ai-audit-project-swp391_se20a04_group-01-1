@@ -12,14 +12,17 @@ export const SearchPanel: React.FC<any> = (props) => {
         try {
           const results = await searchPlaces(props.originQuery);
           props.setSuggestions(results);
+          props.setShowSuggestions(results.length > 0);
         } catch (error) { console.error('Lỗi:', error); }
       } else if (props.destinationQuery.length > 2 && props.activeInputField === 'destination') {
         try {
           const results = await searchPlaces(props.destinationQuery);
           props.setSuggestions(results);
+          props.setShowSuggestions(results.length > 0);
         } catch (error) { console.error('Lỗi:', error); }
       } else {
         props.setSuggestions([]);
+        props.setShowSuggestions(false);
       }
     };
 

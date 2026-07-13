@@ -18,8 +18,8 @@ export function useSearchController(routeController: any) {
         routeController.setOriginQuery(tempDestQuery);
     };
 
-    const handleSuggestionClick = (item: any) => {
-        if (!activeInputField) return;
+    const handleSuggestionClick = (item: any, activeField: 'origin' | 'destination' | null) => {
+        if (!activeField) return;
 
         const locationPoint = {
             lng: item.geometry?.coordinates?.[0] || item.lng,
@@ -27,10 +27,10 @@ export function useSearchController(routeController: any) {
             label: item.place_name || item.text || item.name,
         };
 
-        if (activeInputField === 'origin') {
+        if (activeField === 'origin') {
             routeController.setOrigin(locationPoint);
             routeController.setOriginQuery(locationPoint.label);
-        } else if (activeInputField === 'destination') {
+        } else if (activeField === 'destination') {
             routeController.setDestination(locationPoint);
             routeController.setDestinationQuery(locationPoint.label);
         }

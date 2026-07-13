@@ -4,6 +4,7 @@ import { useUserLocation } from './useUserLocation';
 import { useEventRoads } from './useEventRoads';
 import { useFloodZones } from './useFloodZones';
 import { getHaversineDistance } from '../utils/routeUtils';
+import { getBoundsFromCoordinates } from '../utils/mapUtils';
 
 //  FIX: bán kính (km) coi vị trí GPS thật là "đang ở trên tuyến đường".
 // Nếu GPS thật cách xa điểm xuất phát của tuyến hơn mức này (ví dụ đang test
@@ -98,7 +99,20 @@ export function useRouteController(mapRef: any) {
         setIsNavigating(false);
         //  FIX: Tắt theo dõi GPS liên tục khi kết thúc chuyến đi
         userLocHook.stopWatchingLocation();
-        mapRouting.setRouteData(null);
+        // Không xóa routeData ở đây nữa: giữ lại để quay về màn hình
+        // "chi tiết lộ trình" (khoảng cách/thời gian/nút bắt đầu lại...)
+        // thay vì mất hết và trông như thoát về màn hình home.
+        // Nếu người dùng muốn xóa hẳn lộ trình, đã có nút "Xóa lộ trình"
+        // (onClearRoute) riêng để làm việc đó.
+
+        //  FIX: Đưa camera từ góc nhìn 3D lúc đang dẫn đường (zoom 17, pitch 45)
+        // về lại góc nhìn toàn tuyến (top-down, vừa khít origin-destination),
+        // giống lúc mới xem trước lộ trình.
+        const coords = mapRouting.routeData?.coordinates;
+        if (coords && coords.length > 1 && mapRef?.current) {
+            const bounds = getBoundsFromCoordinates(coords);
+            mapRef.current.fitBounds(bounds, { padding: 80, duration: 1000, pitch: 0, bearing: 0 });
+        }
     };
 
     //  FIX: Giữ bản đồ luôn phóng to & bám theo vị trí người dùng trong suốt
