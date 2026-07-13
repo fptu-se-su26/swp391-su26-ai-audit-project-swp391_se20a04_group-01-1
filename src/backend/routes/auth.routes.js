@@ -392,8 +392,28 @@ router.post('/google', async (req, res) => {
             
             user = result.recordset[0];
             if (!user) return res.status(500).json({ message: "Không thể tạo người dùng mới!" });
+            
+            // Link Google account in UserSocialAccount
+            const googleId = payload.sub;
+            await pool.request()
+                .input("user_id", sql.Int, user.user_id)
+                .input("provider", sql.NVarChar, 'google')
+                .input("provider_id", sql.NVarChar, googleId)
+                .query("INSERT INTO UserSocialAccount (user_id, provider, provider_id) VALUES (@user_id, @provider, @provider_id)");
+
             console.log(`[AUTH] New Google user created: ${email}`);
         } else {
+            // User exists. Check if they have a Google social account linked
+            const socialCheck = await pool.request()
+                .input("user_id", sql.Int, user.user_id)
+                .input("provider", sql.NVarChar, 'google')
+                .query("SELECT * FROM UserSocialAccount WHERE user_id = @user_id AND provider = @provider");
+            
+            if (socialCheck.recordset.length === 0) {
+                // Not linked to Google (registered with normal password)
+                return res.status(400).json({ message: "Email này đã tồn tại (được đăng ký bằng mật khẩu). Không thể đăng nhập bằng Google." });
+            }
+
             console.log(`[AUTH] Google user login: ${email}`);
         }
         

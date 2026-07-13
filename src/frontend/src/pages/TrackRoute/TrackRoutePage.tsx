@@ -253,7 +253,7 @@ export default function TrackRoutePage() {
         <div className="w-screen h-screen relative overflow-hidden font-sans">
             
             {/* Header Overlay Panel */}
-            <div className="absolute top-4 left-4 z-10 max-w-xs bg-white/95 backdrop-blur-md p-4 rounded-3xl shadow-xl border border-slate-100 flex flex-col gap-3">
+            <div className="absolute top-4 left-4 z-10 max-w-xs max-md:max-w-[calc(100vw-32px)] bg-white/95 backdrop-blur-md p-4 rounded-3xl shadow-xl border border-slate-100 flex flex-col gap-3">
                 <div className="flex items-center gap-3">
                     {session?.avatar_url ? (
                         <img 
@@ -317,7 +317,7 @@ export default function TrackRoutePage() {
 
             {/* Floating Navigation Route Info Banner */}
             {routeData && (
-                <div className="absolute top-4 right-4 z-10 bg-white/95 backdrop-blur-md px-4 py-3 rounded-2xl shadow-lg border border-slate-100 text-right max-w-xxs">
+                <div className="absolute top-4 right-4 max-md:top-40 max-md:right-4 z-10 bg-white/95 backdrop-blur-md px-4 py-3 rounded-2xl shadow-lg border border-slate-100 text-right max-w-xxs max-md:max-w-[calc(100vw-32px)]">
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Đường đi tới người cứu nạn</p>
                     <p className="text-sm font-black text-blue-600 mt-0.5">{routeData.distanceKm} km</p>
                     <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Thời gian: {routeData.durationMin} phút</p>

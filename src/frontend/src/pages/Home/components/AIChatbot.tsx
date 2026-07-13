@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { MessageSquare, Send, Mic, MicOff, X, Bot, Loader2, Navigation, Star } from "lucide-react";
+import { MessageSquare, Send, Mic, MicOff, X, Bot, Loader2, Navigation, Star, Compass, CloudRain } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import axios from "axios";
@@ -242,7 +242,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({
   return (
     <>
       {/* 1. NÚT CHAT BONG BÓNG LƠ LỬNG */}
-      <div className="fixed bottom-6 right-12 z-40">
+      <div className="fixed bottom-6 right-6 md:right-12 z-40">
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
@@ -263,7 +263,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="fixed bottom-24 right-6 w-96 h-[520px] bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden text-slate-100 font-sans"
+            className="fixed bottom-0 right-0 md:bottom-24 md:right-6 w-full h-full md:w-96 md:h-[520px] bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 md:rounded-2xl rounded-none shadow-2xl z-40 flex flex-col overflow-hidden text-slate-100 font-sans"
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-700/80 to-indigo-800/80 px-4 py-3 border-b border-slate-700/40 flex items-center justify-between">
@@ -322,6 +322,20 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({
             {/* Quick Prompts Pills */}
             <div className="px-4 py-2 border-t border-slate-800 bg-slate-950/40 flex gap-2 overflow-x-auto scrollbar-none shrink-0">
               <button
+                onClick={() => handleQuickPrompt("Thời tiết hôm nay ở các quận Đà Nẵng thế nào?")}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
+              >
+                <CloudRain className="w-3 h-3 text-sky-400" />
+                Thời tiết hôm nay
+              </button>
+              <button
+                onClick={() => handleQuickPrompt("Gợi ý các địa điểm du lịch nổi bật tại Đà Nẵng")}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
+              >
+                <Compass className="w-3 h-3 text-emerald-400" />
+                Địa điểm nổi bật
+              </button>
+              <button
                 onClick={() => handleQuickPrompt("Tìm các điểm ngập lụt hiện tại và chỉ đường tránh ngập từ Cầu Rồng đến Bách Khoa")}
                 className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
               >
@@ -329,18 +343,11 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({
                 Tránh đường ngập
               </button>
               <button
-                onClick={() => handleQuickPrompt("Hôm nay Đà Nẵng có sự kiện lễ hội gì lớn không? Chỉ đường cho tôi.")}
+                onClick={() => handleQuickPrompt("Hôm nay Đà Nẵng có sự kiện lễ hội gì lớn không?")}
                 className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
               >
                 <Star className="w-3 h-3 text-yellow-400" />
                 Sự kiện hôm nay
-              </button>
-              <button
-                onClick={() => handleQuickPrompt("Tìm quán ăn hải sản ngon nổi tiếng gần biển Mỹ Khê đánh giá trên 4 sao")}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
-              >
-                <Bot className="w-3 h-3 text-blue-400" />
-                Tìm Hải sản Mỹ Khê
               </button>
             </div>
 

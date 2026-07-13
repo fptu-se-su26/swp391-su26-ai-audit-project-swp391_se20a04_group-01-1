@@ -9,7 +9,8 @@ import {
     LogOut,
     AlertTriangle,
     Home,
-    Users // 1. ĐÃ THÊM IMPORT ICON USERS TẠI ĐÂY
+    Users,
+    MapPin
 } from 'lucide-react';
 
 // 2. ĐÃ THÊM MỤC 'users' VÀO DANH SÁCH MENU
@@ -19,7 +20,8 @@ const MENU_ITEMS = [
     { id: 'events', label: 'Sự kiện', icon: CalendarDays, count: 12 },
     { id: 'flood', label: 'Ngập lụt', icon: Waves, count: 2 },
     { id: 'closure', label: 'Cấm đường', icon: RouteOff, count: 5 },
-    { id: 'users', label: 'Quản lý tài khoản', icon: Users }, // <--- MỤC MỚI
+    { id: 'users', label: 'Quản lý tài khoản', icon: Users },
+    { id: 'pois', label: 'Duyệt Địa Điểm', icon: MapPin },
 ];
 
 interface AdminLayoutProps {
@@ -31,6 +33,8 @@ interface AdminLayoutProps {
         flood?: number;
         closure?: number;
         traffic?: number;
+        pois?: number;
+        pendingPOIs?: number;
     };
 }
 
@@ -107,18 +111,45 @@ export default function AdminLayout({ activeMenu, setActiveMenu, children, count
                 {/* PHẦN 3: BOTTOM (Cảnh báo, Cài đặt, Đăng xuất) */}
                 <div className="p-4 border-t border-slate-800 flex flex-col gap-3">
 
-                    {/* Box Cảnh báo giao thông */}
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
-                        <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5 animate-pulse" />
-                        <div className="flex flex-col">
-                            <span className="text-red-500 text-xs font-bold uppercase tracking-wider mb-1">
-                                Cảnh báo hệ thống
-                            </span>
-                            <p className="text-red-400/80 text-[11px] leading-relaxed">
-                                Cần phê duyệt 3 cảnh báo ngập lụt mới tại khu vực Cẩm Lệ.
-                            </p>
-                        </div>
-                    </div>
+                    {/* Box Cảnh báo hệ thống */}
+                    {(() => {
+                        const pendingPOIs = counts?.pendingPOIs ?? 0;
+                        const hasAlert = pendingPOIs > 0;
+                        
+                        let alertMessage = "Hệ thống ổn định. Không có yêu cầu phê duyệt mới.";
+                        if (pendingPOIs > 0) {
+                            alertMessage = `Cần phê duyệt ${pendingPOIs} địa điểm đóng góp mới.`;
+                        }
+
+                        return (
+                            <div className={`border rounded-xl p-3 flex items-start gap-3 transition-all duration-300 ${
+                                hasAlert 
+                                    ? 'bg-red-500/10 border-red-500/20' 
+                                    : 'bg-emerald-500/10 border-emerald-500/20'
+                            }`}>
+                                <AlertTriangle 
+                                    size={18} 
+                                    className={`shrink-0 mt-0.5 ${
+                                        hasAlert 
+                                            ? 'text-red-500 animate-pulse' 
+                                            : 'text-emerald-500'
+                                    }`} 
+                                />
+                                <div className="flex flex-col">
+                                    <span className={`text-xs font-bold uppercase tracking-wider mb-0.5 ${
+                                        hasAlert ? 'text-red-500' : 'text-emerald-500'
+                                    }`}>
+                                        Cảnh báo hệ thống
+                                    </span>
+                                    <p className={`text-[11px] leading-relaxed ${
+                                        hasAlert ? 'text-red-400/80' : 'text-emerald-400/80'
+                                    }`}>
+                                        {alertMessage}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* Nút Quay lại App */}
                     <button 

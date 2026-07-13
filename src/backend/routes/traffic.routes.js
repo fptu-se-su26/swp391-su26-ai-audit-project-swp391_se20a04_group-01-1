@@ -28,6 +28,7 @@ router.get("/", async (req, res) => {
             is_active: alert.is_active === 1 || alert.is_active === true,
             created_by: alert.created_by,
             creator_name: alert.creator_name,
+            affected_area_polygon: alert.affected_area_polygon,
             created_at: alert.created_at
         }));
 
@@ -49,7 +50,8 @@ router.post("/", authenticateToken, async (req, res) => {
             latitude,
             longitude,
             severity,
-            event_id
+            event_id,
+            affected_area_polygon
         } = req.body;
 
         if (!type || !title || latitude === undefined || longitude === undefined || !severity) {
@@ -67,15 +69,16 @@ router.post("/", authenticateToken, async (req, res) => {
             .input("latitude", sql.Decimal(9, 6), parseFloat(latitude))
             .input("longitude", sql.Decimal(9, 6), parseFloat(longitude))
             .input("severity", sql.NVarChar, severity)
+            .input("affected_area_polygon", sql.NVarChar, affected_area_polygon || null)
             .query(`
                 INSERT INTO TrafficAlerts (
                     created_by, event_id, alert_type, title, description,
-                    location_name, latitude, longitude, severity, is_active, created_at, updated_at
+                    location_name, latitude, longitude, severity, affected_area_polygon, is_active, created_at, updated_at
                 )
                 OUTPUT INSERTED.alert_id
                 VALUES (
                     @created_by, @event_id, @alert_type, @title, @description,
-                    @location_name, @latitude, @longitude, @severity, 1, GETDATE(), GETDATE()
+                    @location_name, @latitude, @longitude, @severity, @affected_area_polygon, 1, GETDATE(), GETDATE()
                 )
             `);
 

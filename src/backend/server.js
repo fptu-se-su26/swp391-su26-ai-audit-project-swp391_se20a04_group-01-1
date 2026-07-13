@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const { startScheduler } = require('./schedulerService');
 
 const app = express();
+let io;
 
 // Middleware
 app.use(cors({
@@ -26,6 +27,14 @@ const authLimiter = rateLimit({
     message: { success: false, message: 'Quá nhiều lần thử. Vui lòng thử lại sau 15 phút.' }
 });
 
+const aiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 15,                   // limit each IP to 15 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Bạn đã gửi quá nhiều yêu cầu đến AI. Vui lòng thử lại sau 15 phút.' }
+});
+
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth/verify-otp', authLimiter);
@@ -34,12 +43,20 @@ app.use('/api/auth/register', rateLimit({
     max: 5,
     message: { success: false, message: 'Quá nhiều tài khoản được tạo. Thử lại sau 1 giờ.' }
 }));
+app.use('/api/ai/chat', aiLimiter);
+
+// Middleware chuyển tiếp socket instance vào req để dùng trong API routes
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
 
 // Routes
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/user', require('./routes/user.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/events', require('./routes/events.routes'));
+app.use('/api/events', require('./routes/eventImages.routes'));
 app.use('/api/event-categories', require('./routes/eventCategory.routes'));
 app.use('/api/flood-zones', require('./routes/flood.routes'));
 app.use('/api/pois', require('./routes/poi.routes'));
@@ -65,18 +82,12 @@ server.on("error", (err) => {
 
 // Khởi tạo Socket.io phục vụ Chia sẻ vị trí trực tiếp
 const { Server } = require("socket.io");
-const io = new Server(server, {
+io = new Server(server, {
     cors: {
         origin: process.env.ALLOWED_ORIGIN || "http://localhost:5173",
         methods: ["GET", "POST", "PUT", "DELETE"],
         credentials: true
     }
-});
-
-// Middleware chuyển tiếp socket instance vào req để dùng trong API routes
-app.use((req, res, next) => {
-    req.io = io;
-    next();
 });
 
 io.on("connection", (socket) => {

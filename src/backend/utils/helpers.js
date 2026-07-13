@@ -26,12 +26,26 @@ const formatDateTime = (dateObj) => {
     if (!dateObj) return null;
     try {
         const date = new Date(dateObj);
-        const day = String(date.getUTCDate()).padStart(2, '0');
-        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const year = date.getUTCFullYear();
-        const hours = String(date.getUTCHours()).padStart(2, '0');
-        const minutes = String(date.getUTCMinutes()).padStart(2, '0');
-        return `${day}/${month}/${year} ${hours}:${minutes}`;
+        const options = {
+            timeZone: 'Asia/Ho_Chi_Minh',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        };
+        const formatter = new Intl.DateTimeFormat('en-GB', options);
+        const parts = formatter.formatToParts(date);
+        let day = '', month = '', year = '', hour = '', minute = '';
+        for (const part of parts) {
+            if (part.type === 'day') day = part.value;
+            if (part.type === 'month') month = part.value;
+            if (part.type === 'year') year = part.value;
+            if (part.type === 'hour') hour = part.value;
+            if (part.type === 'minute') minute = part.value;
+        }
+        return `${day}/${month}/${year} ${hour}:${minute}`;
     } catch (error) {
         console.error('🔍 Error in formatDateTime:', error);
         return 'Error formatting date';

@@ -1,4 +1,5 @@
-import { Navigation, Layers, TrendingUp, Bookmark, CloudRain, Calendar, CloudSun, WifiOff } from 'lucide-react';
+import React, { useState } from 'react';
+import { Navigation, Layers, TrendingUp, Bookmark, CloudRain, Calendar, CloudSun, WifiOff, Menu, X, MapPin } from 'lucide-react';
 import { showPremiumToast } from '../../../utils/toastUtils';
 
 interface MapToolbarProps {
@@ -15,6 +16,8 @@ interface MapToolbarProps {
     isLowBandwidth: boolean;
     isOffline: boolean;
     onToggleLowBandwidth: () => void;
+    isAddingPOI?: boolean;
+    setIsAddingPOI?: (value: boolean) => void;
     
     handleGetCurrentLocation: (showError: boolean) => void;
     toggleMapControl: (control: 'layers' | 'traffic' | 'flood') => void;
@@ -37,6 +40,8 @@ export function MapToolbar({
     isLowBandwidth,
     isOffline,
     onToggleLowBandwidth,
+    isAddingPOI = false,
+    setIsAddingPOI = () => {},
     
     handleGetCurrentLocation,
     toggleMapControl,
@@ -48,16 +53,31 @@ export function MapToolbar({
     setViewMode,
     navigate
 }: MapToolbarProps) {
+    const [isExpanded, setIsExpanded] = useState(false);
+
     return (
-        <div className="absolute right-6 top-[200px] z-10 flex flex-col gap-3">
-            <div className="group relative pointer-events-auto flex justify-end items-center">
-                <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
-                    Vị trí
-                </span>
+        <div className="absolute right-4 md:right-6 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3 items-end pointer-events-none">
+            
+            {/* Toggle Button cho Mobile */}
+            <div className="pointer-events-auto md:hidden">
                 <button
-                    onClick={() => handleGetCurrentLocation(true)}
-                    className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-11 h-11 bg-white rounded-2xl shadow-xl border border-slate-200/60 flex items-center justify-center text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors"
                 >
+                    {isExpanded ? <X size={20} /> : <Menu size={20} />}
+                </button>
+            </div>
+
+            {/* Danh sách các nút chức năng */}
+            <div className={`flex flex-col gap-3 ${!isExpanded ? 'max-md:hidden' : ''}`}>
+                <div className="group relative pointer-events-auto flex justify-end items-center">
+                    <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
+                        Vị trí
+                    </span>
+                    <button
+                        onClick={() => handleGetCurrentLocation(true)}
+                        className="w-11 h-11 bg-white rounded-2xl shadow-md border border-slate-200/60 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
                     <Navigation size={18} className="rotate-45 -ml-1 -mt-1" />
                 </button>
             </div>
@@ -129,6 +149,25 @@ export function MapToolbar({
 
             <div className="group relative pointer-events-auto flex justify-end items-center">
                 <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
+                    Đóng góp địa điểm
+                </span>
+                <button
+                    onClick={() => {
+                        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+                        if (!token) {
+                            showPremiumToast('Vui lòng đăng nhập để đóng góp địa điểm.', 'error');
+                            return;
+                        }
+                        setIsAddingPOI(!isAddingPOI);
+                    }}
+                    className={`w-11 h-11 rounded-2xl shadow-md border flex items-center justify-center transition-all ${isAddingPOI ? 'bg-orange-500 text-white border-orange-600 animate-pulse' : 'bg-white text-slate-600 border-slate-200/60 hover:bg-slate-50'}`}
+                >
+                    <MapPin size={18} />
+                </button>
+            </div>
+
+            <div className="group relative pointer-events-auto flex justify-end items-center">
+                <span className="absolute right-[56px] bg-slate-600 text-white text-[10px] font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-md">
                     Thời tiết
                 </span>
                 <button
@@ -195,6 +234,7 @@ export function MapToolbar({
                 >
                     <Calendar size={18} />
                 </button>
+            </div>
             </div>
         </div>
     );

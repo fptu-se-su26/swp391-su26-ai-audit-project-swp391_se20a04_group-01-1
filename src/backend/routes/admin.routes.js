@@ -271,4 +271,77 @@ router.post('/notifications/test-flood', async (req, res) => {
     }
 });
 
+// GET /api/admin/pois/pending - Lấy danh sách POI đang chờ duyệt
+router.get('/pois/pending', async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request().query(`
+            SELECT 
+                p.poi_id, p.name, p.latitude, p.longitude, p.address, 
+                p.description, p.image_url, p.website_url, p.phone_number,
+                p.created_at, p.status, p.is_active,
+                c.name AS category_name, c.icon AS category_icon,
+                u.full_name AS creator_name, u.email AS creator_email
+            FROM POIs p
+            LEFT JOIN POIsCategories c ON p.category_id = c.id
+            LEFT JOIN Users u ON p.created_by = u.user_id
+            WHERE p.status = 'pending'
+            ORDER BY p.created_at DESC
+        `);
+
+        res.json({ success: true, data: result.recordset });
+    } catch (error) {
+        console.error("Lỗi lấy danh sách POI chờ duyệt:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// PUT /api/admin/pois/:id/approve - Duyệt POI
+router.put('/pois/:id/approve', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("poi_id", sql.Int, parseInt(id))
+            .query(`
+                UPDATE POIs
+                SET status = 'approved', is_active = 1
+                WHERE poi_id = @poi_id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy POI!" });
+        }
+
+        res.json({ success: true, message: "Đã duyệt địa điểm!" });
+    } catch (error) {
+        console.error("Lỗi duyệt POI:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
+// PUT /api/admin/pois/:id/reject - Từ chối POI
+router.put('/pois/:id/reject', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("poi_id", sql.Int, parseInt(id))
+            .query(`
+                UPDATE POIs
+                SET status = 'rejected', is_active = 0
+                WHERE poi_id = @poi_id
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy POI!" });
+        }
+
+        res.json({ success: true, message: "Đã từ chối địa điểm!" });
+    } catch (error) {
+        console.error("Lỗi từ chối POI:", error);
+        res.status(500).json({ success: false, message: "Lỗi server", error: error.message });
+    }
+});
+
 module.exports = router;

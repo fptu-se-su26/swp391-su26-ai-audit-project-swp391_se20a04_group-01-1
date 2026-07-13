@@ -28,6 +28,7 @@ interface POIFeaturedSidebarProps {
     onPOIClick: (poi: POIData) => void;
     onDirectionsClick: (poi: POIData) => void;
     hasRoute?: boolean;
+    onClose?: () => void;
 }
 
 // Component sao đánh giá
@@ -65,6 +66,7 @@ export default function POIFeaturedSidebar({
     onPOIClick,
     onDirectionsClick,
     hasRoute = false,
+    onClose,
 }: POIFeaturedSidebarProps) {
     const [isVisible, setIsVisible] = useState(true);
 
@@ -96,7 +98,7 @@ export default function POIFeaturedSidebar({
     const emoji = FILTER_EMOJI[selectedFilter] || '📍';
 
     return (
-        <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-fade-up">
+        <div className="w-80 max-md:w-full max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[45vh] max-md:max-h-[45vh] max-md:rounded-t-3xl max-md:rounded-b-none max-md:z-40 max-md:border-t max-md:border-slate-200/80 max-md:shadow-[0_-8px_30px_rgba(0,0,0,0.12)] max-md:animate-none max-md:overflow-y-auto bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden animate-fade-up">
             {/* Header */}
             <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -109,7 +111,10 @@ export default function POIFeaturedSidebar({
                     </div>
                 </div>
                 <button
-                    onClick={() => setIsVisible(false)}
+                    onClick={() => {
+                        setIsVisible(false);
+                        if (onClose) onClose();
+                    }}
                     className="w-6 h-6 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
                 >
                     <X size={12} />
@@ -117,7 +122,7 @@ export default function POIFeaturedSidebar({
             </div>
 
             {/* Danh sách cuộn */}
-            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent" style={{ maxHeight: hasRoute ? '180px' : '480px' }}>
+            <div className="overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent" style={{ maxHeight: '65vh' }}>
                 {filteredPois.map((poi, idx) => (
                     <div
                         key={poi.poi_id}

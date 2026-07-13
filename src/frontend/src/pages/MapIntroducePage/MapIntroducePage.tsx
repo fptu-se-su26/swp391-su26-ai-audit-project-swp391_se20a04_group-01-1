@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, useInView } from 'framer-motion';
+import { motion, useInView, Variants } from 'framer-motion';
 import {
     MapPin, Calendar, CloudRain, Navigation, Compass,
     AlertTriangle, Bookmark, Map, ArrowRight, Menu, X,
@@ -28,19 +28,19 @@ const Github = ({ className }: { className?: string }) => (
 );
 
 // ─── Animation Variants ───────────────────────────────────────────────────────
-const fadeUp = {
+const fadeUp: Variants = {
     hidden: { opacity: 0, y: 40 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: 'easeOut' } }
 };
-const fadeLeft = {
+const fadeLeft: Variants = {
     hidden: { opacity: 0, x: -50 },
     visible: { opacity: 1, x: 0, transition: { duration: 0.65, ease: 'easeOut' } }
 };
-const fadeRight = {
+const fadeRight: Variants = {
     hidden: { opacity: 0, x: 50 },
     visible: { opacity: 1, x: 0, transition: { duration: 0.65, ease: 'easeOut' } }
 };
-const staggerChildren = {
+const staggerChildren: Variants = {
     hidden: {},
     visible: { transition: { staggerChildren: 0.12 } }
 };
@@ -346,7 +346,7 @@ export default function MapIntroducePage() {
                         initial={{ opacity: 0, y: 30 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.7, delay: 0.15 }}
-                        className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold tracking-tight leading-none mb-6"
+                        className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-extrabold tracking-tight leading-tight md:leading-none mb-6"
                     >
                         Khám phá thành phố
                         <br />
@@ -427,19 +427,19 @@ export default function MapIntroducePage() {
             {/* ──────────────────────────────────────────────────────────────────
                 OVERVIEW SECTION
             ────────────────────────────────────────────────────────────────── */}
-            <section id="overview" className="relative py-28 px-4 sm:px-6 lg:px-10 overflow-hidden">
+            <section id="overview" className="relative py-16 md:py-28 px-4 sm:px-6 lg:px-10 overflow-hidden">
                 {/* Background decoration */}
                 <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
                 <div className="absolute -top-32 right-0 w-[600px] h-[600px] bg-blue-600/8 rounded-full blur-[140px] pointer-events-none" />
 
                 <div className="max-w-7xl mx-auto">
                     {/* Section label */}
-                    <AnimatedSection className="text-center mb-20">
+                    <AnimatedSection className="text-center mb-12 md:mb-20">
                         <motion.div variants={fadeUp} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm font-medium mb-5">
                             <MapPin className="w-3.5 h-3.5" />
                             Giới thiệu tổng quan
                         </motion.div>
-                        <motion.h2 variants={fadeUp} className="text-4xl sm:text-5xl font-extrabold text-white mb-5 leading-tight">
+                        <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mb-5 leading-tight">
                             Bản đồ thông minh cho
                             <br />
                             <span className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">Đà Nẵng hiện đại</span>
@@ -451,10 +451,10 @@ export default function MapIntroducePage() {
                     </AnimatedSection>
 
                     {/* Main content: text + image */}
-                    <div className="grid lg:grid-cols-2 gap-16 items-center mb-24">
+                    <div className="grid lg:grid-cols-2 gap-10 md:gap-16 items-center mb-16 md:mb-24">
                         {/* Text side */}
                         <AnimatedSection>
-                            <motion.div variants={fadeLeft} className="space-y-6">
+                            <motion.div variants={fadeLeft} className="space-y-4 md:space-y-6">
                                 {[
                                     {
                                         icon: Map,
@@ -537,18 +537,18 @@ export default function MapIntroducePage() {
             {/* ──────────────────────────────────────────────────────────────────
                 FEATURES SECTION
             ────────────────────────────────────────────────────────────────── */}
-            <section id="features" className="relative py-28 px-4 sm:px-6 lg:px-10 overflow-hidden">
+            <section id="features" className="relative py-16 md:py-28 px-4 sm:px-6 lg:px-10 overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-violet-500/30 to-transparent" />
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-600/8 rounded-full blur-[120px] pointer-events-none" />
 
                 <div className="max-w-7xl mx-auto">
                     {/* Section Header */}
-                    <AnimatedSection className="text-center mb-20">
+                    <AnimatedSection className="text-center mb-12 md:mb-20">
                         <motion.div variants={fadeUp} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-sm font-medium mb-5">
                             <Zap className="w-3.5 h-3.5" />
                             Các chức năng của Map
                         </motion.div>
-                        <motion.h2 variants={fadeUp} className="text-4xl sm:text-5xl font-extrabold text-white mb-5 leading-tight">
+                        <motion.h2 variants={fadeUp} className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mb-5 leading-tight">
                             Mọi thứ bạn cần
                             <br />
                             <span className="bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">trên một bản đồ</span>

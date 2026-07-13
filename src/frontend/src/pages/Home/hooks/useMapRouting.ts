@@ -7,10 +7,22 @@ import { findSafeEventRoute } from '../../../utils/eventRouteUtils';
 import { showPremiumToast } from '../../../utils/toastUtils';
 import { decodePolyline } from '../../../utils/polylineHelper';
 
+export interface RouteStep {
+  maneuver: {
+    type: string;
+    modifier?: string;
+    instruction?: string;
+  };
+  name: string;
+  distance: number; // meters
+  duration: number; // seconds
+}
+
 export interface RouteData {
   totalDistanceKm: number;
   totalTimeMin: number;
   coordinates: [number, number][];
+  steps?: RouteStep[];
 }
 
 export interface LocationPoint {
@@ -139,7 +151,7 @@ export function useMapRouting(
 
         // 3. XỬ LÝ TRỰC TUYẾN BÌNH THƯỜNG
         const response = await fetch(
-          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&access_token=${mapboxToken}`,
+          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&steps=true&language=vi&access_token=${mapboxToken}`,
         );
         const data = await response.json();
 
@@ -238,6 +250,16 @@ export function useMapRouting(
               ),
               totalTimeMin: Math.round(selectedRoute.duration / 60),
               coordinates: selectedRoute.geometry.coordinates,
+              steps: selectedRoute.legs?.[0]?.steps?.map((s: any) => ({
+                maneuver: {
+                  type: s.maneuver?.type || '',
+                  modifier: s.maneuver?.modifier || '',
+                  instruction: s.maneuver?.instruction || '',
+                },
+                name: s.name || '',
+                distance: s.distance || 0,
+                duration: s.duration || 0,
+              })) || [],
             });
 
             // Căn chỉnh camera hiển thị đầy đủ tuyến đường đi

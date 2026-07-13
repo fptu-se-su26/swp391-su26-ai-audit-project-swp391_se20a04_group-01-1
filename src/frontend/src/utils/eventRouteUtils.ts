@@ -186,9 +186,9 @@ export async function findSafeEventRoute(
     // Các cầu Đà Nẵng dự phòng nếu cấm đường trên cầu hoặc ven sông
     const DA_NANG_BRIDGES = [
       { name: "Cầu Trần Thị Lý", coordinates: [108.2315, 16.0503] },
-      { name: "Cầu Rồng", coordinates: [108.2273, 16.0611] },
+      { name: "Cầu Rồng", coordinates: [108.227684, 16.061142] },
       { name: "Cầu Sông Hàn", coordinates: [108.2272, 16.0722] },
-      { name: "Cầu Thuận Phước", coordinates: [108.2223, 16.0964] }
+      { name: "Cầu Thuận Phước", coordinates: [108.220381, 16.095148] }
     ];
 
     for (const bridge of DA_NANG_BRIDGES) {
