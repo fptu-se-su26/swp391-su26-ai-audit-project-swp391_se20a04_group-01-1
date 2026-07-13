@@ -66,26 +66,34 @@ router.put('/profile', authenticateToken, async (req, res) => {
         if (body.avatar) {
             const base64Data = body.avatar;
             const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            
             if (matches && matches.length === 3) {
                 const imageType = matches[1]; 
                 const base64Content = matches[2];
-                const buffer = Buffer.from(base64Content, 'base64');
                 
-                let ext = 'png';
-                if (imageType.includes('jpeg') || imageType.includes('jpg')) {
-                    ext = 'jpg';
-                } else if (imageType.includes('png')) {
-                    ext = 'png';
-                } else if (imageType.includes('webp')) {
-                    ext = 'webp';
-                } else if (imageType.includes('gif')) {
-                    ext = 'gif';
+                // 1. KIỂM TRA BẢO MẬT: Chỉ cho phép định dạng an toàn (MIME type)
+                const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+                if (!allowedTypes.includes(imageType)) {
+                    return res.status(400).json({ success: false, message: "Chỉ cho phép tải lên ảnh định dạng JPG, PNG, hoặc WEBP!" });
                 }
 
-                const filename = `avatar-${userId}-${Date.now()}.${ext}`;
-                const uploadsDir = path.join(__dirname, '..', 'uploads'); // Adjusted path for routes/ directory
+                const buffer = Buffer.from(base64Content, 'base64');
+                
+                // 2. KIỂM TRA DUNG LƯỢNG: Giới hạn tối đa 2MB (2 * 1024 * 1024 bytes)
+                if (buffer.length > 2 * 1024 * 1024) {
+                    return res.status(400).json({ success: false, message: "Dung lượng ảnh quá lớn! Vui lòng chọn ảnh dưới 2MB." });
+                }
+                
+                let ext = imageType.split('/')[1];
+                if (ext === 'jpeg') ext = 'jpg';
+
+                // 3. ĐỔI TÊN TỰ ĐỘNG: Định danh người dùng rõ ràng cho Admin dễ quản lý
+                const filename = `user_${userId}_avatar_${Date.now()}.${ext}`;
                 
                 const fs = require('fs');
+                // Lùi 1 cấp từ routes ra backend, vào thư mục uploads
+                const uploadsDir = path.join(__dirname, '..', 'uploads'); 
+                
                 if (!fs.existsSync(uploadsDir)) {
                     fs.mkdirSync(uploadsDir, { recursive: true });
                 }
@@ -93,9 +101,10 @@ router.put('/profile', authenticateToken, async (req, res) => {
                 const filePath = path.join(uploadsDir, filename);
                 fs.writeFileSync(filePath, buffer);
                 
+                // Đường dẫn này sẽ được lưu vào DB và trả về Frontend
                 avatarUrl = `/uploads/${filename}`;
             } else {
-                return res.status(400).json({ success: false, message: "Định dạng ảnh Base64 không hợp lệ!" });
+                return res.status(400).json({ success: false, message: "Định dạng ảnh không hợp lệ!" });
             }
         }
 

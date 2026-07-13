@@ -30,22 +30,19 @@ apiClient.interceptors.request.use(
 // Giải pháp: Khi nhận 401, clear token và redirect về login ngay lập tức.
 apiClient.interceptors.response.use(
     (response) => response,
-    (error: any) => {
+    (error) => {
         if (error.response?.status === 401) {
-            // Token hết hạn hoặc không hợp lệ
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            localStorage.removeItem('userRole');
-            // Chỉ redirect nếu chưa ở trang login (tránh redirect loop)
-            const currentPath = window.location.pathname;
-            if (!currentPath.includes('/login') && !currentPath.includes('/verify-2fa')) {
-                window.location.href = `${import.meta.env.BASE_URL || '/'}login`;
+            localStorage.removeItem("token");
+            localStorage.removeItem("refresh_token");
+
+            if (!window.location.pathname.includes("/login")) {
+                window.location.href = "/login";
             }
         }
+
         return Promise.reject(error);
     }
 );
-
 // ============ FORGOT PASSWORD API ============
 export const poiAPI = {
     getAllPOIs: () => apiClient.get('/pois'),
@@ -77,15 +74,45 @@ export const forgotPasswordAPI = {
 // ============ AUTH API ============
 
 export const authAPI = {
-    register: (username: string, email: string, password: string) =>
-        apiClient.post('/auth/register', { username, email, password }),
+    // Đăng ký
+    register: (
+        username: string,
+        email: string,
+        password: string
+    ) =>
+        apiClient.post("/auth/register", {
+            username,
+            email,
+            password,
+        }),
 
-    // ✅ FIX: Khớp với response của backend
-    login: (email: string, password: string) =>
-        apiClient.post('/auth/login', { email, password }),
+    // Đăng nhập
+    login: (
+        email: string,
+        password: string
+    ) =>
+        apiClient.post("/auth/login", {
+            email,
+            password,
+        }),
 
-    refreshToken: (token: string) =>
-        apiClient.post('/auth/refresh', { token }),
+    // Xác minh email sau khi đăng ký
+    verifyRegisterOTP: (
+        email: string,
+        otp: string
+    ) =>
+        apiClient.post("/auth/verify-register-otp", {
+            email,
+            otp,
+        }),
+
+    // Gửi lại OTP đăng ký
+    resendRegisterOTP: (
+        email: string
+    ) =>
+        apiClient.post("/auth/resend-register-otp", {
+            email,
+        }),
 };
 
 // ============ USER API ============

@@ -407,6 +407,34 @@ async function runWeatherAlertJob() {
 }
 
 // ============================================================
+// JOB 4: CLEANUP UNVERIFIED USERS
+// Chạy mỗi 1 giờ - Xóa tài khoản chưa xác minh quá 24 giờ
+// ============================================================
+async function runCleanupUnverifiedUsersJob() {
+    try {
+        const pool = await poolPromise;
+
+        const result = await pool.request().query(`
+            DELETE FROM Users
+            OUTPUT DELETED.email
+            WHERE is_email_verified = 0
+              AND created_at < DATEADD(HOUR, -24, GETDATE())
+        `);
+
+        if (result.recordset.length > 0) {
+            console.log(
+                `[Scheduler] Cleanup: Deleted ${result.recordset.length} unverified account(s).`
+            );
+        }
+    } catch (err) {
+        console.error(
+            "[Scheduler] Cleanup unverified users error:",
+            err.message
+        );
+    }
+}
+
+// ============================================================
 // KHỞI ĐỘNG CÁC CRON JOBS
 // ============================================================
 function startScheduler() {
@@ -427,13 +455,21 @@ function startScheduler() {
         console.log('[Scheduler] Running weather alert check...');
         runWeatherAlertJob();
     });
+    // Job 4: Cleanup Unverified Users - mỗi 1 giờ
+    cron.schedule('0 * * * *', () => {
+    console.log('[Scheduler] Running cleanup unverified users...');
+    runCleanupUnverifiedUsersJob();
+});
 
-    console.log('✅ [Scheduler] Smart Notification jobs started (Flood: 5m, Event: 15m, Weather: 5m)');
+    console.log(
+    '[Scheduler] Smart Notification jobs started (Flood: 5m, Event: 15m, Weather: 5m, Cleanup: 1h)'
+);
 }
 
-module.exports = { 
-    startScheduler, 
-    runFloodAlertJob, 
+module.exports = {
+    startScheduler,
+    runFloodAlertJob,
     runEventReminderJob,
-    runWeatherAlertJob
+    runWeatherAlertJob,
+    runCleanupUnverifiedUsersJob
 };

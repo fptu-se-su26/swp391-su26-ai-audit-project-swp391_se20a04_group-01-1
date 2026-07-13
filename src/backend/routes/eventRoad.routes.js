@@ -3,7 +3,10 @@ const router = express.Router();
 
 const { sql, poolPromise } = require('../db');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3b28950f445693dcb781126dc60996a80919a7c3
 const parseTimeToDate = (timeStr) => {
     if (!timeStr) return null;
     const parts = timeStr.split(':').map(Number);

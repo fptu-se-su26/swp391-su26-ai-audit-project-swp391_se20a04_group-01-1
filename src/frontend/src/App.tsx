@@ -5,6 +5,7 @@ import Login from './pages/Login/Login';
 import Home from './pages/Home/Home';
 import ProfilePage from './pages/Profile/ProfilePage';
 import Register from './pages/Login/Register';
+import VerifyOTP from './pages/Login/VerifyOTP';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage/LandingPage';
@@ -25,6 +26,7 @@ export default function App() {
                 <Route path="/splash" element={<SplashScreen />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/verify-otp" element={<VerifyOTP />} />
 
                 <Route path="/forgot-password" element={<ForgotPassword />} />
 

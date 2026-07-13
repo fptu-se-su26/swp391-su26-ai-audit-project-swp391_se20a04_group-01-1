@@ -49,20 +49,141 @@ router.post('/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
+        // 🔴 THAY ĐỔI: Thêm is_email_verified = 0 khi tạo user
         await pool
             .request()
             .input("username", sql.NVarChar, trimmedUsername)
             .input("email", sql.NVarChar, email.toLowerCase())
             .input("password_hash", sql.NVarChar, hashedPassword)
             .input("role", sql.NVarChar, "user")
-            .query(`INSERT INTO Users (username, email, password_hash, role) 
-                    VALUES (@username, @email, @password_hash, @role)`);
+            .input("is_email_verified", sql.Bit, 0)  // ← THÊM DÒNG NÀY
+            .query(`INSERT INTO Users (username, email, password_hash, role, is_email_verified) 
+                    VALUES (@username, @email, @password_hash, @role, @is_email_verified)`);
 
         console.log(`[AUTH] New user registered: ${email}`);
-        res.status(201).json({ message: "Tạo tài khoản thành công!" });
+
+        // TẠO VÀ GỬI OTP (Đã đưa vào trong hàm async)
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        await pool.request()
+            .input('email', sql.NVarChar, email.toLowerCase())
+            .input('otp', sql.NVarChar, otp)
+            .query("UPDATE Users SET otp = @otp, otp_expires = DATEADD(minute, 5, GETDATE()) WHERE LOWER(email) = LOWER(@email)");
+
+        await sendOtpEmail(email, otp);
+
+        return res.status(201).json({ 
+            message: "Tạo tài khoản thành công! Vui lòng kiểm tra email để xác minh.",
+            requiresEmailVerification: true 
+        });
+
     } catch (error) {
         console.error("Register error:", error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        return res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
+// POST /api/auth/verify-register-otp
+router.post('/verify-register-otp', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        // 1. Kiểm tra đầu vào
+        if (!email || !otp) {
+            return res.status(400).json({ message: "Vui lòng cung cấp email và mã OTP!" });
+        }
+
+        const pool = await poolPromise;
+
+        // 2. Kiểm tra xem OTP có khớp và còn hạn không
+        const result = await pool.request()
+            .input("email", sql.NVarChar, email.toLowerCase())
+            .input("otp", sql.NVarChar, otp)
+            .query(`
+                SELECT user_id, otp_expires 
+                FROM Users 
+                WHERE LOWER(email) = LOWER(@email) 
+                AND otp = @otp
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(400).json({ message: "Mã OTP không chính xác!" });
+        }
+
+        const user = result.recordset[0];
+
+        // 3. Kiểm tra hạn sử dụng
+        if (new Date() > new Date(user.otp_expires)) {
+            return res.status(400).json({ message: "Mã OTP đã hết hạn!" });
+        }
+
+        // 🔴 THAY ĐỔI: Cập nhật is_email_verified = 1 thay vì is_email_verified
+        await pool.request()
+            .input("email", sql.NVarChar, email.toLowerCase())
+            .query(`
+                UPDATE Users 
+                SET is_email_verified = 1, 
+                    otp = NULL, 
+                    otp_expires = NULL 
+                WHERE LOWER(email) = LOWER(@email)
+            `);
+
+        return res.json({ 
+            success: true, 
+            message: "Xác thực email thành công! Bạn có thể đăng nhập ngay." 
+        });
+
+    } catch (error) {
+        console.error("Verify OTP error:", error);
+        return res.status(500).json({ message: "Lỗi server!", error: error.message });
+    }
+});
+
+// POST /api/auth/resend-register-otp (🆕 ENDPOINT MỚI)
+router.post('/resend-register-otp', async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ message: "Vui lòng nhập email!" });
+        }
+        
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ message: "Email không hợp lệ!" });
+        }
+
+        const pool = await poolPromise;
+        
+        // Kiểm tra user có tồn tại không
+        const user = await pool.request()
+            .input('email', sql.NVarChar, email.toLowerCase())
+            .query('SELECT user_id, is_email_verified FROM Users WHERE LOWER(email) = LOWER(@email)');
+
+        if (user.recordset.length === 0) {
+            return res.status(404).json({ message: "Email không tồn tại!" });
+        }
+        
+        // Nếu đã xác minh rồi, báo lỗi
+        if (user.recordset[0].is_email_verified) {
+            return res.status(400).json({ message: "Tài khoản này đã được xác minh!" });
+        }
+
+        // Tạo OTP mới
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Cập nhật OTP và hạn sử dụng
+        await pool.request()
+            .input('email', sql.NVarChar, email.toLowerCase())
+            .input('otp', sql.NVarChar, otp)
+            .query("UPDATE Users SET otp = @otp, otp_expires = DATEADD(minute, 5, GETDATE()) WHERE LOWER(email) = LOWER(@email)");
+
+        // Gửi email
+        await sendOtpEmail(email, otp);
+
+        return res.json({ message: "Mã OTP mới đã được gửi tới email!" });
+        
+    } catch (error) {
+        console.error('Resend register OTP error:', error);
+        return res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
 });
 
@@ -237,20 +358,37 @@ router.post('/verify-2fa', async (req, res) => {
         const token = jwt.sign(
             { id: user.user_id, email: user.email, username: user.username, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: '1d' }
+            { expiresIn: "30s" }
         );
 
-        res.json({
-            success: true,
-            access_token: token,
-            user: { id: user.user_id, username: user.username, email: user.email, role: user.role }
+        const refreshToken = jwt.sign(
+            { id: user.user_id, email: user.email },
+            process.env.JWT_SECRET,
+            { expiresIn: "7d" } // Hạn dài
+        );
+
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        await pool.request()
+            .input('user_id', sql.Int, user.user_id)
+            .input('token', sql.NVarChar, refreshToken)
+            .input('expires_at', sql.DateTime, expiresAt)
+            .query('INSERT INTO RefreshTokens (user_id, token, expires_at) VALUES (@user_id, @token, @expires_at)');
+
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.cookie('access_token', token, {
+            httpOnly: true, secure: isProduction, sameSite: 'strict', maxAge: 15 * 60 * 1000
         });
-    } catch (error) {
-        console.error("[2FA SECURITY] 2FA verification error:", error);
-        if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
-            return res.status(401).json({ success: false, error: { message: "Phiên xác thực hết hạn!" } });
-        }
-        res.status(500).json({ success: false, error: { message: "Lỗi xác thực 2FA!" } });
+        res.cookie('refresh_token', refreshToken, {
+            httpOnly: true, secure: isProduction, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        res.json({
+            role: user.role,
+            user: { id: user.user_id, username: user.username, email: user.email, role: user.role },
+        });
+    } catch (err) {
+        console.error("Google Auth Error:", err);
+        res.status(401).json({ message: "Xác thực Google thất bại" });
     }
 });
 
@@ -272,15 +410,24 @@ router.post('/login', async (req, res) => {
             .request()
             .input("email", sql.NVarChar, email.toLowerCase())
             .query(`
-                SELECT user_id, username, email, password_hash, role, is_active, ban_reason
+                SELECT user_id, username, email, password_hash, role, is_active, ban_reason, is_email_verified 
                 FROM Users
                 WHERE LOWER(email)=LOWER(@email)
-            `);
+            `); 
 
         const user = result.recordset[0];
 
         if (!user) {
             return res.status(401).json({ message: "Email hoặc mật khẩu không chính xác!" });
+        }
+        
+        // 🔴 THAY ĐỔI: Kiểm tra is_email_verified TRƯỚC khi kiểm tra password
+        if (!user.is_email_verified) {
+            return res.status(403).json({ 
+                requiresEmailVerification: true,
+                message: "Vui lòng xác minh email trước khi đăng nhập!", 
+                email: user.email 
+            });
         }
 
         const banCheck = checkBanStatus(user);
@@ -316,15 +463,45 @@ router.post('/login', async (req, res) => {
             .input('user_id', sql.Int, user.user_id)
             .query('UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id');
 
+        // Access Token
         const token = jwt.sign(
-            { id: user.user_id, email: user.email, username: user.username, role: user.role },
+            {
+                id: user.user_id,
+                email: user.email,
+                role: user.role
+            },
             process.env.JWT_SECRET,
-            { expiresIn: '1d' }
+            { expiresIn: '15m' }
         );
 
+        // Refresh Token
+        const refreshToken = jwt.sign(
+            {
+                id: user.user_id
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        // Lưu Refresh Token
+        await pool.request()
+            .input('user_id', sql.Int, user.user_id)
+            .input('token', sql.NVarChar, refreshToken)
+            .input(
+                'expires_at',
+                sql.DateTime,
+                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            )
+            .query(`
+                INSERT INTO RefreshTokens(user_id, token, expires_at)
+                VALUES(@user_id,@token,@expires_at)
+            `);
+
         console.log(`[AUTH] Successful login: ${email}`);
+
         res.json({
             token,
+            refresh_token: refreshToken,
             role: user.role,
             user: {
                 id: user.user_id,
@@ -335,49 +512,48 @@ router.post('/login', async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: "Lỗi server", error: error.message });
+        return res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
 
 // POST /api/auth/google
 router.post('/google', async (req, res) => {
-    const { token } = req.body;
     try {
+        const { token } = req.body;
+
+        if (!token) {
+            return res.status(400).json({ message: "Token không hợp lệ!" });
+        }
+
         const ticket = await googleClient.verifyIdToken({
             idToken: token,
             audience: process.env.GOOGLE_CLIENT_ID,
         });
         const payload = ticket.getPayload();
-        const { email, name } = payload;
 
-        if (!email || !isValidEmail(email)) return res.status(400).json({ message: "Email không hợp lệ!" });
+        const email = payload.email;
+        const username = payload.name || payload.email.split('@')[0];
 
         const pool = await poolPromise;
-        let result = await pool
-            .request()
-            .input("email", sql.NVarChar, email.toLowerCase())
-            .query(`
-                SELECT user_id, username, email, role, password_hash, is_active, ban_reason
-                FROM Users
-                WHERE LOWER(email)=LOWER(@email)
-            `);
 
-        let user = result.recordset[0];
+        let user = await pool.request()
+            .input('email', sql.NVarChar, email)
+            .query('SELECT user_id, email, username, role FROM Users WHERE LOWER(email) = LOWER(@email)');
 
-        if (!user) {
-            // Generate unique username to avoid UNIQUE KEY constraint violation
-            let baseUsername = (name || email.split('@')[0]).trim();
-            let finalUsername = baseUsername;
-            let suffix = 1;
-            while (true) {
-                const usernameCheck = await pool
-                    .request()
-                    .input("username", sql.NVarChar, finalUsername)
-                    .query("SELECT user_id FROM Users WHERE username = @username");
-                if (usernameCheck.recordset.length === 0) break;
-                finalUsername = `${baseUsername}${suffix++}`;
-            }
+        if (user.recordset.length === 0) {
+            // Tạo user mới từ Google
+            await pool.request()
+                .input('username', sql.NVarChar, username)
+                .input('email', sql.NVarChar, email)
+                .input('password_hash', sql.NVarChar, 'google_auth')
+                .input('role', sql.NVarChar, 'user')
+                .input('is_email_verified', sql.Bit, 1) // Google tự verify
+                .query(`
+                    INSERT INTO Users (username, email, password_hash, role, is_email_verified)
+                    VALUES (@username, @email, @password_hash, @role, @is_email_verified)
+                `);
 
+<<<<<<< HEAD
             await pool
                 .request()
                 .input("username", sql.NVarChar, finalUsername)
@@ -420,25 +596,46 @@ router.post('/google', async (req, res) => {
         const banCheck = checkBanStatus(user);
         if (banCheck.banned) {
             return res.status(403).json({ message: banCheck.message });
+=======
+            user = await pool.request()
+                .input('email', sql.NVarChar, email)
+                .query('SELECT user_id, email, username, role FROM Users WHERE LOWER(email) = LOWER(@email)');
+>>>>>>> 3b28950f445693dcb781126dc60996a80919a7c3
         }
 
-        await pool.request()
-            .input("user_id", sql.Int, user.user_id)
-            .query("UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id");
+        const userData = user.recordset[0];
 
         const jwtToken = jwt.sign(
-            { id: user.user_id, email: user.email, username: user.username, role: user.role },
+            { id: userData.user_id, email: userData.email, role: userData.role },
             process.env.JWT_SECRET,
-            { expiresIn: "1d" },
+            { expiresIn: '15m' }
         );
+
+        const refreshToken = jwt.sign(
+            { id: userData.user_id },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        await pool.request()
+            .input('user_id', sql.Int, userData.user_id)
+            .input('token', sql.NVarChar, refreshToken)
+            .input('expires_at', sql.DateTime, new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
+            .query('INSERT INTO RefreshTokens (user_id, token, expires_at) VALUES (@user_id, @token, @expires_at)');
 
         res.json({
             token: jwtToken,
-            role: user.role,
-            user: { id: user.user_id, username: user.username, email: user.email, role: user.role },
+            refresh_token: refreshToken,
+            role: userData.role,
+            user: {
+                id: userData.user_id,
+                username: userData.username,
+                email: userData.email,
+                role: userData.role
+            }
         });
-    } catch (err) {
-        console.error("Google Auth Error:", err);
+    } catch (error) {
+        console.error("Google Auth Error:", error);
         res.status(401).json({ message: "Xác thực Google thất bại" });
     }
 });
@@ -455,14 +652,10 @@ router.post('/forgot-password', async (req, res) => {
             .input('email', sql.NVarChar, email.toLowerCase())
             .query('SELECT user_id FROM Users WHERE LOWER(email) = LOWER(@email)');
 
-        if (user.recordset.length === 0) return res.status(404).json({ message: 'Email không tồn tại trong hệ thống!' });
-
-        await pool.request()
-            .input('email', sql.NVarChar, email.toLowerCase())
-            .query("DELETE FROM VerificationCodes WHERE LOWER(email) = LOWER(@email) AND otp_type = 'RESET_PASSWORD'");
+        if (user.recordset.length === 0) return res.status(404).json({ message: 'Email không tồn tại!' });
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
         await pool.request()
             .input('email', sql.NVarChar, email.toLowerCase())
@@ -477,9 +670,9 @@ router.post('/forgot-password', async (req, res) => {
             `);
 
         await sendOtpEmail(email, otp);
-        res.json({ message: 'OTP đã được gửi tới email của bạn!' });
+        res.json({ message: 'OTP xác nhận đã được gửi tới email!' });
     } catch (error) {
-        console.error('❌ Forgot password error:', error);
+        console.error('Forgot password error:', error);
         res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
 });
@@ -488,36 +681,29 @@ router.post('/forgot-password', async (req, res) => {
 router.post('/verify-otp', async (req, res) => {
     try {
         const { email, otp } = req.body;
-        if (!email || !otp) return res.status(400).json({ message: 'Vui lòng nhập email và OTP!' });
-        if (!isValidEmail(email)) return res.status(400).json({ message: 'Email không hợp lệ!' });
-        if (!/^\d{6}$/.test(otp.toString())) return res.status(400).json({ message: 'OTP phải là 6 chữ số!' });
+        if (!email || !otp) return res.status(400).json({ message: 'Email và OTP là bắt buộc!' });
 
         const pool = await poolPromise;
         const result = await pool.request()
             .input('email', sql.NVarChar, email.toLowerCase())
+            .input('otp', sql.NVarChar, otp)
             .query(`
-                SELECT TOP 1 otp_id, otp_code, expires_at, is_used 
+                SELECT verification_id, expires_at 
                 FROM VerificationCodes 
-                WHERE LOWER(email) = LOWER(@email) AND otp_type = 'RESET_PASSWORD' AND is_used = 0 
-                ORDER BY created_at DESC
+                WHERE LOWER(email) = LOWER(@email) 
+                AND otp_code = @otp 
+                AND otp_type = 'RESET_PASSWORD'
+                AND is_used = 0
             `);
 
-        if (result.recordset.length === 0) return res.status(404).json({ message: 'Yêu cầu reset mật khẩu không tồn tại!' });
+        if (result.recordset.length === 0) return res.status(400).json({ message: 'Mã OTP không chính xác!' });
 
         const record = result.recordset[0];
-        if (new Date() > new Date(record.expires_at)) return res.status(400).json({ message: 'OTP đã hết hạn! Vui lòng yêu cầu OTP mới.' });
-
-        if (String(record.otp_code).trim() !== String(otp).trim()) {
-            console.warn(`[AUTH SECURITY] Failed OTP verification for: ${email}`);
-            return res.status(400).json({ message: 'OTP không chính xác!' });
+        if (new Date() > new Date(record.expires_at)) {
+            return res.status(400).json({ message: 'Mã OTP đã hết hạn!' });
         }
 
-        await pool.request()
-            .input('otp_id', sql.Int, record.otp_id)
-            .query('UPDATE VerificationCodes SET is_used = 1 WHERE otp_id = @otp_id');
-
-        console.log(`[AUTH] OTP verified for: ${email}`);
-        res.json({ message: 'OTP xác thực thành công!' });
+        res.json({ message: 'Xác thực OTP thành công!' });
     } catch (error) {
         console.error('Verify OTP error:', error);
         res.status(500).json({ message: 'Lỗi server', error: error.message });
@@ -527,42 +713,61 @@ router.post('/verify-otp', async (req, res) => {
 // POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
     try {
-        const { email, newPassword } = req.body;
-        if (!email || !newPassword) return res.status(400).json({ message: 'Vui lòng nhập email và mật khẩu mới!' });
-        if (!isValidEmail(email)) return res.status(400).json({ message: 'Email không hợp lệ!' });
-        if (!isValidPassword(newPassword)) return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự!' });
-
-        const pool = await poolPromise;
-        const result = await pool.request()
-            .input('email', sql.NVarChar, email.toLowerCase())
-            .query(`
-                SELECT TOP 1 is_used 
-                FROM VerificationCodes 
-                WHERE LOWER(email) = LOWER(@email) AND otp_type = 'RESET_PASSWORD' AND is_used = 1 
-                ORDER BY created_at DESC
-            `);
-
-        if (result.recordset.length === 0 || !result.recordset[0].is_used) {
-            return res.status(400).json({ message: 'OTP chưa được xác thực!' });
+        const { email, otp, newPassword } = req.body;
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ message: 'Email, OTP và mật khẩu mới là bắt buộc!' });
         }
 
+        if (!isValidPassword(newPassword)) {
+            return res.status(400).json({ message: 'Mật khẩu phải có ít nhất 6 ký tự!' });
+        }
+
+        const pool = await poolPromise;
+
+        // 1. Kiểm tra xem OTP có hợp lệ không
+        const checkOtp = await pool.request()
+            .input('email', sql.NVarChar, email.toLowerCase())
+            .input('otp', sql.NVarChar, otp)
+            .query(`
+                SELECT verification_id, expires_at 
+                FROM VerificationCodes 
+                WHERE LOWER(email) = LOWER(@email) 
+                AND otp_code = @otp 
+                AND otp_type = 'RESET_PASSWORD'
+                AND is_used = 0
+            `);
+
+        // 2. Nếu không tìm thấy (chưa xác thực hoặc đã quá 10 phút)
+        if (checkOtp.recordset.length === 0) {
+            // Tùy chọn: Xóa các mã OTP cũ của email này để làm sạch database
+            await pool.request()
+                .input('email', sql.NVarChar, email.toLowerCase())
+                .query("DELETE FROM VerificationCodes WHERE LOWER(email) = LOWER(@email) AND otp_type = 'RESET_PASSWORD'");
+            
+            return res.status(400).json({ message: 'Phiên xác thực đã hết hạn (quá 10 phút) hoặc chưa được xác thực. Vui lòng yêu cầu OTP mới!' });
+        }
+
+        // 3. Nếu hợp lệ, tiến hành băm mật khẩu mới
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
 
+        // 4. Cập nhật mật khẩu mới vào bảng Users
         await pool.request()
             .input('email', sql.NVarChar, email.toLowerCase())
             .input('password_hash', sql.NVarChar, hashedPassword)
             .query('UPDATE Users SET password_hash = @password_hash WHERE LOWER(email) = LOWER(@email)');
 
+        // 5. Xóa mã OTP sau khi đổi mật khẩu thành công để không bị dùng lại
         await pool.request()
             .input('email', sql.NVarChar, email.toLowerCase())
             .query("DELETE FROM VerificationCodes WHERE LOWER(email) = LOWER(@email) AND otp_type = 'RESET_PASSWORD'");
 
         console.log(`[AUTH] Password reset for: ${email}`);
-        res.json({ message: 'Mật khẩu đã được reset thành công!' });
+        return res.json({ message: 'Mật khẩu đã được reset thành công!' });
+        
     } catch (error) {
         console.error('Reset password error:', error);
-        res.status(500).json({ message: 'Lỗi server', error: error.message });
+        return res.status(500).json({ message: 'Lỗi server', error: error.message });
     }
 });
 
@@ -604,6 +809,154 @@ router.post('/resend-otp', async (req, res) => {
     } catch (error) {
         console.error('Resend OTP error:', error);
         res.status(500).json({ message: 'Lỗi server', error: error.message });
+    }
+});
+
+// POST /api/auth/refresh
+router.post('/refresh', async (req, res) => {
+    try {
+        const { refresh_token } = req.body;
+
+        if (!refresh_token) {
+            return res.status(401).json({
+                message: 'Missing refresh token'
+            });
+        }
+
+        const pool = await poolPromise;
+
+        const result = await pool.request()
+            .input('token', sql.NVarChar, refresh_token)
+            .query(`
+                SELECT *
+                FROM RefreshTokens
+                WHERE token=@token
+                AND is_revoked=0
+                AND expires_at > GETDATE()
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(403).json({
+                message: 'Token không hợp lệ'
+            });
+        }
+
+        const decoded = jwt.verify(
+            refresh_token,
+            process.env.JWT_SECRET
+        );
+
+        const userResult = await pool.request()
+            .input('user_id', sql.Int, decoded.id)
+            .query(`
+                SELECT user_id,email,username,role
+                FROM Users
+                WHERE user_id=@user_id
+            `);
+
+        const user = userResult.recordset[0];
+
+        if (!user) {
+            return res.status(404).json({
+                message: 'Người dùng không tồn tại'
+            });
+        }
+
+        // Access Token mới
+        const newAccessToken = jwt.sign(
+            {
+                id: user.user_id,
+                email: user.email,
+                role: user.role
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: '15m'
+            }
+        );
+
+        // Refresh Token mới
+        const newRefreshToken = jwt.sign(
+            {
+                id: user.user_id
+            },
+            process.env.JWT_SECRET,
+            {
+                expiresIn: '7d'
+            }
+        );
+
+        // revoke token cũ
+        await pool.request()
+            .input('token', sql.NVarChar, refresh_token)
+            .query(`
+                UPDATE RefreshTokens
+                SET is_revoked=1
+                WHERE token=@token
+            `);
+
+        // insert token mới
+        await pool.request()
+            .input('user_id', sql.Int, user.user_id)
+            .input('token', sql.NVarChar, newRefreshToken)
+            .input(
+                'expires_at',
+                sql.DateTime,
+                new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+            )
+            .query(`
+                INSERT INTO RefreshTokens
+                (user_id,token,expires_at)
+                VALUES
+                (@user_id,@token,@expires_at)
+            `);
+
+        res.json({
+            token: newAccessToken,
+            refresh_token: newRefreshToken
+        });
+
+    } catch (err) {
+        console.error(err);
+
+        res.status(500).json({
+            message: 'Lỗi server'
+        });
+    }
+});
+
+// POST /api/auth/logout
+router.post('/logout', async (req, res) => {
+    try {
+
+        const { refresh_token } = req.body;
+
+        if (!refresh_token) {
+            return res.status(400).json({
+                message: 'Missing refresh token'
+            });
+        }
+
+        const pool = await poolPromise;
+
+        await pool.request()
+            .input('token', sql.NVarChar, refresh_token)
+            .query(`
+                UPDATE RefreshTokens
+                SET is_revoked=1
+                WHERE token=@token
+            `);
+
+        res.json({
+            message: 'Đã đăng xuất'
+        });
+
+    } catch (err) {
+        console.error(err);
+
+        res.status(500).json({
+            message: 'Lỗi server'
+        });
     }
 });
 
