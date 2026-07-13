@@ -150,8 +150,11 @@ export default function Home() {
                 origin={routeController.origin}
                 originQuery={routeController.originQuery}
                 destinationQuery={routeController.destinationQuery}
+                activeInputField={uiState.activeInputField}
                 showSuggestions={uiState.showSuggestions}
                 suggestions={searchController.suggestions}
+                setSuggestions={searchController.setSuggestions}
+                hasSuggestions={searchController.suggestions.length > 0}
                 routeData={routeController.routeData}
                 travelMode={routeController.travelMode}
                 searchContainerRef={searchController.searchContainerRef}
@@ -160,7 +163,10 @@ export default function Home() {
                 setActiveInputField={(val: any) => uiState.setUIState({ activeInputField: val })}
                 setShowSuggestions={(val: boolean) => uiState.setUIState({ showSuggestions: val })}
                 handleSwapLocations={searchController.handleSwap}
-                handleSelectSuggestion={searchController.handleSuggestionClick}
+                handleSelectSuggestion={(item: any) => {
+                  searchController.handleSuggestionClick(item, uiState.activeInputField);
+                  uiState.setUIState({ activeInputField: null, showSuggestions: false });
+                }}
                 setTravelMode={routeController.setTravelMode}
               />
 

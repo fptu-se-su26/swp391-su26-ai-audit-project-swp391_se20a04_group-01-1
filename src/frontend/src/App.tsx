@@ -13,6 +13,7 @@ import ForgotPassword from './pages/Login/ForgotPassword';
 import Verify2FA from './pages/Auth/Verify2FA'; 
 import TrackRoutePage from './pages/TrackRoute/TrackRoutePage';
 import { Toaster } from 'react-hot-toast';
+import { OfflineIndicator } from './pages/Home/components/OfflineIndicator';
 
 export default function App() {
     const token = localStorage.getItem('token');
@@ -64,6 +65,9 @@ export default function App() {
                 {/* Bắt lỗi đường dẫn linh tinh, tự động đẩy về màn hình chờ ban đầu */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            
+            {/* ← THÊM COMPONENT NÀY */}
+            <OfflineIndicator />
         </Router>
     );
 }

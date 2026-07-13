@@ -53,6 +53,7 @@ app.use("/api/events", require("./routes/events.routes"));
 app.use("/api/event-categories", require("./routes/eventCategory.routes"));
 app.use("/api/flood-zones", require("./routes/flood.routes"));
 app.use("/api/pois", require("./routes/poi.routes"));
+app.use("/api/search", require("./routes/search.routes"));
 app.use("/api/poi-categories", require("./routes/poiCategory.routes"));
 app.use("/api/event-roads", require("./routes/eventRoad.routes"));
 app.use("/api/traffic-alerts", require("./routes/traffic.routes"));
