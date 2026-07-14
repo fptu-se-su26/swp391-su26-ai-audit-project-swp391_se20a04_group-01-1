@@ -231,31 +231,8 @@ VALUES (
         GETDATE(),
         GETDATE()
     ),
-    (
-        7,
-        7,
-        1,
-        N'Hội thảo Phát triển Đô thị Thông minh Đà Nẵng',
-        N'Hội thảo công nghệ đề xuất đô thị thông minh (Đang chờ Admin duyệt).',
-        N'Các chuyên gia trong nước và quốc tế hội thảo chia sẻ giải pháp IoT và quy hoạch giao thông công cộng, chống úng lụt thông minh cho thành phố Đà Nẵng.',
-        N'Trung tâm Hành chính Đà Nẵng',
-        16.076357590026813,
-        108.22154264834482,
-        N'24 Trần Phú, Thạch Thang, Hải Châu, Đà Nẵng',
-        N'Hải Châu',
-        '2026-07-12 08:30:00',
-        '2026-07-12 17:00:00',
-        'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1000',
-        'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400',
-        'pending',
-        0,
-        0,
-        200000,
-        GETDATE(),
-        GETDATE()
-    );
-
-SET IDENTITY_INSERT Events OFF;
+SET
+IDENTITY_INSERT Events OFF;
 
 -- ========== VERIFY ==========
 SELECT 'EventCategories' AS TableName, COUNT(*) AS TotalRows
@@ -264,4 +241,4 @@ UNION ALL
 SELECT 'Events', COUNT(*)
 FROM Events;
 
-PRINT N' Seed Events Data thành công! (7 categories + 8 Events)';
+PRINT N'✅ Seed Events Data thành công! (7 categories + 8 Events)';

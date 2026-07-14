@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-//  Middleware: Kiểm tra token hợp lệ
+// ✅ Middleware: Kiểm tra token hợp lệ
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -28,7 +28,7 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-//  Middleware: Kiểm tra role
+// ✅ Middleware: Kiểm tra role
 const authorizeRole = (...allowedRoles) => {
     return (req, res, next) => {
         if (!req.user || !allowedRoles.includes(req.user.role)) {

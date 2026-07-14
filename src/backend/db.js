@@ -15,7 +15,7 @@ const dbConfig = {
 const poolPromise = new sql.ConnectionPool(dbConfig)
     .connect()
     .then(pool => {
-        console.log(' Kết nối Database DNPulse thành công!');
+        console.log('✅ Kết nối Database DNPulse thành công!');
         return pool;
     })
     .catch(err => {

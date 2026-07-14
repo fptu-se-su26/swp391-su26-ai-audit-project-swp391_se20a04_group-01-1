@@ -15,7 +15,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         return <Navigate to={`/login${search}`} replace />;
     }
 
-    //  Nếu yêu cầu role cụ thể mà role không khớp → redirect dashboard
+    // ✅ Nếu yêu cầu role cụ thể mà role không khớp → redirect dashboard
     if (requiredRole && userRole !== requiredRole) {
         console.log('Role check failed:', { required: requiredRole, actual: userRole });
         return <Navigate to="/dashboard" replace />;

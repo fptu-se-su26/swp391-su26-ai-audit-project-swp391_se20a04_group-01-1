@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ChangePasswordModal from "./ChangePasswordModal";
 import EditProfileModal from "./EditProfileModal";
+import MyPOIsTab from "./MyPOIsTab";
 import {
   Navigation,
   LogOut,
@@ -80,7 +81,7 @@ export default function ProfilePage({
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState("");
   const [activeMenu, setActiveMenu] = useState<
-    "profile" | "saved_routes" | "events" | "favorites" | "settings" | "help"
+    "profile" | "saved_routes" | "events" | "favorites" | "my_pois" | "settings" | "help"
   >("profile");
 
   // Zustand stores hooks
@@ -119,7 +120,7 @@ export default function ProfilePage({
       const data = await res.json();
       setTestNotifMsg(
         data.success
-          ? " Đã gửi! Mở chuông 🔔 để xem thông báo."
+          ? "✅ Đã gửi! Mở chuông 🔔 để xem thông báo."
           : "❌ " + data.message,
       );
     } catch {
@@ -358,6 +359,7 @@ export default function ProfilePage({
     { id: "saved_routes", label: "Lộ Trình Đã Lưu", icon: Bookmark },
     { id: "events", label: "Lịch Sử Di Chuyển", icon: History },
     { id: "favorites", label: "Địa Điểm Yêu Thích", icon: Heart },
+    { id: "my_pois", label: "Địa Điểm Của Tôi", icon: MapPin },
     { id: "settings", label: "Cài Đặt", icon: Settings },
     { id: "help", label: "Hỗ Trợ", icon: HelpCircle },
   ];
@@ -470,17 +472,10 @@ export default function ProfilePage({
       </nav>
 
       {/* ============ MAIN CONTENT ============ */}
-      <div style={{ display: "flex", flex: 1 }}>
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
         {/* ============ SIDEBAR ============ */}
         <div
-          style={{
-            width: "260px",
-            backgroundColor: "white",
-            borderRight: "1px solid #e5e7eb",
-            padding: "16px 12px",
-            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
-            overflowY: "auto",
-          }}
+          className="w-full md:w-[260px] bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:py-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] shrink-0 flex md:block flex-row overflow-x-auto md:overflow-y-auto scrollbar-none"
         >
           {menuItems.map((item) => {
             const IconComponent = item.icon;
@@ -489,33 +484,15 @@ export default function ProfilePage({
               <button
                 key={item.id}
                 onClick={() => setActiveMenu(item.id as any)}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "10px 12px",
-                  marginBottom: "4px",
-                  backgroundColor: isActive ? "#EFF6FF" : "transparent",
-                  border: "none",
-                  borderLeft: isActive
-                    ? "3px solid #2563EB"
-                    : "3px solid transparent",
-                  borderRadius: "4px",
-                  color: isActive ? "#2563EB" : "#6b7280",
-                  fontSize: "13px",
-                  fontWeight: isActive ? "600" : "500",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseOver={(e) => {
-                  if (!isActive)
-                    e.currentTarget.style.backgroundColor = "#f3f4f6";
-                }}
-                onMouseOut={(e) => {
-                  if (!isActive)
-                    e.currentTarget.style.backgroundColor = "transparent";
-                }}
+                className={`
+                  shrink-0 flex items-center justify-center md:justify-start gap-[10px] px-[14px] py-[10px] mb-0 md:mb-1
+                  w-auto md:w-full whitespace-nowrap cursor-pointer transition-all duration-200 ease-in-out text-[13px]
+                  border-b-[3px] md:border-b-0 md:border-l-[3px] outline-none
+                  ${isActive 
+                    ? "bg-blue-50 text-blue-600 font-semibold border-b-blue-600 md:border-l-blue-600 md:border-b-transparent" 
+                    : "bg-transparent text-slate-500 font-medium border-b-transparent md:border-l-transparent hover:bg-slate-100"
+                  }
+                `}
               >
                 <IconComponent size={16} />
                 <span>{item.label}</span>
@@ -525,7 +502,7 @@ export default function ProfilePage({
         </div>
 
         {/* ============ MAIN CONTENT AREA ============ */}
-        <div style={{ flex: 1, padding: "24px 32px", overflowY: "auto" }}>
+        <div className="flex-1 p-4 md:p-8 overflow-y-auto w-full">
           {error && (
             <div
               style={{
@@ -621,8 +598,8 @@ export default function ProfilePage({
 
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
+                    display: "flex",
+                    flexDirection: "column",
                     gap: "16px",
                   }}
                 >
@@ -797,85 +774,86 @@ export default function ProfilePage({
               </div>
 
               {/* Bảo Mật */}
-              <div
-                style={{
-                  backgroundColor: "white",
-                  borderRadius: "12px",
-                  padding: "24px",
-                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
-                  border: "1px solid #e5e7eb",
-                }}
-              >
-                <h3
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: "bold",
-                    color: "#1f2937",
-                    marginBottom: "16px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <Lock size={16} style={{ color: "#2563EB" }} />
-                  Bảo Mật
-                </h3>
+              {userData && userData.has_password !== false && (
                 <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "12px",
-                    backgroundColor: "#f9fafb",
-                    borderRadius: "8px",
+                    backgroundColor: "white",
+                    borderRadius: "12px",
+                    padding: "24px",
+                    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
                     border: "1px solid #e5e7eb",
                   }}
                 >
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: "600",
-                        color: "#1f2937",
-                        marginBottom: "3px",
-                      }}
-                    >
-                      Mật khẩu
-                    </p>
-                    <p style={{ fontSize: "12px", color: "#6b7280" }}>
-                      {userData?.has_password === false
-                        ? "Chưa thiết lập mật khẩu"
-                        : "••••••••"}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowChangePassword(true)}
+                  <h3
                     style={{
-                      padding: "6px 12px",
-                      backgroundColor: "white",
-                      color: "#2563EB",
-                      border: "1px solid #2563EB",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      transition: "all 0.3s ease",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = "#EFF6FF";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = "white";
+                      fontSize: "15px",
+                      fontWeight: "bold",
+                      color: "#1f2937",
+                      marginBottom: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
                     }}
                   >
-                    {userData?.has_password === false
-                      ? "Tạo mật khẩu"
-                      : "Đổi mật khẩu"}
-                  </button>
+                    <Lock size={16} style={{ color: "#2563EB" }} />
+                    Bảo Mật
+                  </h3>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "12px",
+                      backgroundColor: "#f9fafb",
+                      borderRadius: "8px",
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <div>
+                      <p
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: "600",
+                          color: "#1f2937",
+                          marginBottom: "3px",
+                        }}
+                      >
+                        Mật khẩu
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#6b7280" }}>
+                        ••••••••
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowChangePassword(true)}
+                      style={{
+                        padding: "6px 12px",
+                        backgroundColor: "white",
+                        color: "#2563EB",
+                        border: "1px solid #2563EB",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        transition: "all 0.3s ease",
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = "#EFF6FF";
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = "white";
+                      }}
+                    >
+                      Đổi mật khẩu
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
+
+          {/* ============ MY POIS TAB ============ */}
+          {activeMenu === "my_pois" && <MyPOIsTab />}
 
           {/* ============ SAVED ROUTES TAB ============ */}
           {activeMenu === "saved_routes" && (
@@ -2042,7 +2020,7 @@ export default function ProfilePage({
                         <span
                           style={{
                             fontSize: "11px",
-                            color: testNotifMsg.startsWith("")
+                            color: testNotifMsg.startsWith("✅")
                               ? "#10b981"
                               : "#ef4444",
                           }}
@@ -2069,7 +2047,7 @@ export default function ProfilePage({
                         <div>
                             <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
                                 Trạng thái: {' '}
-                                {offlineStatus === 'downloaded' && <span style={{ color: '#10b981' }}> Đã tải về ({offlineDate})</span>}
+                                {offlineStatus === 'downloaded' && <span style={{ color: '#10b981' }}>✅ Đã tải về ({offlineDate})</span>}
                                 {offlineStatus === 'downloading' && <span style={{ color: '#2563eb' }}>⚡ Đang tải ({downloadProgress}%)</span>}
                                 {offlineStatus === 'failed' && <span style={{ color: '#ef4444' }}>❌ Lỗi tải về</span>}
                                 {offlineStatus === 'idle' && <span style={{ color: '#6b7280' }}>Chưa tải về</span>}

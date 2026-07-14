@@ -254,7 +254,7 @@ export async function findSafeRoute(
     // NEW CODE: Bridge detour options
     const DA_NANG_BRIDGES = [
       { name: "Cầu Trần Thị Lý", coordinates: [108.2315, 16.0503] },
-      { name: "Cầu Rồng", coordinates: [108.2273, 16.0611] },
+      { name: "Cầu Rồng", coordinates: [108.227684, 16.061142] },
       { name: "Cầu Sông Hàn", coordinates: [108.2272, 16.0722] },
       { name: "Cầu Hòa Xuân", coordinates: [108.2235, 16.0152] },
       { name: "Cầu Nguyễn Tri Phương", coordinates: [108.2185, 16.0165] }

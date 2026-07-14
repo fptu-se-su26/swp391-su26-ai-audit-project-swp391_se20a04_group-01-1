@@ -90,6 +90,7 @@ CREATE TABLE POIs (
     phone_number NVARCHAR(20) NULL,
     rating DECIMAL(2, 1) NULL,
     is_featured BIT NOT NULL DEFAULT 0,
+    status NVARCHAR(20) NOT NULL DEFAULT 'pending', -- e.g., 'pending', 'approved', 'rejected'
     is_active BIT NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT GETDATE()
 );

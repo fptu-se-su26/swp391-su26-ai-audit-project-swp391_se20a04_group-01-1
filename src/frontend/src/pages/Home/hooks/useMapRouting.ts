@@ -1,17 +1,62 @@
-import { useState, useEffect, useRef } from "react";
-import { MapRef } from "react-map-gl/mapbox";
-import { EventRoad } from "../../../services/eventRoadService";
-import { findSafeRoute as findSafeRouteZone } from "../../../utils/floodZoneRouteUtils";
-import { findSafeTrafficRoute } from "../../../utils/trafficRouteUtils";
-import { findSafeEventRoute } from "../../../utils/eventRouteUtils";
-import { showPremiumToast } from "../../../utils/toastUtils";
-import { RouteData } from "../types/route";
-import { LocationPoint } from "../types/map";
-import { fetchLowBandwidthRoute, fetchMapboxDirections } from "../services/routeService";
-import { getHaversineDistance, estimateOfflineDurationMin } from "../utils/routeUtils";
-import { getBoundsFromCoordinates } from "../utils/mapUtils";
+import { useState, useEffect, useRef } from 'react';
+import { MapRef } from 'react-map-gl/mapbox';
+import { EventRoad } from '../../../services/eventRoadService';
+import { findSafeRoute as findSafeRouteZone } from '../../../utils/floodZoneRouteUtils';
+import { findSafeTrafficRoute } from '../../../utils/trafficRouteUtils';
+import { findSafeEventRoute } from '../../../utils/eventRouteUtils';
+import { showPremiumToast } from '../../../utils/toastUtils';
+import { decodePolyline } from '../../../utils/polylineHelper';
 
-export type { RouteData, LocationPoint };
+export interface RouteStep {
+  maneuver: {
+    type: string;
+    modifier?: string;
+    instruction?: string;
+    location: [number, number]; // [lng, lat]
+  };
+  name: string;
+  distance: number; // meters
+  duration: number; // seconds
+}
+
+export interface RouteInfo {
+  id: number;
+  totalDistanceKm: number;
+  totalTimeMin: number;
+  coordinates: [number, number][];
+  steps: RouteStep[];
+}
+
+export interface RouteData {
+  totalDistanceKm: number;
+  totalTimeMin: number;
+  coordinates: [number, number][];
+  steps?: RouteStep[];
+  routes?: RouteInfo[]; // all candidate routes
+}
+
+export interface LocationPoint {
+  lng: number;
+  lat: number;
+  label: string;
+  poi_id?: number;
+  event_id?: number;
+}
+
+// Hàm tính khoảng cách đường chim bay khẩn cấp khi ngoại tuyến
+function getHaversineDistance(coords1: {lat: number, lng: number}, coords2: {lat: number, lng: number}) {
+  const R = 6371; // Bán kính Trái Đất (km)
+  const dLat = ((coords2.lat - coords1.lat) * Math.PI) / 180;
+  const dLon = ((coords2.lng - coords1.lng) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((coords1.lat * Math.PI) / 180) *
+      Math.cos((coords2.lat * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Khoảng cách dạng km
+}
 
 export function useMapRouting(
   mapRef: React.RefObject<MapRef | null>,
@@ -24,10 +69,8 @@ export function useMapRouting(
     confirmedFloodZoneIds: string[];
     isLowBandwidth: boolean;
     isOffline: boolean;
-    isNavigating?: boolean;
   },
 ) {
-  const [routeSteps, setRouteSteps] = useState<any[]>([]);
   const [origin, setOrigin] = useState<LocationPoint | null>(null);
   const [destination, setDestination] = useState<LocationPoint | null>(null);
   const [originQuery, setOriginQuery] = useState("");
@@ -36,18 +79,12 @@ export function useMapRouting(
     "driving" | "walking" | "cycling"
   >("driving");
   const [routeData, setRouteData] = useState<RouteData | null>(null);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [routeAlertMessage, setRouteAlertMessage] = useState<string | null>(
     null,
   );
   const isLoadedRouteRef = useRef(false);
-  //  FIX: dùng ref thay vì đưa options.isNavigating vào dependency của effect
-  // fetch tuyến đường bên dưới - nếu đưa vào deps, mỗi lần bắt đầu/dừng dẫn
-  // đường sẽ khiến effect chạy lại và gọi lại API Mapbox Directions không cần thiết.
-  const isNavigatingRef = useRef(false);
-  useEffect(() => {
-    isNavigatingRef.current = !!options.isNavigating;
-  }, [options.isNavigating]);
 
   // Fetch and process map route
   useEffect(() => {
@@ -62,38 +99,26 @@ export function useMapRouting(
       try {
         const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
-        //  FIX: các lệnh fitBounds bên dưới luôn "kéo" camera về góc nhìn toàn
-        // tuyến. Trong lúc đang dẫn đường (isNavigating), việc này sẽ đè lên
-        // hiệu ứng phóng to bám theo người dùng, khiến bản đồ trông như chưa
-        // từng zoom. Đã bọc guardFitBounds bên dưới để bỏ qua khi đang dẫn đường.
-        const guardFitBounds = (bounds: any, opts: any) => {
-          if (isNavigatingRef.current) return;
-          mapRef.current?.fitBounds(bounds, opts);
-        };
-
         // 1. XỬ LÝ NGOẠI TUYẾN (OFFLINE FALLBACK)
         if (options.isOffline) {
           const distKm = getHaversineDistance(origin, destination);
-          const durationMin = estimateOfflineDurationMin(distKm, travelMode);
+          const speed = travelMode === 'walking' ? 5 : travelMode === 'cycling' ? 15 : 30; // km/h
+          const durationMin = Math.round((distKm / speed) * 60);
 
-          setRouteAlertMessage(
-            "⚠️ Chế độ Ngoại tuyến: Đang hiển thị hướng đường chim bay khẩn cấp tới đích.",
-          );
+          setRouteAlertMessage("⚠️ Chế độ Ngoại tuyến: Đang hiển thị hướng đường chim bay khẩn cấp tới đích.");
           setRouteData({
             totalDistanceKm: parseFloat(distKm.toFixed(2)),
-            totalTimeMin: durationMin,
+            totalTimeMin: Math.max(1, durationMin),
             coordinates: [
               [origin.lng, origin.lat],
-              [destination.lng, destination.lat],
-            ],
+              [destination.lng, destination.lat]
+            ]
           });
 
-          guardFitBounds(
-            [
-              [origin.lng, origin.lat],
-              [destination.lng, destination.lat],
-            ],
-            { padding: 80, duration: 1200 },
+          // Fit camera
+          mapRef.current?.fitBounds(
+            [[origin.lng, origin.lat], [destination.lng, destination.lat]],
+            { padding: 80, duration: 1200 }
           );
           setLoadingRoute(false);
           return;
@@ -101,18 +126,33 @@ export function useMapRouting(
 
         // 2. XỬ LÝ TIẾT KIỆM BĂNG THÔNG QUA BACKEND PROXY (LOW BANDWIDTH)
         if (options.isLowBandwidth) {
-          const lowBandwidthRoute = await fetchLowBandwidthRoute(origin, destination, travelMode, mapboxToken);
+          const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+          const response = await fetch(
+            `${apiUrl}/api/routes/calculate?origin=${origin.lng},${origin.lat}&destination=${destination.lng},${destination.lat}&mode=${travelMode}&access_token=${mapboxToken}`
+          );
+          const data = await response.json();
 
-          if (lowBandwidthRoute) {
-            setRouteAlertMessage(
-              "⚡ Tiết kiệm băng thông: Tuyến đường đã được nén tối ưu truyền tải.",
-            );
-            setRouteData(lowBandwidthRoute);
+          if (response.ok && data.success && data.polyline) {
+            const coords = decodePolyline(data.polyline);
+            setRouteAlertMessage("⚡ Tiết kiệm băng thông: Tuyến đường đã được nén tối ưu truyền tải.");
+            setRouteData({
+              totalDistanceKm: parseFloat((data.distance / 1000).toFixed(2)),
+              totalTimeMin: Math.round(data.duration / 60),
+              coordinates: coords
+            });
 
-            if (lowBandwidthRoute.coordinates.length > 0) {
-              guardFitBounds(
-                getBoundsFromCoordinates(lowBandwidthRoute.coordinates),
-                { padding: 80, duration: 1200 },
+            if (coords.length > 0) {
+              let minLng = coords[0][0], maxLng = coords[0][0];
+              let minLat = coords[0][1], maxLat = coords[0][1];
+              for (const c of coords) {
+                if (c[0] < minLng) minLng = c[0];
+                if (c[0] > maxLng) maxLng = c[0];
+                if (c[1] < minLat) minLat = c[1];
+                if (c[1] > maxLat) maxLat = c[1];
+              }
+              mapRef.current?.fitBounds(
+                [[minLng, minLat], [maxLng, maxLat]],
+                { padding: 80, duration: 1200 }
               );
             }
             setLoadingRoute(false);
@@ -121,50 +161,52 @@ export function useMapRouting(
         }
 
         // 3. XỬ LÝ TRỰC TUYẾN BÌNH THƯỜNG
-        const { ok, routes } = await fetchMapboxDirections(origin, destination, travelMode, mapboxToken);
+        const response = await fetch(
+          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&steps=true&language=vi&access_token=${mapboxToken}`,
+        );
+        const data = await response.json();
 
-        if (ok) {
-          let selectedRoute = routes[0];
+        if (response.ok && data.routes && data.routes.length > 0) {
+          let selectedRoute = data.routes[0];
           let alertMsg: string | null = null;
 
           if (options.avoidFlood) {
             // Trích xuất các cảnh báo ngập lụt động từ danh sách TrafficAlerts
             const weatherFloodZones = (options.trafficAlerts || [])
-              .filter(
-                (alert: any) =>
-                  alert.is_active &&
-                  (alert.type === "FLOOD" || alert.type === "WEATHER"),
+              .filter((alert: any) =>
+                alert.is_active &&
+                (alert.type === 'FLOOD' || alert.type === 'WEATHER')
               )
               .map((alert: any) => ({
                 id: `temp-weather-${alert.id}`,
                 zone_id: alert.id,
                 name: alert.title,
-                district: alert.location || "Đà Nẵng",
+                district: alert.location || 'Đà Nẵng',
                 center: [alert.longitude, alert.latitude] as [number, number],
                 radius: 800, // Bán kính ảnh hưởng ngập lụt dự báo (~800m)
                 depthCm: 30, // Độ sâu ngập giả định (> 10cm để thuật toán né tránh)
-                level: "high" as const,
-                description: alert.description,
+                level: 'high' as const,
+                description: alert.description
               }));
 
             const combinedFloodZones = [
               ...options.floodZones,
-              ...weatherFloodZones,
+              ...weatherFloodZones
             ];
 
             const combinedConfirmedIds = [
               ...options.confirmedFloodZoneIds,
-              ...weatherFloodZones.map((w) => w.id),
+              ...weatherFloodZones.map(w => w.id)
             ];
 
             const result = await findSafeRouteZone(
-              routes,
+              data.routes,
               combinedFloodZones,
               origin,
               destination,
               travelMode,
               mapboxToken,
-              combinedConfirmedIds,
+              combinedConfirmedIds
             );
             selectedRoute = result.selectedRoute;
             alertMsg = result.alertMsg;
@@ -174,7 +216,7 @@ export function useMapRouting(
             const result = await findSafeTrafficRoute(
               [
                 selectedRoute,
-                ...routes.filter((r: any) => r !== selectedRoute),
+                ...data.routes.filter((r: any) => r !== selectedRoute),
               ],
               options.trafficAlerts,
               origin,
@@ -194,7 +236,7 @@ export function useMapRouting(
             const result = await findSafeEventRoute(
               [
                 selectedRoute,
-                ...routes.filter((r: any) => r !== selectedRoute),
+                ...data.routes.filter((r: any) => r !== selectedRoute),
               ],
               options.activeEventRoads,
               origin,
@@ -213,20 +255,69 @@ export function useMapRouting(
           setRouteAlertMessage(alertMsg);
 
           if (selectedRoute) {
+            // Parse all routes
+            const allRoutesParsed: RouteInfo[] = data.routes.map((r: any, idx: number) => ({
+              id: idx,
+              totalDistanceKm: parseFloat((r.distance / 1000).toFixed(2)),
+              totalTimeMin: Math.round(r.duration / 60),
+              coordinates: r.geometry.coordinates,
+              steps: r.legs?.[0]?.steps?.map((s: any) => ({
+                maneuver: {
+                  type: s.maneuver?.type || '',
+                  modifier: s.maneuver?.modifier || '',
+                  instruction: s.maneuver?.instruction || '',
+                  location: s.maneuver?.location || [0, 0],
+                },
+                name: s.name || '',
+                distance: s.distance || 0,
+                duration: s.duration || 0,
+              })) || [],
+            }));
+
+            const activeIndex = data.routes.findIndex((r: any) => 
+              JSON.stringify(r.geometry.coordinates) === JSON.stringify(selectedRoute.geometry.coordinates)
+            );
+            setSelectedRouteIndex(activeIndex >= 0 ? activeIndex : 0);
+
             setRouteData({
               totalDistanceKm: parseFloat(
                 (selectedRoute.distance / 1000).toFixed(2),
               ),
               totalTimeMin: Math.round(selectedRoute.duration / 60),
               coordinates: selectedRoute.geometry.coordinates,
-              steps: selectedRoute.legs[0]?.steps || [],
+              steps: selectedRoute.legs?.[0]?.steps?.map((s: any) => ({
+                maneuver: {
+                  type: s.maneuver?.type || '',
+                  modifier: s.maneuver?.modifier || '',
+                  instruction: s.maneuver?.instruction || '',
+                  location: s.maneuver?.location || [0, 0],
+                },
+                name: s.name || '',
+                distance: s.distance || 0,
+                duration: s.duration || 0,
+              })) || [],
+              routes: allRoutesParsed
             });
 
             // Căn chỉnh camera hiển thị đầy đủ tuyến đường đi
             const coords = selectedRoute.geometry.coordinates;
             if (coords.length > 0) {
-              guardFitBounds(
-                getBoundsFromCoordinates(coords),
+              let minLng = coords[0][0],
+                maxLng = coords[0][0];
+              let minLat = coords[0][1],
+                maxLat = coords[0][1];
+              for (const c of coords) {
+                if (c[0] < minLng) minLng = c[0];
+                if (c[0] > maxLng) maxLng = c[0];
+                if (c[1] < minLat) minLat = c[1];
+                if (c[1] > maxLat) maxLat = c[1];
+              }
+
+              mapRef.current?.fitBounds(
+                [
+                  [minLng, minLat],
+                  [maxLng, maxLat],
+                ],
                 { padding: 80, duration: 1500 },
               );
             }
@@ -282,6 +373,19 @@ export function useMapRouting(
     isLoadedRouteRef.current = true;
   };
 
+  const selectRoute = (index: number) => {
+    if (!routeData?.routes || !routeData.routes[index]) return;
+    const targetRoute = routeData.routes[index];
+    setSelectedRouteIndex(index);
+    setRouteData({
+      ...routeData,
+      totalDistanceKm: targetRoute.totalDistanceKm,
+      totalTimeMin: targetRoute.totalTimeMin,
+      coordinates: targetRoute.coordinates,
+      steps: targetRoute.steps,
+    });
+  };
+
   return {
     origin,
     setOrigin,
@@ -301,5 +405,8 @@ export function useMapRouting(
     setRouteAlertMessage,
     isLoadedRouteRef,
     applyRouteToState,
+    selectedRouteIndex,
+    setSelectedRouteIndex,
+    selectRoute,
   };
 }

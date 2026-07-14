@@ -17,6 +17,7 @@ interface Props {
         severity: 'LOW' | 'MEDIUM' | 'HIGH';
         latitude: number;
         longitude: number;
+        affected_area_polygon: string;
     };
     setTrafficFormData: (v: any) => void;
     handleCreateTrafficAlert: (e: React.FormEvent) => void;
@@ -263,6 +264,18 @@ export default function TrafficTab({
                                                  </div>
                                              </div>
                                          </div>
+                                     </div>
+
+                                     <div>
+                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vùng ảnh hưởng (Polygon - GeoJSON)</label>
+                                         <textarea
+                                             placeholder='VD: {"type": "Polygon", "coordinates": [[[lng, lat], ...]]}'
+                                             value={trafficFormData.affected_area_polygon || ''}
+                                             onChange={(e) => setTrafficFormData({ ...trafficFormData, affected_area_polygon: e.target.value })}
+                                             rows={4}
+                                             className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-mono text-[10px]"
+                                         />
+                                         <p className="text-[10px] text-slate-400 mt-1">Tuỳ chọn: Nhập chuỗi GeoJSON chuẩn để hiển thị đa giác vùng ảnh hưởng lên bản đồ.</p>
                                      </div>
                                 </div>
 

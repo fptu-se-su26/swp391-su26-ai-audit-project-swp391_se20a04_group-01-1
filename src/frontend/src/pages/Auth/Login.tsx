@@ -50,7 +50,7 @@ export default function Login() {
 
   const current = slides[slide];
 
-  //  Hoàn chỉnh handleLogin với try-catch-finally
+  // ✅ Hoàn chỉnh handleLogin với try-catch-finally
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -66,17 +66,17 @@ export default function Login() {
       const data = await response.json();
 
       if (response.ok) {
-        //  Lưu token
+        // ✅ Lưu token
         localStorage.setItem('token', data.token);
         localStorage.setItem('userRole', data.role);
 
-        //  Lưu user info
+        // ✅ Lưu user info
         if (data.user) {
           localStorage.setItem('user', JSON.stringify(data.user));
         }
 
-        //  Redirect dựa trên role
-        //  ĐÚNG
+        // ✅ Redirect dựa trên role
+        // ✅ ĐÚNG
 if (data.role === 'admin') {
   window.location.href = '/admin/dashboard';  
 } else {

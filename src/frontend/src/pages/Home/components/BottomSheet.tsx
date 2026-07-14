@@ -1,110 +1,73 @@
-import React, { useState, useEffect } from "react";
-import { motion, PanInfo } from "framer-motion";
+import React from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
 
 interface BottomSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  /** % chiều cao viewport cho từng mốc dừng, tăng dần. Mặc định 25/50/90. */
-  snapPoints?: number[];
-  /** Index (trong snapPoints đã sort tăng dần) sẽ mở ra lúc đầu. Mặc định mốc giữa. */
-  initialSnapIndex?: number;
+  title: string;
   children: React.ReactNode;
 }
 
-export default function BottomSheet({
+export const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen,
   onClose,
-  snapPoints = [25, 50, 90],
-  initialSnapIndex = 1,
+  title,
   children,
-}: BottomSheetProps) {
-  const sortedSnaps = [...snapPoints].sort((a, b) => a - b); // tăng dần: [thấp, vừa, cao]
-  const [snapIndex, setSnapIndex] = useState(
-    Math.min(initialSnapIndex, sortedSnaps.length - 1),
-  );
-  const [viewportH, setViewportH] = useState(
-    typeof window !== "undefined" ? window.innerHeight : 800,
-  );
-
-  useEffect(() => {
-    const handleResize = () => setViewportH(window.innerHeight);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  // Reset về mốc mặc định mỗi lần sheet được mở lại từ đầu
-  useEffect(() => {
-    if (isOpen)
-      setSnapIndex(Math.min(initialSnapIndex, sortedSnaps.length - 1));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
-  const maxSnapVh = sortedSnaps[sortedSnaps.length - 1];
-  const containerHeightPx = (maxSnapVh / 100) * viewportH;
-  const currentVh = sortedSnaps[snapIndex];
-  // Khoảng cách (px) sheet bị đẩy xuống dưới so với lúc mở tối đa -> dùng làm transform y
-  const hiddenPx = ((maxSnapVh - currentVh) / 100) * viewportH;
-
-  const handleDragEnd = (
-    _e: MouseEvent | TouchEvent | PointerEvent,
-    info: PanInfo,
-  ) => {
-    // Vị trí (tính theo %vh) sau khi kéo xong
-    const draggedVh = currentVh - (info.offset.y / viewportH) * 100;
-
-    // Kéo xuống thấp hơn nửa mốc thấp nhất -> coi như người dùng muốn đóng hẳn
-    if (draggedVh < sortedSnaps[0] / 2) {
-      onClose();
-      return;
-    }
-
-    // Tìm mốc snap gần vị trí thả tay nhất
-    let nearestIndex = 0;
-    let minDiff = Infinity;
-    sortedSnaps.forEach((snap, idx) => {
-      const diff = Math.abs(snap - draggedVh);
-      if (diff < minDiff) {
-        minDiff = diff;
-        nearestIndex = idx;
-      }
-    });
-
-    // Vuốt đủ nhanh (velocity) thì ưu tiên nhảy hẳn 1 mốc theo hướng vuốt, mượt hơn snap theo vị trí
-    if (info.velocity.y > 600 && nearestIndex > 0) {
-      nearestIndex -= 1;
-    } else if (
-      info.velocity.y < -600 &&
-      nearestIndex < sortedSnaps.length - 1
-    ) {
-      nearestIndex += 1;
-    }
-
-    setSnapIndex(nearestIndex);
-  };
-
+}) => {
   return (
-    <motion.div
-      className="fixed left-0 right-0 bottom-0 z-30 bg-white rounded-t-2xl shadow-2xl flex flex-col"
-      style={{ height: containerHeightPx, touchAction: "none" }}
-      initial={{ y: containerHeightPx }}
-      animate={{ y: hiddenPx }}
-      transition={{ type: "spring", damping: 32, stiffness: 320 }}
-      drag="y"
-      dragConstraints={{ top: 0, bottom: containerHeightPx }}
-      dragElastic={0.05}
-      onDragEnd={handleDragEnd}
-    >
-      {/* Tay cầm kéo */}
-      <div className="shrink-0 pt-2 pb-1 flex justify-center cursor-grab active:cursor-grabbing">
-        <div className="w-10 h-1.5 bg-slate-300 rounded-full" />
-      </div>
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Overlay Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.5 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-slate-950 z-40 md:hidden pointer-events-auto"
+          />
 
-      {/* Nội dung cuộn được bên trong, không làm sheet bị kéo theo khi cuộn list */}
-      <div className="flex-1 overflow-y-auto overscroll-contain">
-        {children}
-      </div>
-    </motion.div>
+          {/* Bottom Sheet Drawer */}
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 220 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              // If dragged down significantly, close it
+              if (info.velocity.y > 300 || info.offset.y > 150) {
+                onClose();
+              }
+            }}
+            className="fixed bottom-0 left-0 right-0 max-h-[85vh] bg-white rounded-t-3xl border-t border-slate-200/80 shadow-[0_-8px_30px_rgb(0,0,0,0.12)] z-50 md:hidden flex flex-col pointer-events-auto overflow-hidden text-slate-800"
+          >
+            {/* Drag Handle & Header */}
+            <div className="flex flex-col items-center pt-3 pb-2 shrink-0 border-b border-slate-100">
+              <div className="w-12 h-1.5 bg-slate-300 rounded-full mb-3 cursor-grab active:cursor-grabbing" />
+              <div className="w-full px-5 flex items-center justify-between">
+                <h3 className="font-extrabold text-sm text-slate-800 leading-tight truncate pr-4">
+                  {title}
+                </h3>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto p-5 scrollbar-thin">
+              {children}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
-}
+};

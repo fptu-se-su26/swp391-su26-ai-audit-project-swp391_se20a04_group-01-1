@@ -113,7 +113,7 @@ export default function ForgotPassword() {
   const pwMatch = confirmPw && newPw === confirmPw;
   const pwMismatch = confirmPw && newPw !== confirmPw;
 
-  //  BƯỚC 1: Gửi OTP
+  // ✅ BƯỚC 1: Gửi OTP
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -128,7 +128,7 @@ export default function ForgotPassword() {
     }
   };
 
-  //  BƯỚC 2: Xác thực OTP
+  // ✅ BƯỚC 2: Xác thực OTP
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otpComplete) return;
@@ -144,7 +144,7 @@ export default function ForgotPassword() {
     }
   };
 
-  //  BƯỚC 3: Đặt lại Mật khẩu
+  // ✅ BƯỚC 3: Đặt lại Mật khẩu
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pwMatch) return;
@@ -160,7 +160,7 @@ export default function ForgotPassword() {
     }
   };
 
-  //  Gửi lại OTP
+  // ✅ Gửi lại OTP
   const handleResend = async () => {
     setOtp(['', '', '', '', '', '']);
     setCountdown(60);

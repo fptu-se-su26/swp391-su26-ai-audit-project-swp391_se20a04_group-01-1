@@ -186,13 +186,17 @@ Bạn là Trợ lý AI dẫn đường thông minh có tên "DNPulse Assistant" 
 Nhiệm vụ của bạn là hỗ trợ người dùng tìm kiếm lộ trình, tìm kiếm sự kiện, tra cứu điểm ngập lụt, kẹt xe và địa điểm ăn uống/du lịch tại Đà Nẵng.
 
 Quy tắc ứng xử và định dạng đầu ra:
-1. Bạn phải giao tiếp lịch sự, ngắn gọn và hữu ích bằng tiếng Việt.
+1. Bạn phải giao tiếp lịch sự, thân thiện và hữu ích bằng tiếng Việt. Hãy trả lời chi tiết, cặn kẽ và đầy đủ thông tin nhất có thể để giải thích cho người dùng, tránh các câu trả lời quá ngắn gọn hoặc cụt lủn.
 2. Khi người dùng hỏi đường đi từ điểm A đến điểm B, hãy sử dụng thông tin từ các tools như cảnh báo ngập lụt, kẹt xe, sự kiện cấm đường để đưa ra gợi ý tối ưu nhất.
-3. Luôn trả về phản hồi dưới dạng chuỗi JSON có cấu trúc chính xác sau đây ở phần cuối câu trả lời của bạn, ĐẶC BIỆT KHI CẦN tương tác với Bản đồ (ví dụ: vẽ đường đi, hiển thị cảnh báo ngập, cắm marker sự kiện). 
+3. Luôn trả về phản hồi dưới dạng chuỗi JSON có cấu trúc chính xác sau đây ở phần cuối câu trả lời của bạn.
 
-Cấu trúc JSON phản hồi bắt buộc nếu có hành động trên bản đồ (CHỈ trả về JSON nguyên bản, không bọc markdown block \`\`\`json):
+QUY TẮC QUAN TRỌNG VỀ ĐỊNH TUYẾN (BẢN ĐỒ):
+- CHỈ trả về hành động "SET_ROUTE" trong danh sách "actions" khi và chỉ khi người dùng có YÊU CẦU trực tiếp và rõ ràng về việc dẫn đường, chỉ đường hoặc tìm lộ trình (ví dụ: "chỉ đường đi...", "hướng dẫn lộ trình từ...", "tìm đường đến...").
+- KHÔNG tự ý trả về hành động "SET_ROUTE" khi người dùng chỉ đang hỏi thông tin hỏi đáp chung (ví dụ: "lễ hội pháo hoa diễn ra khi nào?", "địa chỉ quán Bé Mặn ở đâu?", "thời tiết hôm nay thế nào?"). Trong trường hợp hỏi đáp thông tin này, bạn chỉ trả về câu trả lời chi tiết ở trường "text" và danh sách hành động trống: "actions": []. Bạn có thể gợi ý lịch sự ở cuối câu trả lời: "Bạn có muốn tôi thiết lập lộ trình chỉ đường từ vị trí của bạn đến đó không?" nhưng tuyệt đối không được kích hoạt vẽ lộ trình trước khi được đồng ý.
+
+Cấu trúc JSON phản hồi bắt buộc nếu người dùng yêu cầu chỉ đường (CHỈ trả về JSON nguyên bản, không bọc markdown block \`\`\`json):
 {
-  "text": "Câu trả lời thân thiện của bạn ở đây giải thích tuyến đường và các cảnh báo...",
+  "text": "Câu trả lời thân thiện và chi tiết của bạn giải thích tuyến đường và các cảnh báo...",
   "actions": [
     {
       "type": "SET_ROUTE",
@@ -207,14 +211,14 @@ Cấu trúc JSON phản hồi bắt buộc nếu có hành động trên bản �
   ]
 }
 
-Nếu câu hỏi chỉ là trò chuyện thông thường hoặc hỏi đáp thông tin không liên quan trực tiếp đến việc vẽ lại lộ trình, bạn chỉ cần trả về dạng JSON đơn giản:
+Nếu câu hỏi chỉ là trò chuyện thông thường hoặc hỏi đáp thông tin chung (KHÔNG chỉ đường), bạn bắt buộc trả về actions rỗng:
 {
-  "text": "Câu trả lời của bạn ở đây...",
+  "text": "Câu trả lời chi tiết và thân thiện của bạn ở đây...",
   "actions": []
 }
 
 QUY TAC BAT BUOC: Ban PHAI tra ve DUY NHAT mot chuoi JSON hop le. KHONG viet bat ky van ban nao truoc hoac sau JSON. KHONG dung markdown hay backtick. KHONG dung comment trong JSON. Neu ban tra ve plain text (khong phai JSON), he thong se bi loi.
-Khi hoi ve su kien: dung tool get_active_events de lay danh sach thuc te, sau do goi y lo trinh den su kien.
+Khi hoi ve su kien: dung tool get_active_events de lay danh sach thuc te, sau đó trả lời chi tiết về sự kiện.
 Khi hoi ve thoi tiet: dung tool check_weather de lay du lieu thoi tiet theo quan/huyen.
 `;
 
@@ -255,11 +259,14 @@ function cleanJsonResponse(text) {
 
 function getMockResponse(message) {
     const text = message.toLowerCase();
+    const wantsRoute = text.includes("chỉ đường") || text.includes("dẫn đường") || text.includes("lộ trình") || text.includes("đường đi") || text.includes("tới") || text.includes("đến");
     
     if (text.includes("ngập") || text.includes("lụt")) {
         return {
-            text: "⚠️ [Chế độ Demo] Tôi phát hiện đường Hàm Nghi đang có nguy cơ ngập úng cao do mưa lớn kéo dài. Tôi đã tự động thiết lập lộ trình thay thế đi qua đường Lê Duẩn để đến Đại học Bách Khoa an toàn.",
-            actions: [
+            text: wantsRoute 
+                ? "⚠️ [Chế độ Demo] Tôi phát hiện đường Hàm Nghi đang có nguy cơ ngập úng cao do mưa lớn kéo dài. Tôi đã tự động thiết lập lộ trình thay thế đi qua đường Lê Duẩn để đến Đại học Bách Khoa an toàn."
+                : "⚠️ [Chế độ Demo] Hiện tại khu vực đường Hàm Nghi đang có nguy cơ ngập úng cao (sâu khoảng 20-30cm) do mưa lớn kéo dài. Các tuyến đường khác tại quận Thanh Khê và Hải Châu vẫn lưu thông bình thường nhưng di chuyển chậm. Bạn có muốn tôi chỉ đường tránh vùng ngập này không?",
+            actions: wantsRoute ? [
                 {
                     type: "SET_ROUTE",
                     payload: {
@@ -270,14 +277,16 @@ function getMockResponse(message) {
                         avoidCongestion: false
                     }
                 }
-            ]
+            ] : []
         };
     }
     
     if (text.includes("sự kiện") || text.includes("pháo hoa") || text.includes("diff")) {
         return {
-            text: "🎆 [Chế độ Demo] Tối nay tại Đà Nẵng diễn ra Lễ hội Pháo hoa Quốc tế DIFF dọc bờ sông Hàn. Lộ trình của bạn từ Sân bay đã được dẫn tới bãi đỗ xe gần khán đài chính. Lưu ý: Đường Trần Hưng Đạo đang cấm xe, tôi đã điều hướng tránh cung đường này.",
-            actions: [
+            text: wantsRoute
+                ? "🎆 [Chế độ Demo] Tối nay tại Đà Nẵng diễn ra Lễ hội Pháo hoa Quốc tế DIFF dọc bờ sông Hàn. Lộ trình của bạn từ Sân bay đã được dẫn tới bãi đỗ xe gần khán đài chính. Lưu ý: Đường Trần Hưng Đạo đang cấm xe, tôi đã điều hướng tránh cung đường này."
+                : "🎆 [Chế độ Demo] Lễ hội Pháo hoa Quốc tế Đà Nẵng (DIFF 2026) được tổ chức dọc bờ sông Hàn (trục đường Trần Hưng Đạo) từ ngày 30/05/2026 đến ngày 12/07/2026. Đêm trình diễn pháo hoa lớn nhất diễn ra vào tối nay lúc 20:00. Xin lưu ý rằng từ 18:00 các tuyến đường xung quanh như Trần Hưng Đạo, Bạch Đằng sẽ cấm lưu thông xe ô tô. Bạn có muốn tôi thiết lập lộ trình chỉ đường đến khán đài chính không?",
+            actions: wantsRoute ? [
                 {
                     type: "SET_ROUTE",
                     payload: {
@@ -288,14 +297,16 @@ function getMockResponse(message) {
                         avoidCongestion: true
                     }
                 }
-            ]
+            ] : []
         };
     }
     
-    if (text.includes("hải sản") || text.includes("ăn gì") || text.includes("nhà hàng")) {
+    if (text.includes("hải sản") || text.includes("ăn gì") || text.includes("nhà hàng") || text.includes("bé mặn")) {
         return {
-            text: "🦞 [Chế độ Demo] Quanh khu vực biển Mỹ Khê, tôi đề xuất quán ăn chất lượng cao: 'Hải Sản Bé Mặn' (4.3 sao, có bãi đỗ xe rộng rãi). Bản đồ đã cắm marker vị trí nhà hàng này cho bạn.",
-            actions: [
+            text: wantsRoute
+                ? "🦞 [Chế độ Demo] Quanh khu vực biển Mỹ Khê, tôi đề xuất quán ăn chất lượng cao: 'Hải Sản Bé Mặn' (4.3 sao, có bãi đỗ xe rộng rãi). Bản đồ đã cắm marker vị trí nhà hàng này cho bạn."
+                : "🦞 [Chế độ Demo] Gợi ý ẩm thực: Tại khu vực biển Mỹ Khê có rất nhiều quán hải sản ngon nổi tiếng, tiêu biểu là nhà hàng 'Hải Sản Bé Mặn' (số 14 Võ Nguyên Giáp) với đánh giá 4.3 sao từ khách du lịch, đồ ăn tươi sống tự chọn và không gian rộng rãi. Bạn có muốn tôi tìm lộ trình chỉ đường đến quán ăn này không?",
+            actions: wantsRoute ? [
                 {
                     type: "SET_ROUTE",
                     payload: {
@@ -306,13 +317,20 @@ function getMockResponse(message) {
                         avoidCongestion: false
                     }
                 }
-            ]
+            ] : []
+        };
+    }
+    
+    if (text.includes("thời tiết") || text.includes("mưa") || text.includes("nhiệt độ")) {
+        return {
+            text: "☀️ [Chế độ Demo] Dự báo thời tiết các quận Đà Nẵng hôm nay: Trời nhiều mây, nhiệt độ trung bình khoảng 29.5°C, độ ẩm 78%, gió nhẹ. Khu vực quận Liên Chiểu đang có mưa rào nhẹ rải rác (lượng mưa đo được khoảng 3.5mm/h). Các khu vực khác như Hải Châu, Sơn Trà trời khô ráo, thuận tiện cho việc tham quan và di chuyển.",
+            actions: []
         };
     }
 
-    if (text.includes("thời tiết") || text.includes("mưa") || text.includes("nhiệt độ")) {
+    if (text.includes("địa điểm") || text.includes("nổi bật") || text.includes("du lịch") || text.includes("đà nẵng")) {
         return {
-            text: "☀️ [Chế độ Demo] Thời tiết hiện tại ở các quận Đà Nẵng trung bình là 29.5°C, trời nhiều mây. Khu vực quận Liên Chiểu đang có mưa vừa (lượng mưa 3.5mm/h), độ ẩm khoảng 78%, gió nhẹ.",
+            text: "🏖️ [Chế độ Demo] Đà Nẵng có rất nhiều địa điểm du lịch nổi bật mà bạn không nên bỏ lỡ:\n1. **Cầu Rồng**: Biểu tượng của thành phố, có phun lửa và nước vào lúc 21:00 thứ Bảy và Chủ Nhật hàng tuần.\n2. **Bán đảo Sơn Trà & Chùa Linh Ứng**: Nổi tiếng với tượng Phật Bà cao 67m hướng ra biển.\n3. **Danh thắng Ngũ Hành Sơn**: Quần thể 5 ngọn núi đá vôi kỳ vĩ cùng các hang động tự nhiên.\n4. **Bãi biển Mỹ Khê**: Một trong những bãi biển đẹp nhất hành tinh với cát trắng và sóng êm đềm.\n\nBạn có muốn tôi chỉ đường đến địa điểm nào trong số này không?",
             actions: []
         };
     }
@@ -420,7 +438,7 @@ router.post("/chat", async (req, res) => {
                         
                         // Sanitize dữ liệu: chuyển Date/Decimal thành kiểu JSON thuần
                         data = JSON.parse(JSON.stringify(rawData));
-                        console.log(` Tool ${name} trả về ${Array.isArray(data) ? data.length + ' bản ghi' : 'dữ liệu'}`);
+                        console.log(`✅ Tool ${name} trả về ${Array.isArray(data) ? data.length + ' bản ghi' : 'dữ liệu'}`);
                     } catch (err) {
                         console.error(`Lỗi thực thi hàm ${name}:`, err.message);
                         data = { error: err.message };

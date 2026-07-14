@@ -1,9 +1,5 @@
-import { create } from "zustand";
-import {
-  getPreferences,
-  updatePreferences,
-  UserPreferences,
-} from "../services/preferenceService";
+import { create } from 'zustand';
+import { getPreferences, updatePreferences, UserPreferences } from '../services/preferenceService';
 
 interface PreferenceState {
   preferences: UserPreferences | null;
@@ -11,10 +7,7 @@ interface PreferenceState {
   error: string | null;
 
   fetchPreferences: () => Promise<void>;
-  updatePreference: <K extends keyof UserPreferences>(
-    key: K,
-    value: UserPreferences[K],
-  ) => Promise<void>;
+  updatePreference: <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => Promise<void>;
   updateAllPreferences: (prefs: Partial<UserPreferences>) => Promise<void>;
   resetPreferences: () => void;
 }
@@ -25,8 +18,7 @@ const defaultPreferences: UserPreferences = {
   show_traffic_layer: true,
   show_restricted_roads: true,
   enable_buffer_alerts: true,
-  default_travel_mode: "driving",
-  enable_voice_guide: true,
+  default_travel_mode: 'driving'
 };
 
 export const usePreferenceStore = create<PreferenceState>((set, get) => ({
@@ -39,15 +31,12 @@ export const usePreferenceStore = create<PreferenceState>((set, get) => ({
     try {
       const data = await getPreferences();
       // Đảm bảo dữ liệu từ API luôn được trộn với default nếu thiếu trường
-      set({
-        preferences: { ...defaultPreferences, ...data },
-        isLoading: false,
-      });
+      set({ preferences: { ...defaultPreferences, ...data }, isLoading: false });
     } catch (err: any) {
-      set({
-        preferences: defaultPreferences,
-        error: err.message,
-        isLoading: false,
+      set({ 
+        preferences: defaultPreferences, 
+        error: err.message, 
+        isLoading: false 
       });
     }
   },
@@ -55,7 +44,7 @@ export const usePreferenceStore = create<PreferenceState>((set, get) => ({
   updatePreference: async (key, value) => {
     const currentPrefs = get().preferences || defaultPreferences;
     const updatedPrefs = { ...currentPrefs, [key]: value };
-
+    
     // Cập nhật ngay lập tức để UI render lại
     set({ preferences: updatedPrefs });
 
@@ -71,7 +60,7 @@ export const usePreferenceStore = create<PreferenceState>((set, get) => ({
   updateAllPreferences: async (prefs) => {
     const currentPrefs = get().preferences || defaultPreferences;
     const updatedPrefs = { ...currentPrefs, ...prefs };
-
+    
     // Cập nhật ngay lập tức
     set({ preferences: updatedPrefs });
 
@@ -85,5 +74,5 @@ export const usePreferenceStore = create<PreferenceState>((set, get) => ({
 
   resetPreferences: () => {
     set({ preferences: null, error: null, isLoading: false });
-  },
+  }
 }));

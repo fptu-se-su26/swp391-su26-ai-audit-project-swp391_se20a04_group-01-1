@@ -83,10 +83,10 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ isOpen, onClose, cu
             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/user/profile`, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json', //  BẮT BUỘC CÓ DÒNG NÀY
+                    'Content-Type': 'application/json', // ✅ BẮT BUỘC CÓ DÒNG NÀY
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(payload) //  Ép kiểu sang chuỗi JSON
+                body: JSON.stringify(payload) // ✅ Ép kiểu sang chuỗi JSON
             });
 
             const data = await response.json();

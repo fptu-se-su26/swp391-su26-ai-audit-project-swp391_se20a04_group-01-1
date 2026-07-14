@@ -181,7 +181,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
                         fontSize: '12px',
                         marginBottom: '16px'
                     }}>
-                         {success}
+                        ✅ {success}
                     </div>
                 )}
 
@@ -380,7 +380,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ isOpen, onClo
                                 color: '#10b981',
                                 marginTop: '4px'
                             }}>
-                                 Mật khẩu khớp
+                                ✅ Mật khẩu khớp
                             </p>
                         )}
                     </div>
