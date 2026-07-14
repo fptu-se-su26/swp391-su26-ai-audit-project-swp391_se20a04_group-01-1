@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { X, Heart, Calendar, Clock, MapPin, Globe, Ticket, Navigation, Compass, Share2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Heart, Calendar, Clock, MapPin, Globe, Ticket, Navigation, Compass, Share2, Camera, Upload } from 'lucide-react';
 import { EventData, getEventStatus } from './EventsLayer';
+import { eventAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
 
 interface EventDetailSidebarProps {
@@ -19,7 +20,50 @@ export default function EventDetailSidebar({
     onClose
 }: EventDetailSidebarProps) {
     const [loadingFav, setLoadingFav] = useState(false);
+    const [images, setImages] = useState<any[]>([]);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     const status = getEventStatus(event.start_time, event.end_time);
+
+    useEffect(() => {
+        const fetchImages = async () => {
+            try {
+                const res = await eventAPI.getEventImages(event.event_id);
+                setImages(res.data.data || []);
+            } catch (err) {
+                console.error("Lỗi tải ảnh sự kiện:", err);
+            }
+        };
+        fetchImages();
+    }, [event.event_id]);
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+        if (!token) {
+            toast.error('Vui lòng đăng nhập để tải ảnh lên!');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('image', file);
+        formData.append('caption', 'Người dùng đóng góp');
+
+        setIsUploading(true);
+        try {
+            const res = await eventAPI.uploadEventImage(event.event_id, formData);
+            toast.success('Tải ảnh lên thành công!');
+            setImages([res.data.data, ...images]);
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Lỗi khi tải ảnh lên');
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     // Xử lý click nút yêu thích
     const handleFavClick = async () => {
@@ -70,7 +114,7 @@ export default function EventDetailSidebar({
     };
 
     return (
-        <div className="w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col h-[calc(100vh-140px)] animate-fade-left pointer-events-auto">
+        <div className="w-80 max-md:w-full max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[50vh] max-md:max-h-[50vh] max-md:rounded-t-3xl max-md:rounded-b-none max-md:z-40 max-md:border-t max-md:border-slate-200/80 max-md:shadow-[0_-8px_30px_rgba(0,0,0,0.12)] max-md:animate-none bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col h-[calc(100vh-140px)] animate-fade-left pointer-events-auto">
             {/* Header: Banner Image */}
             <div className="relative h-40 shrink-0 bg-slate-100 border-b border-slate-100">
                 <img
@@ -117,6 +161,50 @@ export default function EventDetailSidebar({
                     </h3>
                 </div>
             </div>
+
+            {/* Thư viện ảnh (Gallery Slider) */}
+            {(images.length > 0 || localStorage.getItem('token') || localStorage.getItem('auth_token')) && (
+                <div className="bg-slate-50 border-b border-slate-100 p-3 shrink-0 flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Thư viện ảnh ({images.length})</span>
+                        {(localStorage.getItem('token') || localStorage.getItem('auth_token')) && (
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading}
+                                className="text-[10px] flex items-center gap-1 font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                            >
+                                {isUploading ? <span className="animate-spin text-lg leading-none">↻</span> : <Camera size={12} />}
+                                Đóng góp ảnh
+                            </button>
+                        )}
+                        <input
+                            type="file"
+                            accept="image/*"
+                            ref={fileInputRef}
+                            className="hidden"
+                            onChange={handleFileUpload}
+                        />
+                    </div>
+                    {images.length > 0 ? (
+                        <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1">
+                            {images.map((img, idx) => {
+                                const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+                                return (
+                                    <div key={img.image_id || idx} className="shrink-0 w-24 h-16 rounded-lg overflow-hidden shadow-sm border border-slate-200 snap-center relative group">
+                                        <img 
+                                            src={img.image_url.startsWith('http') ? img.image_url : `${baseUrl}${img.image_url}`} 
+                                            alt={img.caption || 'Event image'} 
+                                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" 
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className="text-[10px] text-slate-400 italic">Chưa có hình ảnh đóng góp nào.</p>
+                    )}
+                </div>
+            )}
 
             {/* Chi tiết nội dung */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 text-left scrollbar-none">

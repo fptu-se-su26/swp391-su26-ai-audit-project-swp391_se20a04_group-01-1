@@ -104,26 +104,25 @@ export default function SettingsTab({
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Đổi Mật Khẩu */}
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                    <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Key size={18} className="text-blue-500" />
-                        {hasPassword ? 'Thay đổi mật khẩu tài khoản' : 'Tạo mật khẩu cho tài khoản'}
-                    </h3>
-                    <p className="text-xs text-slate-400 mb-6">
-                        {hasPassword
-                            ? 'Đảm bảo mật khẩu của bạn có độ dài tối thiểu 8 ký tự và bao gồm các chữ cái, chữ số.'
-                            : 'Bạn đang đăng nhập bằng Google. Hãy tạo một mật khẩu để có thể đăng nhập trực tiếp bằng Email sau này.'}
-                    </p>
+                {/* Đổi Mật Khẩu */}
+                {hasPassword !== false && (
+                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                        <h3 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <Key size={18} className="text-blue-500" />
+                            Thay đổi mật khẩu tài khoản
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-6">
+                            Đảm bảo mật khẩu của bạn có độ dài tối thiểu 8 ký tự và bao gồm các chữ cái, chữ số.
+                        </p>
 
-                    <form onSubmit={handleChangePasswordSubmit} className="space-y-4 flex-1 flex flex-col justify-between">
-                        <div className="space-y-4">
-                            {pwdMessage && (
-                                <div className={`p-3 rounded-xl text-xs font-semibold ${pwdError ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
-                                    {pwdMessage}
-                                </div>
-                            )}
+                        <form onSubmit={handleChangePasswordSubmit} className="space-y-4 flex-1 flex flex-col justify-between">
+                            <div className="space-y-4">
+                                {pwdMessage && (
+                                    <div className={`p-3 rounded-xl text-xs font-semibold ${pwdError ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                        {pwdMessage}
+                                    </div>
+                                )}
 
-                            {hasPassword && (
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mật khẩu hiện tại</label>
                                     <div className="relative">
@@ -139,69 +138,69 @@ export default function SettingsTab({
                                         </button>
                                     </div>
                                 </div>
-                            )}
 
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mật khẩu mới</label>
-                                <div className="relative">
-                                    <input
-                                        type={showPwd.new ? "text" : "password"}
-                                        placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
-                                        value={pwdFormData.newPassword}
-                                        onChange={(e) => setPwdFormData({ ...pwdFormData, newPassword: e.target.value })}
-                                        className={`w-full px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 pr-10 transition-colors ${
-                                            pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword
-                                            ? 'border-emerald-500 focus:ring-emerald-500/20'
-                                            : pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword
-                                            ? 'border-red-500 focus:ring-red-500/20'
-                                            : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
-                                        }`}
-                                    />
-                                    <button type="button" onClick={() => setShowPwd({ ...showPwd, new: !showPwd.new })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition">
-                                        {showPwd.new ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mật khẩu mới</label>
+                                    <div className="relative">
+                                        <input
+                                            type={showPwd.new ? "text" : "password"}
+                                            placeholder="Mật khẩu mới (tối thiểu 8 ký tự)"
+                                            value={pwdFormData.newPassword}
+                                            onChange={(e) => setPwdFormData({ ...pwdFormData, newPassword: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 pr-10 transition-colors ${
+                                                pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword
+                                                ? 'border-emerald-500 focus:ring-emerald-500/20'
+                                                : pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword
+                                                ? 'border-red-500 focus:ring-red-500/20'
+                                                : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
+                                            }`}
+                                        />
+                                        <button type="button" onClick={() => setShowPwd({ ...showPwd, new: !showPwd.new })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition">
+                                            {showPwd.new ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase">Xác nhận mật khẩu mới</label>
+                                        {pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword && (
+                                            <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12} /> Trùng khớp</span>
+                                        )}
+                                        {pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword && (
+                                            <span className="text-[10px] font-bold text-red-600 flex items-center gap-1"><AlertCircle size={12} /> Không khớp</span>
+                                        )}
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type={showPwd.confirm ? "text" : "password"}
+                                            placeholder="Nhập lại mật khẩu mới"
+                                            value={pwdFormData.confirmPassword}
+                                            onChange={(e) => setPwdFormData({ ...pwdFormData, confirmPassword: e.target.value })}
+                                            className={`w-full px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 pr-10 transition-colors ${
+                                                pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword
+                                                ? 'border-emerald-500 focus:ring-emerald-500/20'
+                                                : pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword
+                                                ? 'border-red-500 focus:ring-red-500/20'
+                                                : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
+                                            }`}
+                                        />
+                                        <button type="button" onClick={() => setShowPwd({ ...showPwd, confirm: !showPwd.confirm })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition">
+                                            {showPwd.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="block text-xs font-bold text-slate-500 uppercase">Xác nhận mật khẩu mới</label>
-                                    {pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword && (
-                                        <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><CheckCircle2 size={12} /> Trùng khớp</span>
-                                    )}
-                                    {pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword && (
-                                        <span className="text-[10px] font-bold text-red-600 flex items-center gap-1"><AlertCircle size={12} /> Không khớp</span>
-                                    )}
-                                </div>
-                                <div className="relative">
-                                    <input
-                                        type={showPwd.confirm ? "text" : "password"}
-                                        placeholder="Nhập lại mật khẩu mới"
-                                        value={pwdFormData.confirmPassword}
-                                        onChange={(e) => setPwdFormData({ ...pwdFormData, confirmPassword: e.target.value })}
-                                        className={`w-full px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 pr-10 transition-colors ${
-                                            pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword === pwdFormData.confirmPassword
-                                            ? 'border-emerald-500 focus:ring-emerald-500/20'
-                                            : pwdFormData.newPassword && pwdFormData.confirmPassword && pwdFormData.newPassword !== pwdFormData.confirmPassword
-                                            ? 'border-red-500 focus:ring-red-500/20'
-                                            : 'border-slate-200 focus:ring-blue-500/20 focus:border-blue-500'
-                                        }`}
-                                    />
-                                    <button type="button" onClick={() => setShowPwd({ ...showPwd, confirm: !showPwd.confirm })} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-500 transition">
-                                        {showPwd.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={pwdFormData.newPassword !== pwdFormData.confirmPassword && pwdFormData.confirmPassword.length > 0}
-                            className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm shadow-md mt-6"
-                        >
-                            {hasPassword ? 'Cập nhật mật khẩu' : 'Tạo mật khẩu'}
-                        </button>
-                    </form>
-                </div>
+                            <button
+                                type="submit"
+                                disabled={pwdFormData.newPassword !== pwdFormData.confirmPassword && pwdFormData.confirmPassword.length > 0}
+                                className="w-full bg-blue-600 text-white font-semibold py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm shadow-md mt-6"
+                            >
+                                Cập nhật mật khẩu
+                            </button>
+                        </form>
+                    </div>
+                )}
 
                 {/* Bảo mật 2 lớp (2FA) */}
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">

@@ -46,6 +46,17 @@ apiClient.interceptors.response.use(
 // ============ FORGOT PASSWORD API ============
 export const poiAPI = {
     getAllPOIs: () => apiClient.get('/pois'),
+    createPOI: (data: FormData) => apiClient.post('/pois', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+    getMyPOIs: () => apiClient.get('/pois/my-pois'),
+    updatePOI: (id: number, data: FormData) => apiClient.put(`/pois/${id}`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+    deletePOI: (id: number) => apiClient.delete(`/pois/${id}`),
+    getPendingPOIs: () => apiClient.get('/admin/pois/pending'),
+    approvePOI: (id: number) => apiClient.put(`/admin/pois/${id}/approve`),
+    rejectPOI: (id: number) => apiClient.put(`/admin/pois/${id}/reject`),
 };
 export const forgotPasswordAPI = {
     sendOtp: (email: string) =>
@@ -137,6 +148,15 @@ export const adminAPI = {
 
     deleteTrafficAlert: (id: number) =>
         apiClient.delete(`/admin/traffic-alerts/${id}`),
+
+    getPendingPOIs: () =>
+        apiClient.get('/admin/pois/pending'),
+
+    approvePOI: (id: number) =>
+        apiClient.put(`/admin/pois/${id}/approve`),
+
+    rejectPOI: (id: number) =>
+        apiClient.put(`/admin/pois/${id}/reject`),
 };
 
 export const trafficAlertAPI = {
@@ -155,4 +175,11 @@ export const eventAPI = {
     deleteEvent: (id: number) => apiClient.delete(`/events/${id}`),
     toggleFavorite: (id: number) => apiClient.post(`/events/${id}/favorite`),
     getFavoriteEventIds: () => apiClient.get('/user/favorites/events'),
+    getEventImages: (eventId: number) => apiClient.get(`/events/${eventId}/images`),
+    uploadEventImage: (eventId: number, formData: FormData) => apiClient.post(`/events/${eventId}/images`, formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    }),
+    deleteEventImage: (imageId: number) => apiClient.delete(`/events/images/${imageId}`),
 };

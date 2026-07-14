@@ -21,7 +21,7 @@ export function AlertBanner({ isOpen, countdown, alerts, onClose }: AlertBannerP
     if (!isOpen) return null;
 
     return (
-        <div className="absolute top-24 left-1/2 -translate-x-1/2 z-20 w-[460px] bg-white rounded-2xl shadow-2xl border border-red-100 overflow-hidden shadow-danger">
+        <div className="absolute top-24 max-md:top-36 left-1/2 -translate-x-1/2 z-20 w-[460px] max-md:w-[calc(100vw-32px)] bg-white rounded-2xl shadow-2xl border border-red-100 overflow-hidden shadow-danger">
             <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-3 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                     <ShieldAlert size={18} className="animate-bounce" />

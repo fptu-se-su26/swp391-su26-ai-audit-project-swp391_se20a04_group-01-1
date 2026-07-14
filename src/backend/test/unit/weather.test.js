@@ -1,7 +1,7 @@
-const weatherClient = require('../utils/weatherClient');
+const weatherClient = require('../../utils/weatherClient');
 
 // Giả lập db.js và mssql
-jest.mock('../db', () => {
+jest.mock('../../db', () => {
     const mockRequest = {
         input: jest.fn().mockReturnThis(),
         query: jest.fn().mockResolvedValue({

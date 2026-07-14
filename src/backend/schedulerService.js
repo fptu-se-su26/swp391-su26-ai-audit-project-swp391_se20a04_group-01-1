@@ -145,7 +145,7 @@ async function runEventReminderJob() {
             FROM Events e
             WHERE e.start_time BETWEEN DATEADD(MINUTE, 60, GETDATE())
                                    AND DATEADD(MINUTE, 120, GETDATE())
-              AND e.status IN ('upcoming', 'active')
+              AND e.status = 'approved'
         `);
 
         if (eventsResult.recordset.length === 0) return;

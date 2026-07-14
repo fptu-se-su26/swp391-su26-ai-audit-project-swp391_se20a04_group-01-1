@@ -12,7 +12,7 @@ import {
 import AdminLayout from '../../layouts/AdminLayout';
 import * as authService from '../../services/authService';
 import * as userService from '../../services/userService';
-import { eventAPI, adminAPI, trafficAlertAPI } from '../../services/api';
+import { eventAPI, adminAPI, trafficAlertAPI, poiAPI } from '../../services/api';
 import { eventRoadService } from '../../services/eventRoadService';
 import SettingsTab from './SettingsTab';
 import UsersTab from './UsersTab';
@@ -21,6 +21,7 @@ import FloodTab from './FloodTab';
 import TrafficTab from './TrafficTab';
 import EventsTab from './EventsTab';
 import OverviewTab from './OverviewTab';
+import POIsTab from './POIsTab';
 import { DBEvent, TrafficAlert, FloodZone, RoadClosure, ManageUser, EventFormData } from './types';
 import toast from 'react-hot-toast';
 import { showPremiumToast } from '../../utils/toastUtils';
@@ -60,7 +61,7 @@ export default function AdminDashboard() {
     const [showTrafficModal, setShowTrafficModal] = useState(false);
     const [trafficFormData, setTrafficFormData] = useState({
         title: '', location: '', type: 'CONGESTION' as any, severity: 'MEDIUM' as any,
-        latitude: 16.0544, longitude: 108.2022
+        latitude: 16.0544, longitude: 108.2022, affected_area_polygon: ''
     });
 
     const [pwdFormData, setPwdFormData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -86,6 +87,7 @@ export default function AdminDashboard() {
     const [isConfirming2FA, setIsConfirming2FA] = useState(false);
 
     const [currentPage, setCurrentPage] = useState(1);
+    const [pendingPOIsCount, setPendingPOIsCount] = useState(0);
 
     // Custom confirm modal state
     const [confirmModal, setConfirmModal] = useState<{
@@ -173,6 +175,17 @@ export default function AdminDashboard() {
         }
     };
 
+    const fetchPendingPOIsCount = async () => {
+        try {
+            const response = await poiAPI.getPendingPOIs();
+            if (response.data && response.data.data) {
+                setPendingPOIsCount(response.data.data.length);
+            }
+        } catch (error) {
+            console.error("Lỗi lấy danh sách POI chờ duyệt:", error);
+        }
+    };
+
     useEffect(() => {
         fetchEvents();
         fetchAdminSecuritySettings();
@@ -181,6 +194,7 @@ export default function AdminDashboard() {
         fetchRoadClosures();
         fetchFloodZones();
         fetchTrafficAlerts();
+        fetchPendingPOIsCount();
     }, []);
 
     const fetchAdminSecuritySettings = async () => {
@@ -356,14 +370,15 @@ export default function AdminDashboard() {
                 type: trafficFormData.type,
                 severity: trafficFormData.severity,
                 latitude: Number(trafficFormData.latitude),
-                longitude: Number(trafficFormData.longitude)
+                longitude: Number(trafficFormData.longitude),
+                affected_area_polygon: trafficFormData.affected_area_polygon || null
             };
             const response = await trafficAlertAPI.createTrafficAlert(body);
             if (response.data && response.data.success) {
                 showPremiumToast('Tạo cảnh báo giao thông mới thành công!', 'success');
                 setTrafficFormData({
                     title: '', location: '', type: 'CONGESTION', severity: 'MEDIUM',
-                    latitude: 16.0544, longitude: 108.2022
+                    latitude: 16.0544, longitude: 108.2022, affected_area_polygon: ''
                 });
                 setShowTrafficModal(false);
                 fetchTrafficAlerts();
@@ -528,7 +543,9 @@ export default function AdminDashboard() {
                 events: events.length,
                 flood: floodZones.length,
                 closure: roadClosures.length,
-                traffic: trafficAlerts.length
+                traffic: trafficAlerts.length,
+                pois: pendingPOIsCount,
+                pendingPOIs: pendingPOIsCount
             }}
         >
             {activeMenu === 'overview' && <OverviewTab events={events} trafficAlerts={trafficAlerts} floodZones={floodZones} />}
@@ -578,6 +595,13 @@ export default function AdminDashboard() {
                     twoFaMessage={twoFaMessage} twoFaError={twoFaError} isConfirming2FA={isConfirming2FA}
                     handleSetup2FA={handleSetup2FA} handleConfirm2FA={handleConfirm2FA} handleDisable2FA={handleDisable2FA}
                     setTwoFaQRCode={setTwoFaQRCode} setTwoFaSecret={setTwoFaSecret} setTwoFaError={setTwoFaError} setTwoFaMessage={setTwoFaMessage}
+                />
+            )}
+            {activeMenu === 'pois' && (
+                <POIsTab 
+                    onRefresh={() => {
+                        fetchPendingPOIsCount();
+                    }} 
                 />
             )}
             {/* CUSTOM CONFIRM MODAL DIALOG */}

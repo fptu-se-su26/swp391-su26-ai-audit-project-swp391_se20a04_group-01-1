@@ -71,9 +71,9 @@ router.post('/register', async (req, res) => {
 
         await sendOtpEmail(email, otp);
 
-        return res.status(201).json({ 
+        return res.status(201).json({
             message: "Tạo tài khoản thành công! Vui lòng kiểm tra email để xác minh.",
-            requiresEmailVerification: true 
+            requiresEmailVerification: true
         });
 
     } catch (error) {
@@ -127,9 +127,9 @@ router.post('/verify-register-otp', async (req, res) => {
                 WHERE LOWER(email) = LOWER(@email)
             `);
 
-        return res.json({ 
-            success: true, 
-            message: "Xác thực email thành công! Bạn có thể đăng nhập ngay." 
+        return res.json({
+            success: true,
+            message: "Xác thực email thành công! Bạn có thể đăng nhập ngay."
         });
 
     } catch (error) {
@@ -142,17 +142,17 @@ router.post('/verify-register-otp', async (req, res) => {
 router.post('/resend-register-otp', async (req, res) => {
     try {
         const { email } = req.body;
-        
+
         if (!email) {
             return res.status(400).json({ message: "Vui lòng nhập email!" });
         }
-        
+
         if (!isValidEmail(email)) {
             return res.status(400).json({ message: "Email không hợp lệ!" });
         }
 
         const pool = await poolPromise;
-        
+
         // Kiểm tra user có tồn tại không
         const user = await pool.request()
             .input('email', sql.NVarChar, email.toLowerCase())
@@ -161,7 +161,7 @@ router.post('/resend-register-otp', async (req, res) => {
         if (user.recordset.length === 0) {
             return res.status(404).json({ message: "Email không tồn tại!" });
         }
-        
+
         // Nếu đã xác minh rồi, báo lỗi
         if (user.recordset[0].is_email_verified) {
             return res.status(400).json({ message: "Tài khoản này đã được xác minh!" });
@@ -180,7 +180,7 @@ router.post('/resend-register-otp', async (req, res) => {
         await sendOtpEmail(email, otp);
 
         return res.json({ message: "Mã OTP mới đã được gửi tới email!" });
-        
+
     } catch (error) {
         console.error('Resend register OTP error:', error);
         return res.status(500).json({ message: 'Lỗi server', error: error.message });
@@ -190,21 +190,21 @@ router.post('/resend-register-otp', async (req, res) => {
 // POST /api/auth/setup-2fa
 router.post('/setup-2fa', authenticateToken, async (req, res) => {
     try {
-        const userEmail = req.user.email || "admin@danang.gov.vn"; 
+        const userEmail = req.user.email || "admin@danang.gov.vn";
 
         const secret = speakeasy.generateSecret({
-            length: 20, 
+            length: 20,
             name: `DanangSmart:${userEmail}`,
-            issuer: "DanangSmart" 
+            issuer: "DanangSmart"
         });
 
         const qrCodeUrl = await QRCode.toDataURL(secret.otpauth_url);
-        
+
         res.json({
             success: true,
             data: {
                 qrCode: qrCodeUrl,
-                secret: secret.base32 
+                secret: secret.base32
             }
         });
     } catch (error) {
@@ -219,16 +219,16 @@ router.post('/confirm-2fa', authenticateToken, async (req, res) => {
         const { code, secret } = req.body;
         console.log("🔍 [DEBUG] Code nhận được:", code);
         console.log("🔍 [DEBUG] Secret nhận được:", secret);
-        
+
         if (!code || !/^\d{6}$/.test(code)) {
             return res.status(400).json({ success: false, error: { message: "Mã 2FA phải là 6 chữ số!" } });
         }
-        
+
         const cleanSecret = secret ? secret.trim() : null;
         if (!cleanSecret) {
             return res.status(400).json({ success: false, error: { message: "Secret không hợp lệ!" } });
         }
-        
+
         const pool = await poolPromise;
         const verified = speakeasy.totp.verify({
             secret: cleanSecret,
@@ -236,17 +236,17 @@ router.post('/confirm-2fa', authenticateToken, async (req, res) => {
             token: code,
             window: 1
         });
-        
+
         if (!verified) {
             console.warn(`[2FA SECURITY] Failed 2FA for user: ${req.user.id}`);
             return res.status(400).json({ success: false, error: { message: "Mã OTP không chính xác!" } });
         }
-        
+
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
             .input("secret", sql.NVarChar, cleanSecret)
             .query("UPDATE Users SET two_factor_secret = @secret, is_2fa_enabled = 1 WHERE user_id = @user_id");
-        
+
         console.log(`[2FA SECURITY] 2FA enabled for user: ${req.user.id}`);
         res.json({ success: true, message: "Kích hoạt 2FA thành công!" });
     } catch (error) {
@@ -259,48 +259,48 @@ router.post('/confirm-2fa', authenticateToken, async (req, res) => {
 router.delete('/disable-2fa', authenticateToken, async (req, res) => {
     try {
         const { password } = req.body;
-        
+
         if (!password) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mật khẩu là bắt buộc!" } 
+            return res.status(400).json({
+                success: false,
+                error: { message: "Mật khẩu là bắt buộc!" }
             });
         }
-        
+
         const pool = await poolPromise;
         const result = await pool.request()
             .input("user_id", sql.Int, req.user.id)
             .query("SELECT password_hash FROM Users WHERE user_id = @user_id");
-        
+
         const user = result.recordset[0];
         if (!user) {
             console.warn(`[2FA] User not found: ${req.user.id}`);
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Người dùng không tồn tại!" } 
+            return res.status(400).json({
+                success: false,
+                error: { message: "Người dùng không tồn tại!" }
             });
         }
-        
+
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             console.warn(`[2FA SECURITY] Failed password verification for disable-2fa: ${req.user.id}`);
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Mật khẩu không chính xác!" } 
+            return res.status(400).json({
+                success: false,
+                error: { message: "Mật khẩu không chính xác!" }
             });
         }
-        
+
         await pool.request()
             .input("user_id", sql.Int, req.user.id)
             .query("UPDATE Users SET is_2fa_enabled = 0, two_factor_secret = NULL WHERE user_id = @user_id");
-        
+
         console.log(`[2FA SECURITY] 2FA disabled for user: ${req.user.id}`);
         res.json({ success: true, message: "Tắt 2FA thành công!" });
     } catch (error) {
         console.error("[2FA] Disable error:", error);
-        res.status(500).json({ 
-            success: false, 
-            error: { message: "Lỗi tắt 2FA!" } 
+        res.status(500).json({
+            success: false,
+            error: { message: "Lỗi tắt 2FA!" }
         });
     }
 });
@@ -309,7 +309,7 @@ router.delete('/disable-2fa', authenticateToken, async (req, res) => {
 router.post('/verify-2fa', async (req, res) => {
     try {
         const { code, temp_token } = req.body;
-        
+
         if (!code || !temp_token) {
             return res.status(400).json({ success: false, error: { message: "Mã 2FA và token là bắt buộc!" } });
         }
@@ -326,7 +326,7 @@ router.post('/verify-2fa', async (req, res) => {
         const result = await pool.request()
             .input("user_id", sql.Int, decoded.id)
             .query("SELECT user_id, username, email, role, two_factor_secret FROM Users WHERE user_id = @user_id");
-        
+
         const user = result.recordset[0];
         if (!user) {
             console.warn(`[2FA SECURITY] User not found for 2FA verification: ${decoded.id}`);
@@ -413,20 +413,20 @@ router.post('/login', async (req, res) => {
                 SELECT user_id, username, email, password_hash, role, is_active, ban_reason, is_email_verified 
                 FROM Users
                 WHERE LOWER(email)=LOWER(@email)
-            `); 
+            `);
 
         const user = result.recordset[0];
 
         if (!user) {
             return res.status(401).json({ message: "Email hoặc mật khẩu không chính xác!" });
         }
-        
+
         // 🔴 THAY ĐỔI: Kiểm tra is_email_verified TRƯỚC khi kiểm tra password
         if (!user.is_email_verified) {
-            return res.status(403).json({ 
+            return res.status(403).json({
                 requiresEmailVerification: true,
-                message: "Vui lòng xác minh email trước khi đăng nhập!", 
-                email: user.email 
+                message: "Vui lòng xác minh email trước khi đăng nhập!",
+                email: user.email
             });
         }
 
@@ -552,6 +552,7 @@ router.post('/google', async (req, res) => {
                     INSERT INTO Users (username, email, password_hash, role, is_email_verified)
                     VALUES (@username, @email, @password_hash, @role, @is_email_verified)
                 `);
+
 
             user = await pool.request()
                 .input('email', sql.NVarChar, email)
@@ -698,7 +699,7 @@ router.post('/reset-password', async (req, res) => {
             await pool.request()
                 .input('email', sql.NVarChar, email.toLowerCase())
                 .query("DELETE FROM VerificationCodes WHERE LOWER(email) = LOWER(@email) AND otp_type = 'RESET_PASSWORD'");
-            
+
             return res.status(400).json({ message: 'Phiên xác thực đã hết hạn (quá 10 phút) hoặc chưa được xác thực. Vui lòng yêu cầu OTP mới!' });
         }
 
@@ -719,7 +720,7 @@ router.post('/reset-password', async (req, res) => {
 
         console.log(`[AUTH] Password reset for: ${email}`);
         return res.json({ message: 'Mật khẩu đã được reset thành công!' });
-        
+
     } catch (error) {
         console.error('Reset password error:', error);
         return res.status(500).json({ message: 'Lỗi server', error: error.message });

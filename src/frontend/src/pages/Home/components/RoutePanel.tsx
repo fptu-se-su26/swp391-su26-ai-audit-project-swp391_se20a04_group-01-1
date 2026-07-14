@@ -11,18 +11,21 @@ import {
   Share2,
   Navigation,
   Bookmark,
+  CornerUpLeft,
+  CornerUpRight,
+  ArrowUp,
+  MapPin,
+  Flag,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 import { savedRouteService } from "../../../services/savedRouteService";
 import { showPremiumToast } from "../../../utils/toastUtils";
 import { useFavoritePoiStore } from "../../../store/favoritePoiStore";
-import { LocationPoint } from "../hooks/useMapRouting";
+import { LocationPoint, RouteData, RouteStep } from "../hooks/useMapRouting";
 
-interface RouteData {
-  totalDistanceKm: number;
-  totalTimeMin: number;
-  coordinates: [number, number][];
-}
 
 interface RoutePanelProps {
   viewMode: "pois" | "events";
@@ -198,9 +201,10 @@ export function RoutePanel({
   if (viewMode !== "pois" && viewMode !== "events") return null;
 
   return (
-    <div ref={searchContainerRef} className="relative">
+    <>
+      <div ref={searchContainerRef} className="relative z-50">
       {!destination ? (
-        <div className="w-80 h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
+        <div className="w-full h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
           <Search className="text-blue-500 mr-2 shrink-0" size={18} />
           <input
             type="text"
@@ -218,7 +222,7 @@ export function RoutePanel({
           />
         </div>
       ) : (
-        <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
+        <div className="w-full max-md:max-h-[35vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
           <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
           <div className="flex items-center gap-3 relative">
             <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
@@ -269,7 +273,7 @@ export function RoutePanel({
       )}
 
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
+        <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
           {suggestions.map((item: any) => (
             <button
               key={item.id}
@@ -289,9 +293,10 @@ export function RoutePanel({
           ))}
         </div>
       )}
+      </div>
 
       {routeData && (
-        <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 mt-2">
+        <div className="w-full max-md:max-h-[45vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 mt-2 max-md:fixed max-md:bottom-4 max-md:left-4 max-md:w-[calc(100%-32px)] max-md:mt-0 max-md:z-40">
           <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
             Chi tiết lộ trình
           </h3>
@@ -463,6 +468,98 @@ export function RoutePanel({
             </button>
           </div>
         </div>
+      )}
+    </>
+  );
+}
+
+// --- Turn-by-Turn Steps Component ---
+export function TurnByTurnSteps({ steps }: { steps: RouteStep[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const filteredSteps = steps.filter(
+    (s) => s.maneuver.type !== "depart" && s.maneuver.type !== "arrive"
+  );
+  const displaySteps = isExpanded ? steps : steps.slice(0, 3);
+
+  const getStepIcon = (type: string, modifier?: string) => {
+    if (type === "turn" || type === "end of road" || type === "fork") {
+      if (modifier?.includes("left"))
+        return <CornerUpLeft size={14} className="text-blue-600" />;
+      if (modifier?.includes("right"))
+        return <CornerUpRight size={14} className="text-blue-600" />;
+    }
+    if (type === "depart")
+      return <Navigation size={14} className="text-emerald-600" />;
+    if (type === "arrive")
+      return <Flag size={14} className="text-red-500" />;
+    if (type === "rotary" || type === "roundabout")
+      return <RotateCcw size={14} className="text-violet-600" />;
+    if (type === "merge" || type === "on ramp" || type === "off ramp")
+      return <ArrowUp size={14} className="text-blue-500 rotate-45" />;
+    return <ArrowUp size={14} className="text-slate-600" />;
+  };
+
+  const formatDist = (m: number) => {
+    if (m < 1000) return `${Math.round(m)} m`;
+    return `${(m / 1000).toFixed(1)} km`;
+  };
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between mb-2 group"
+      >
+        <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+          <MapPin size={12} className="text-blue-500" />
+          Hướng dẫn chi tiết ({filteredSteps.length} bước)
+        </h4>
+        <span className="text-slate-400 group-hover:text-blue-500 transition-colors">
+          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </span>
+      </button>
+
+      <div className="flex flex-col gap-0 max-h-[40vh] overflow-y-auto scrollbar-none pr-1">
+        {displaySteps.map((step, idx) => (
+          <div
+            key={idx}
+            className="flex items-start gap-2.5 py-2 border-b border-slate-50 last:border-b-0 group/step hover:bg-slate-50/50 rounded-lg px-1 transition-colors"
+          >
+            <div className="flex flex-col items-center shrink-0 pt-0.5">
+              <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center group-hover/step:bg-blue-50 group-hover/step:border-blue-200 transition-colors">
+                {getStepIcon(step.maneuver.type, step.maneuver.modifier)}
+              </div>
+              {idx < displaySteps.length - 1 && (
+                <div className="w-px h-full min-h-[8px] bg-slate-200 mt-1" />
+              )}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-slate-800 leading-snug">
+                {step.maneuver.instruction || step.name || "Tiếp tục đi thẳng"}
+              </p>
+              {step.name && step.maneuver.instruction && (
+                <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                  {step.name}
+                </p>
+              )}
+            </div>
+
+            <span className="text-[10px] font-bold text-slate-400 shrink-0 pt-0.5">
+              {step.distance > 0 ? formatDist(step.distance) : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {steps.length > 3 && !isExpanded && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="w-full mt-1 text-[10px] font-bold text-blue-600 hover:text-blue-700 py-1.5 rounded-lg hover:bg-blue-50 transition-all"
+        >
+          Xem thêm {steps.length - 3} bước nữa...
+        </button>
       )}
     </div>
   );

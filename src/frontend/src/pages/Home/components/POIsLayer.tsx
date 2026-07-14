@@ -10,6 +10,9 @@ const FILTER_TO_CATEGORY: Record<string, string> = {
     'entertainment': 'Giải trí',
     'museums': 'Bảo tàng',
     'atm': 'ATM',
+    'gas_station': 'Trạm xăng',
+    'cafe': 'Quán cà phê',
+    'hospital': 'Bệnh viện',
 };
 
 interface POIsLayerProps {
@@ -31,14 +34,17 @@ export default function POIsLayer({
 
     // ✅ Chuyển đổi dữ liệu POIs thành GeoJSON FeatureCollection
     const poisGeoJSON = useMemo(() => {
-        // Đã xóa dấu [] thừa gây lỗi
-        let filteredPois = pois || [];
-
-        // Lọc theo category khi user chọn filter
-        if (selectedFilter && FILTER_TO_CATEGORY[selectedFilter]) {
-            const categoryName = FILTER_TO_CATEGORY[selectedFilter];
-            filteredPois = filteredPois.filter(poi => poi.category_name === categoryName);
+        // Nếu không có filter nào được chọn, KHÔNG HIỂN THỊ POI NÀO
+        if (!selectedFilter || !FILTER_TO_CATEGORY[selectedFilter]) {
+            return {
+                type: 'FeatureCollection' as const,
+                features: []
+            };
         }
+
+        let filteredPois = pois || [];
+        const categoryName = FILTER_TO_CATEGORY[selectedFilter];
+        filteredPois = filteredPois.filter(poi => poi.category_name === categoryName);
 
         return {
             type: 'FeatureCollection' as const,

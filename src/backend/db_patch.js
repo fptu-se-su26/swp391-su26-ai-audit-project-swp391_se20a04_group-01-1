@@ -99,6 +99,25 @@ async function runPatch() {
             END
         `;
         await pool.request().query(checkFloodZonesDepthQuery);
+        console.log('Checking UserSocialAccount table...');
+        const checkUserSocialAccountQuery = `
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserSocialAccount')
+            BEGIN
+                CREATE TABLE UserSocialAccount (
+                    social_id INT IDENTITY(1, 1) PRIMARY KEY,
+                    user_id INT NOT NULL FOREIGN KEY REFERENCES Users (user_id) ON DELETE CASCADE,
+                    provider NVARCHAR(50) NOT NULL,
+                    provider_id NVARCHAR(100) NOT NULL,
+                    linked_at DATETIME NOT NULL DEFAULT GETDATE()
+                );
+                PRINT 'Created UserSocialAccount table';
+            END
+            ELSE
+            BEGIN
+                PRINT 'UserSocialAccount table already exists';
+            END
+        `;
+        await pool.request().query(checkUserSocialAccountQuery);
         
         console.log('✅ Database patch applied successfully!');
         process.exit(0);

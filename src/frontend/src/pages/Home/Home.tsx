@@ -56,6 +56,10 @@ import {
   Bookmark,
   Copy,
   ExternalLink,
+  Fuel,
+  Coffee,
+  Hospital,
+  MapPin,
 } from "lucide-react";
 import { showPremiumToast } from "../../utils/toastUtils";
 import {
@@ -67,8 +71,11 @@ import { useFloodZones } from "./hooks/useFloodZones";
 import { useEventRoads } from "./hooks/useEventRoads";
 import { useUserLocation } from "./hooks/useUserLocation";
 import { ConfirmModal } from "./components/ConfirmModal";
-import { RoutePanel } from "./components/RoutePanel";
+import { RoutePanel, TurnByTurnSteps } from "./components/RoutePanel";
 import { MapToolbar } from "./components/MapToolbar";
+import { NavigationPanel } from "./components/NavigationPanel";
+import AddPOIModal from "./components/AddPOIModal";
+
 import { AlertBanner } from "./components/AlertBanner";
 import { WeatherWidget } from "./components/WeatherWidget";
 
@@ -85,11 +92,19 @@ import {
   AppNotification,
 } from "../../store/notificationStore";
 import { AIChatbot } from "./components/AIChatbot";
+import { SavedRoutesSidebar } from "./components/SavedRoutesSidebar";
+import { ReportTrafficModal } from "./components/ReportTrafficModal";
+import { SaveRouteModal } from "./components/SaveRouteModal";
+import { ShareRouteModal } from "./components/ShareRouteModal";
+import { StatusBanner } from "./components/StatusBanner";
 
 const filterCategories = [
   { id: "attractions", label: "Điểm tham quan", icon: Compass },
   { id: "restaurants", label: "Nhà hàng", icon: Utensils },
   { id: "hotels", label: "Khách sạn", icon: Hotel },
+  { id: "cafe", label: "Quán cà phê", icon: Coffee },
+  { id: "gas_station", label: "Trạm xăng", icon: Fuel },
+  { id: "hospital", label: "Bệnh viện", icon: Hospital },
   { id: "entertainment", label: "Giải trí", icon: Gamepad2 },
   { id: "museums", label: "Bảo tàng", icon: Landmark },
   { id: "atm", label: "ATM", icon: DollarSign },
@@ -142,7 +157,7 @@ function getCirclePolygon(
 
     const newLatRad = Math.asin(
       Math.sin(latRad) * Math.cos(dByR) +
-        Math.cos(latRad) * Math.sin(dByR) * Math.cos(angle),
+      Math.cos(latRad) * Math.sin(dByR) * Math.cos(angle),
     );
 
     const newLngRad =
@@ -167,6 +182,27 @@ export default function Home() {
   const mapRef = useRef<MapRef>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const watchPositionId = useRef<number | null>(null);
+
+  // States nâng cấp dẫn đường
+  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [distanceToNextStep, setDistanceToNextStep] = useState(0);
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const [isSimulationMode, setIsSimulationMode] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationSpeed, setSimulationSpeed] = useState(2); // 2x
+  const [simulatedCoords, setSimulatedCoords] = useState<[number, number] | null>(null);
+  const [simulatedHeading, setSimulatedHeading] = useState(0);
+  const [showNavModeSelector, setShowNavModeSelector] = useState(false);
+
+  const simulationIntervalRef = useRef<number | null>(null);
+  const lastSpokenStepIndexRef = useRef<number>(-1);
+  const approachSpokenRef = useRef<number>(-1);
+  const simulationIndexRef = useRef<number>(0);
+
+  // States cho việc đóng góp POI
+  const [isAddingPOI, setIsAddingPOI] = useState(false);
+  const [pendingPOILocation, setPendingPOILocation] = useState<{ lng: number; lat: number } | null>(null);
+  const [showAddPOIModal, setShowAddPOIModal] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -210,33 +246,18 @@ export default function Home() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
+      const savedMode = typeof localStorage !== 'undefined' && localStorage.getItem('low_bandwidth_mode') === 'true';
+      setIsLowBandwidth(savedMode);
       showPremiumToast('Đã khôi phục kết nối mạng internet.', 'success');
     };
     const handleOffline = () => {
       setIsOffline(true);
       setIsLowBandwidth(true);
-      showPremiumToast('Mất kết nối mạng. Đã chuyển sang chế độ Ngoại tuyến khẩn cấp.', 'warning');
+      showPremiumToast('Mất kết nối mạng. Đã tự động kích hoạt chế độ Ngoại tuyến & Tiết kiệm băng thông.', 'warning');
     };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
-    const conn = (navigator as any).connection;
-    if (conn) {
-      const checkConnectionSpeed = () => {
-        if (conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g' || conn.effectiveType === '3g') {
-          setIsLowBandwidth(true);
-          showPremiumToast('Phát hiện sóng di động yếu (2G/3G). Đã tự động kích hoạt Tiết kiệm băng thông.', 'info');
-        }
-      };
-      conn.addEventListener('change', checkConnectionSpeed);
-      checkConnectionSpeed();
-      return () => {
-        window.removeEventListener('online', handleOnline);
-        window.removeEventListener('offline', handleOffline);
-        conn.removeEventListener('change', checkConnectionSpeed);
-      };
-    }
 
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -388,8 +409,8 @@ export default function Home() {
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => {},
-    onCancel: () => {},
+    onConfirm: () => { },
+    onCancel: () => { },
   });
 
   const showCustomConfirm = (
@@ -432,6 +453,8 @@ export default function Home() {
     setRouteAlertMessage,
     isLoadedRouteRef,
     applyRouteToState,
+    selectedRouteIndex,
+    selectRoute,
   } = useMapRouting(mapRef, {
     avoidFlood,
     avoidCongestion,
@@ -444,20 +467,189 @@ export default function Home() {
   });
 
   // CÁC HÀM XỬ LÝ DẪN ĐƯỜNG (NAVIGATION)
+  // Helper tính khoảng cách Haversine (mét)
+  const getDistanceMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const R = 6371000;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // Helper tính khoảng cách từ điểm đến đoạn thẳng (mét)
+  const getDistanceToSegment = (p: [number, number], a: [number, number], b: [number, number]) => {
+    const dy = (b[1] - a[1]) * 111320;
+    const dx = (b[0] - a[0]) * 111320 * Math.cos((a[1] * Math.PI) / 180);
+    const p_y = (p[1] - a[1]) * 111320;
+    const p_x = (p[0] - a[0]) * 111320 * Math.cos((a[1] * Math.PI) / 180);
+
+    const len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.sqrt(p_x * p_x + p_y * p_y);
+
+    let t = (p_x * dx + p_y * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+
+    const proj_x = t * dx;
+    const proj_y = t * dy;
+
+    const diff_x = p_x - proj_x;
+    const diff_y = p_y - proj_y;
+    return Math.sqrt(diff_x * diff_x + diff_y * diff_y);
+  };
+
+  const speakInstruction = (text: string) => {
+    if (isVoiceMuted) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "vi-VN";
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.error("TTS error:", e);
+    }
+  };
+
+  // Đọc TTS khi đổi bước đi
+  useEffect(() => {
+    if (!isNavigating || !routeData?.steps) return;
+    const currentStep = routeData.steps[currentStepIndex];
+    if (currentStep && currentStepIndex !== lastSpokenStepIndexRef.current) {
+      speakInstruction(currentStep.maneuver.instruction || "Tiếp tục đi thẳng");
+      lastSpokenStepIndexRef.current = currentStepIndex;
+    }
+  }, [currentStepIndex, isNavigating, routeData]);
+
+  // Logic mô phỏng (Simulation loop)
+  const startSimulation = (resume = false) => {
+    if (!routeData || routeData.coordinates.length < 2) return;
+
+    if (simulationIntervalRef.current) {
+      clearInterval(simulationIntervalRef.current);
+    }
+
+    setIsSimulating(true);
+    if (!resume) {
+      simulationIndexRef.current = 0;
+      setCurrentStepIndex(0);
+      lastSpokenStepIndexRef.current = -1;
+      approachSpokenRef.current = -1;
+    }
+
+    const coords = routeData.coordinates;
+
+    const runSimulationStep = () => {
+      const index = simulationIndexRef.current;
+      if (index >= coords.length - 1) {
+        if (simulationIntervalRef.current) {
+          clearInterval(simulationIntervalRef.current);
+          simulationIntervalRef.current = null;
+        }
+        setIsSimulating(false);
+        speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
+        showPremiumToast("Mô phỏng kết thúc. Bạn đã đến nơi!", "success");
+        handleStopNavigation();
+        return;
+      }
+
+      const p1 = coords[index];
+      const p2 = coords[index + 1];
+
+      const dy = p2[1] - p1[1];
+      const dx = (p2[0] - p1[0]) * Math.cos((p1[1] * Math.PI) / 180);
+      const angle = (Math.atan2(dx, dy) * 180) / Math.PI;
+      setSimulatedHeading(angle);
+      setSimulatedCoords(p2);
+
+      mapRef.current?.easeTo({
+        center: p2,
+        bearing: angle,
+        pitch: 60,
+        zoom: 17.5,
+        duration: 300,
+      });
+
+      if (routeData.steps && routeData.steps.length > 0) {
+        const nextStepInfo = routeData.steps[currentStepIndex + 1];
+        if (nextStepInfo) {
+          const [nextLng, nextLat] = nextStepInfo.maneuver.location;
+          const distToNext = getDistanceMeters(p2[1], p2[0], nextLat, nextLng);
+          setDistanceToNextStep(distToNext);
+
+          if (distToNext < 25) {
+            setCurrentStepIndex((prev) => prev + 1);
+          }
+
+          if (distToNext < 100 && distToNext > 45 && approachSpokenRef.current !== currentStepIndex) {
+            speakInstruction(`Chuẩn bị ${nextStepInfo.maneuver.instruction}`);
+            approachSpokenRef.current = currentStepIndex;
+          }
+        } else {
+          const lastStep = routeData.steps[routeData.steps.length - 1];
+          if (lastStep) {
+            const [destLng, destLat] = lastStep.maneuver.location;
+            const distToDest = getDistanceMeters(p2[1], p2[0], destLat, destLng);
+            setDistanceToNextStep(distToDest);
+          }
+        }
+      }
+
+      simulationIndexRef.current = index + 1;
+    };
+
+    const intervalTime = 600 / simulationSpeed;
+    simulationIntervalRef.current = window.setInterval(runSimulationStep, intervalTime);
+  };
+
+  const pauseSimulation = () => {
+    if (simulationIntervalRef.current) {
+      clearInterval(simulationIntervalRef.current);
+      simulationIntervalRef.current = null;
+    }
+    setIsSimulating(false);
+  };
+
+  useEffect(() => {
+    if (isSimulating && isSimulationMode) {
+      startSimulation(true);
+    }
+  }, [simulationSpeed]);
+
   const handleStartNavigation = () => {
+    if (!routeData) {
+      showPremiumToast("Chưa có thông tin lộ trình.", "error");
+      return;
+    }
+    setShowNavModeSelector(true);
+  };
+
+  const handleStartRealNavigation = () => {
+    setShowNavModeSelector(false);
+    setIsSimulationMode(false);
+    setIsNavigating(true);
+    setCurrentStepIndex(0);
+    lastSpokenStepIndexRef.current = -1;
+    approachSpokenRef.current = -1;
+
     if (!navigator.geolocation) {
       showPremiumToast("Thiết bị không hỗ trợ GPS.", "error");
       return;
     }
 
     if (watchPositionId.current !== null) return;
-    setIsNavigating(true);
+
+    if (routeData?.steps?.[0]) {
+      speakInstruction(routeData.steps[0].maneuver.instruction);
+    }
 
     watchPositionId.current = navigator.geolocation.watchPosition(
       (position) => {
         const { latitude, longitude, heading } = position.coords;
-        // Nếu bạn có hàm setUserLocation từ useUserLocation, bạn có thể gọi ở đây
-        // setUserLocation({ lat: latitude, lng: longitude });
 
         mapRef.current?.flyTo({
           center: [longitude, latitude],
@@ -466,6 +658,60 @@ export default function Home() {
           bearing: heading ?? 0,
           duration: 500,
         });
+
+        // Tự động tìm lại đường khi lệch hướng
+        if (routeData && routeData.coordinates.length > 1) {
+          let minDist = Infinity;
+          for (let i = 0; i < routeData.coordinates.length - 1; i++) {
+            const dist = getDistanceToSegment(
+              [longitude, latitude],
+              routeData.coordinates[i],
+              routeData.coordinates[i + 1]
+            );
+            if (dist < minDist) minDist = dist;
+          }
+
+          if (minDist > 60) {
+            speakInstruction("Bạn đã đi chệch hướng. Đang tính toán lại lộ trình.");
+            showPremiumToast("Đang tự động tính toán lại lộ trình...", "warning");
+            setOrigin({
+              lat: latitude,
+              lng: longitude,
+              label: "Vị trí của bạn (tính lại)"
+            });
+            return;
+          }
+        }
+
+        if (routeData?.steps && routeData.steps.length > 0) {
+          const nextStepInfo = routeData.steps[currentStepIndex + 1];
+          if (nextStepInfo) {
+            const [nextLng, nextLat] = nextStepInfo.maneuver.location;
+            const distToNext = getDistanceMeters(latitude, longitude, nextLat, nextLng);
+            setDistanceToNextStep(distToNext);
+
+            if (distToNext < 25) {
+              setCurrentStepIndex((prev) => prev + 1);
+            }
+
+            if (distToNext < 100 && distToNext > 45 && approachSpokenRef.current !== currentStepIndex) {
+              speakInstruction(`Chuẩn bị ${nextStepInfo.maneuver.instruction}`);
+              approachSpokenRef.current = currentStepIndex;
+            }
+          } else {
+            const lastStep = routeData.steps[routeData.steps.length - 1];
+            if (lastStep) {
+              const [destLng, destLat] = lastStep.maneuver.location;
+              const distToDest = getDistanceMeters(latitude, longitude, destLat, destLng);
+              setDistanceToNextStep(distToDest);
+              if (distToDest < 15) {
+                speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
+                showPremiumToast("Bạn đã đến nơi!", "success");
+                handleStopNavigation();
+              }
+            }
+          }
+        }
       },
       (err) => {
         console.error(err);
@@ -479,20 +725,40 @@ export default function Home() {
     );
   };
 
+  const handleStartSimulationNavigation = () => {
+    setShowNavModeSelector(false);
+    setIsSimulationMode(true);
+    setIsNavigating(true);
+
+    if (routeData?.steps?.[0]) {
+      speakInstruction(routeData.steps[0].maneuver.instruction);
+    }
+
+    startSimulation(false);
+  };
+
   const handleStopNavigation = () => {
     setIsNavigating(false);
+    setIsSimulationMode(false);
+    setIsSimulating(false);
+    setSimulatedCoords(null);
+    if (simulationIntervalRef.current) {
+      clearInterval(simulationIntervalRef.current);
+      simulationIntervalRef.current = null;
+    }
     if (watchPositionId.current !== null) {
       navigator.geolocation.clearWatch(watchPositionId.current);
       watchPositionId.current = null;
     }
     mapRef.current?.easeTo({ pitch: 0, bearing: 0, zoom: 14 });
+    window.speechSynthesis.cancel();
   };
 
-  // Cleanup watcher when component unmounts
+  // Dọn dẹp simulation khi unmount
   useEffect(() => {
     return () => {
-      if (watchPositionId.current !== null) {
-        navigator.geolocation.clearWatch(watchPositionId.current);
+      if (simulationIntervalRef.current) {
+        clearInterval(simulationIntervalRef.current);
       }
     };
   }, []);
@@ -902,7 +1168,7 @@ export default function Home() {
           showPremiumToast("Không thể xóa lộ trình.", "error");
         }
       },
-      () => {},
+      () => { },
     );
   };
 
@@ -1136,6 +1402,11 @@ export default function Home() {
   const handleMapClick = (event: any) => {
     const { lng, lat } = event.lngLat;
 
+    if (isAddingPOI) {
+      setPendingPOILocation({ lng, lat });
+      return;
+    }
+
     if (mapRef.current && mapControls.flood) {
       const features = mapRef.current.queryRenderedFeatures(event.point, {
         layers: ["flood-zones-fill"],
@@ -1233,11 +1504,19 @@ export default function Home() {
       try {
         const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
         const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`,
+          `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(query)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`,
         );
         const data = await response.json();
         if (data.features) {
-          setSuggestions(data.features);
+          const normalizedFeatures = data.features.map((f: any) => ({
+            id: f.properties?.mapbox_id || f.id,
+            text: f.properties?.name || "",
+            text_vi: f.properties?.name || "",
+            place_name: f.properties?.full_address || f.properties?.name || "",
+            place_name_vi: f.properties?.full_address || f.properties?.name || "",
+            center: f.geometry?.coordinates || [0, 0],
+          }));
+          setSuggestions(normalizedFeatures);
           setShowSuggestions(true);
         }
       } catch (error) {
@@ -1299,13 +1578,13 @@ export default function Home() {
 
   const geojsonData: any = routeData
     ? {
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "LineString",
-          coordinates: routeData.coordinates,
-        },
-      }
+      type: "Feature",
+      properties: {},
+      geometry: {
+        type: "LineString",
+        coordinates: routeData.coordinates,
+      },
+    }
     : null;
 
   const routeLayerStyle: any = {
@@ -1712,7 +1991,65 @@ export default function Home() {
         >
           <NavigationControl position="bottom-right" showCompass={true} />
 
-          {userLocation && (
+          {/* DRAGGABLE POI MARKER */}
+          {isAddingPOI && pendingPOILocation && (
+            <Marker
+              longitude={pendingPOILocation.lng}
+              latitude={pendingPOILocation.lat}
+              draggable
+              onDragEnd={(e) => setPendingPOILocation({ lng: e.lngLat.lng, lat: e.lngLat.lat })}
+              anchor="bottom"
+            >
+              <div className="relative group cursor-pointer flex flex-col items-center z-50">
+                <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white animate-bounce">
+                  <MapPin size={20} className="text-white" />
+                </div>
+                <div className="w-2 h-2 bg-orange-600 rounded-full mt-1 shadow-sm" />
+                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-white px-3 py-1.5 rounded-lg shadow-xl border border-slate-200 whitespace-nowrap opacity-100 transition-opacity">
+                  <span className="text-xs font-semibold text-slate-700">Kéo để chọn vị trí</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowAddPOIModal(true);
+                    }}
+                    className="block w-full mt-2 text-[10px] bg-orange-500 text-white font-bold py-1 px-2 rounded hover:bg-orange-600 transition-colors pointer-events-auto"
+                  >
+                    Tiếp tục
+                  </button>
+                </div>
+              </div>
+            </Marker>
+          )}
+
+          {/* USER LOCATION MARKER */}
+          {isNavigating && isSimulationMode && simulatedCoords && (
+            <Marker
+              longitude={simulatedCoords[0]}
+              latitude={simulatedCoords[1]}
+              anchor="center"
+            >
+              <div 
+                className="w-10 h-10 flex items-center justify-center -mt-2 transition-transform duration-100"
+                style={{ transform: `rotate(${simulatedHeading}deg)` }}
+              >
+                <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-b-[24px] border-l-transparent border-r-transparent border-b-emerald-500 drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] filter" />
+              </div>
+            </Marker>
+          )}
+
+          {isNavigating && !isSimulationMode && userLocation && (
+            <Marker
+              longitude={userLocation.lng}
+              latitude={userLocation.lat}
+              anchor="center"
+            >
+              <div className="w-10 h-10 flex items-center justify-center -mt-2">
+                <div className="w-0 h-0 border-l-[12px] border-r-[12px] border-b-[24px] border-l-transparent border-r-transparent border-b-blue-600 drop-shadow-[0_0_8px_rgba(37,99,235,0.8)] filter" />
+              </div>
+            </Marker>
+          )}
+
+          {!isNavigating && userLocation && (
             <Marker
               longitude={userLocation.lng}
               latitude={userLocation.lat}
@@ -1937,13 +2274,12 @@ export default function Home() {
                     Mức độ:
                   </span>
                   <span
-                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      selectedFloodZone.properties.risk_level === "High"
-                        ? "bg-red-100 text-red-600"
-                        : selectedFloodZone.properties.risk_level === "Medium"
-                          ? "bg-orange-100 text-orange-600"
-                          : "bg-yellow-100 text-yellow-600"
-                    }`}
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${selectedFloodZone.properties.risk_level === "High"
+                      ? "bg-red-100 text-red-600"
+                      : selectedFloodZone.properties.risk_level === "Medium"
+                        ? "bg-orange-100 text-orange-600"
+                        : "bg-yellow-100 text-yellow-600"
+                      }`}
                   >
                     {selectedFloodZone.properties.risk_level === "High"
                       ? "Cao"
@@ -1959,11 +2295,73 @@ export default function Home() {
             </Popup>
           )}
 
+          {/* VẼ CÁC TUYẾN ĐƯỜNG THAY THẾ (ALTERNATIVE ROUTES) */}
+          {!isNavigating && routeData?.routes && routeData.routes.map((route) => {
+            if (route.id === selectedRouteIndex) return null;
+            
+            const routeGeoJSON: any = {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates: route.coordinates,
+              },
+            };
+
+            const alternativeStyle: any = {
+              id: `route-alternative-${route.id}`,
+              type: "line",
+              layout: {
+                "line-join": "round",
+                "line-cap": "round",
+              },
+              paint: {
+                "line-color": "#60a5fa", // Màu xanh nhạt cho tuyến đường phụ
+                "line-width": 5,
+                "line-opacity": 0.6,
+              },
+            };
+
+            return (
+              <Source key={`route-alt-source-${route.id}`} id={`route-alt-source-${route.id}`} type="geojson" data={routeGeoJSON}>
+                <Layer {...alternativeStyle} />
+              </Source>
+            );
+          })}
+
+          {/* VẼ TUYẾN ĐƯỜNG ĐƯỢC CHỌN (MAIN ROUTE) */}
           {geojsonData && (
             <Source id="route-source" type="geojson" data={geojsonData}>
               <Layer {...routeLayerStyle} />
             </Source>
           )}
+
+          {/* HIỂN THỊ BONG BÓNG THỜI GIAN TRÊN CÁC TUYẾN ĐƯỜNG */}
+          {!isNavigating && routeData?.routes && routeData.routes.map((route) => {
+            const isSelected = route.id === selectedRouteIndex;
+            const midIndex = Math.floor(route.coordinates.length / 2);
+            const [lng, lat] = route.coordinates[midIndex];
+
+            return (
+              <Marker
+                key={`route-duration-marker-${route.id}`}
+                longitude={lng}
+                latitude={lat}
+                anchor="center"
+              >
+                <button
+                  onClick={() => selectRoute(route.id)}
+                  className={`px-3 py-1.5 rounded-full shadow-lg border-2 text-xs font-black transition-all transform hover:scale-105 pointer-events-auto ${
+                    isSelected
+                      ? "bg-blue-600 border-white text-white z-30"
+                      : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 z-20 opacity-90"
+                  }`}
+                >
+                  {route.totalTimeMin} phút
+                </button>
+              </Marker>
+            );
+          })}
 
           {mapControls.traffic && trafficCongestionGeoJSON && (
             <Source
@@ -2023,41 +2421,33 @@ export default function Home() {
               <Layer
                 id="event-roads-casing"
                 type="line"
+                beforeId="road-label"
                 paint={{
-                  "line-color": "#000000",
+                  "line-color": "#ffffff",
                   "line-width": [
-                    "case",
-                    ["get", "isSelected"],
-                    14.5,
-                    ["case", ["get", "isActive"], 11.5, 7.5],
+                    "interpolate", ["linear"], ["zoom"],
+                    10, ["case", ["get", "isSelected"], 12, ["case", ["get", "isActive"], 8, 6]],
+                    14, ["case", ["get", "isSelected"], 22, ["case", ["get", "isActive"], 18, 12]],
+                    18, ["case", ["get", "isSelected"], 36, ["case", ["get", "isActive"], 28, 20]]
                   ],
-                  "line-opacity": [
-                    "case",
-                    ["get", "isSelected"],
-                    0.55,
-                    ["case", ["get", "isActive"], 0.4, 0.25],
-                  ],
+                  "line-opacity": 1.0,
                 }}
               />
               <Layer
                 id="event-roads-line-dashed"
                 type="line"
+                beforeId="road-label"
                 filter={["==", ["get", "restriction_type"], "CLOSED"]}
                 paint={{
-                  "line-color": "#EF4444",
+                  "line-color": "#dc2626",
                   "line-width": [
-                    "case",
-                    ["get", "isSelected"],
-                    10.5,
-                    ["case", ["get", "isActive"], 8.0, 5.0],
+                    "interpolate", ["linear"], ["zoom"],
+                    10, ["case", ["get", "isSelected"], 8, ["case", ["get", "isActive"], 5, 3]],
+                    14, ["case", ["get", "isSelected"], 14, ["case", ["get", "isActive"], 10, 6]],
+                    18, ["case", ["get", "isSelected"], 24, ["case", ["get", "isActive"], 18, 12]]
                   ],
-                  "line-opacity": [
-                    "case",
-                    ["get", "isSelected"],
-                    1.0,
-                    ["case", ["get", "isActive"], 0.95, 0.55],
-                  ],
-                  "line-dasharray": [3, 2],
+                  "line-opacity": 1.0,
+                  "line-dasharray": [4, 4],
                 }}
               />
               <Layer
@@ -2094,7 +2484,9 @@ export default function Home() {
           {activeOrSelectedEventRoads.map((road) => {
             if (!road.geojson_coords || road.geojson_coords.length === 0)
               return null;
-            const startCoord = road.geojson_coords[0];
+            // Tính toán toạ độ ở giữa đoạn đường để đặt icon cấm
+            const midIndex = Math.floor(road.geojson_coords.length / 2);
+            const midCoord = road.geojson_coords[midIndex];
             const now = new Date();
             const isActive = isRoadRestrictionActive(road, now);
             const isSelected =
@@ -2103,72 +2495,30 @@ export default function Home() {
               (e) => e.event_id === road.event_id,
             );
 
-            const getMarkerColor = () => {
-              if (isSelected)
-                return "bg-red-500 scale-110 ring-4 ring-red-500/30 z-30";
-              if (!isActive) return "bg-slate-400";
-              if (road.restriction_type === "LIMITED") return "bg-amber-500";
-              if (road.restriction_type === "ONE_WAY") return "bg-blue-600";
-              return "bg-red-600";
-            };
-
-            if (relatedEvent) {
-              const categoryColor = relatedEvent.category_color || "#ef4444";
-              return (
-                <Marker
-                  key={`marker-road-${road.road_id}`}
-                  longitude={startCoord[0]}
-                  latitude={startCoord[1]}
-                  anchor="bottom"
-                >
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setViewMode("events");
-                      handleEventClick(relatedEvent);
-                    }}
-                    className={`relative flex items-center justify-center border-2 border-white rounded-full shadow-2xl cursor-pointer transform hover:scale-115 transition-all z-20 w-9 h-9`}
-                    style={{ backgroundColor: categoryColor }}
-                  >
-                    {relatedEvent.thumbnail_url ? (
-                      <img
-                        src={relatedEvent.thumbnail_url}
-                        alt={relatedEvent.title}
-                        className="w-full h-full object-cover rounded-full"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <span className="text-white text-sm">
-                        {relatedEvent.category_icon || "🎆"}
-                      </span>
-                    )}
-                    <div
-                      className={`absolute -bottom-1 -right-1 border border-white text-white w-[18px] h-[18px] rounded-full flex items-center justify-center shadow-md ${getMarkerColor()} p-0.5`}
-                    >
-                      <RouteOff size={9} />
-                    </div>
-                  </div>
-                </Marker>
-              );
-            }
+            // Chỉ hiển thị icon No Entry đối với đường cấm hoàn toàn
+            if (road.restriction_type !== "CLOSED") return null;
 
             return (
               <Marker
                 key={`marker-road-${road.road_id}`}
-                longitude={startCoord[0]}
-                latitude={startCoord[1]}
-                anchor="bottom"
+                longitude={midCoord[0]}
+                latitude={midCoord[1]}
+                anchor="center"
               >
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedRoadPopup(road);
+                    if (relatedEvent) {
+                      setViewMode("events");
+                      handleEventClick(relatedEvent);
+                    } else {
+                      setSelectedRoadPopup(road);
+                    }
                   }}
-                  className={`flex items-center justify-center border border-white text-white w-7 h-7 rounded-full shadow-lg cursor-pointer transform hover:scale-115 transition-all z-20 ${getMarkerColor()} ${isActive ? "animate-pulse" : ""}`}
+                  className={`flex items-center justify-center border-[2px] border-white w-5 h-5 md:w-5 md:h-5 rounded-full shadow-sm cursor-pointer transform hover:scale-125 transition-all z-30 bg-[#dc2626] ${isSelected ? "ring-2 ring-red-500/50 scale-110" : "scale-90 opacity-90"}`}
+                  title={road.road_name}
                 >
-                  <RouteOff size={13} />
+                  <div className="w-2.5 h-[2.5px] bg-white rounded-sm"></div>
                 </div>
               </Marker>
             );
@@ -2178,10 +2528,10 @@ export default function Home() {
             trafficAlerts.map((alert) => {
               const getAlertColor = () => {
                 if (alert.severity === "HIGH")
-                  return "bg-red-600 ring-red-500/30";
+                  return "bg-red-600";
                 if (alert.severity === "MEDIUM")
-                  return "bg-orange-500 ring-orange-400/30";
-                return "bg-blue-500 ring-blue-400/30";
+                  return "bg-orange-500";
+                return "bg-blue-500";
               };
 
               const renderAlertIcon = () => {
@@ -2208,13 +2558,81 @@ export default function Home() {
                       setSelectedEvent(null);
                       setSelectedRoadPopup(null);
                     }}
-                    className={`flex items-center justify-center border border-white text-white w-7 h-7 rounded-full shadow-lg cursor-pointer transform hover:scale-115 transition-all z-20 ${getAlertColor()} ring-4`}
+                    className={`flex items-center justify-center border-2 border-white text-white w-7 h-7 rounded-full shadow-lg cursor-pointer transform hover:scale-115 transition-all z-20 ${getAlertColor()}`}
                   >
                     {renderAlertIcon()}
                   </div>
                 </Marker>
               );
             })}
+
+          {/* MAPBOX REAL-TIME TRAFFIC LAYER */}
+          {mapControls.traffic && (
+            <Source id="mapbox-traffic" type="vector" url="mapbox://mapbox.mapbox-traffic-v1">
+              <Layer
+                id="traffic"
+                type="line"
+                source="mapbox-traffic"
+                source-layer="traffic"
+                beforeId="road-label"
+                paint={{
+                  "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2, 16, 5],
+                  "line-color": [
+                    "case",
+                    ["==", "low", ["get", "congestion"]],
+                    "#22c55e",      // Nhanh (Xanh lá)
+                    ["==", "moderate", ["get", "congestion"]],
+                    "#f59e0b",      // Vừa (Cam)
+                    ["==", "heavy", ["get", "congestion"]],
+                    "#ef4444",      // Chậm (Đỏ)
+                    ["==", "severe", ["get", "congestion"]],
+                    "#7f1d1d",      // Rất chậm (Đỏ sẫm)
+                    "transparent"
+                  ]
+                }}
+              />
+            </Source>
+          )}
+
+          {mapControls.traffic && trafficAlerts.map(alert => {
+            if (!alert.affected_area_polygon) return null;
+
+            let geojsonData = null;
+            try {
+              geojsonData = typeof alert.affected_area_polygon === 'string'
+                ? JSON.parse(alert.affected_area_polygon)
+                : alert.affected_area_polygon;
+            } catch (e) {
+              return null;
+            }
+
+            if (!geojsonData || !geojsonData.type) return null;
+
+            const fillColor = alert.severity === "HIGH" ? "#dc2626"
+              : alert.severity === "MEDIUM" ? "#f97316"
+                : "#3b82f6";
+
+            return (
+              <Source key={`alert-poly-source-${alert.id}`} id={`alert-poly-source-${alert.id}`} type="geojson" data={geojsonData}>
+                <Layer
+                  id={`alert-poly-layer-${alert.id}`}
+                  type="fill"
+                  paint={{
+                    'fill-color': fillColor,
+                    'fill-opacity': 0.3
+                  }}
+                />
+                <Layer
+                  id={`alert-poly-line-${alert.id}`}
+                  type="line"
+                  paint={{
+                    'line-color': fillColor,
+                    'line-width': 2
+                  }}
+                />
+              </Source>
+            );
+          })}
 
           {mapControls.traffic && selectedTrafficAlert && (
             <Popup
@@ -2230,13 +2648,12 @@ export default function Home() {
               <div className="p-4 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 text-slate-800 font-sans text-left">
                 <div className="flex items-center gap-2 mb-2">
                   <span
-                    className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${
-                      selectedTrafficAlert.type === "CONGESTION"
-                        ? "bg-orange-50 border-orange-200 text-orange-600"
-                        : selectedTrafficAlert.type === "ACCIDENT"
-                          ? "bg-red-50 border-red-200 text-red-600"
-                          : "bg-blue-50 border-blue-200 text-blue-600"
-                    }`}
+                    className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${selectedTrafficAlert.type === "CONGESTION"
+                      ? "bg-orange-50 border-orange-200 text-orange-600"
+                      : selectedTrafficAlert.type === "ACCIDENT"
+                        ? "bg-red-50 border-red-200 text-red-600"
+                        : "bg-blue-50 border-blue-200 text-blue-600"
+                      }`}
                   >
                     {selectedTrafficAlert.type === "CONGESTION"
                       ? "Kẹt xe"
@@ -2245,13 +2662,12 @@ export default function Home() {
                         : "Thi công"}
                   </span>
                   <span
-                    className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${
-                      selectedTrafficAlert.severity === "HIGH"
-                        ? "bg-red-100 border-red-300 text-red-700"
-                        : selectedTrafficAlert.severity === "MEDIUM"
-                          ? "bg-orange-100 border-orange-300 text-orange-700"
-                          : "bg-blue-100 border-blue-300 text-blue-700"
-                    }`}
+                    className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${selectedTrafficAlert.severity === "HIGH"
+                      ? "bg-red-100 border-red-300 text-red-700"
+                      : selectedTrafficAlert.severity === "MEDIUM"
+                        ? "bg-orange-100 border-orange-300 text-orange-700"
+                        : "bg-blue-100 border-blue-300 text-blue-700"
+                      }`}
                   >
                     {selectedTrafficAlert.severity}
                   </span>
@@ -2287,11 +2703,10 @@ export default function Home() {
                 <div className="p-3 w-60 bg-white rounded-2xl shadow-xl border border-slate-100 text-slate-800 font-sans">
                   <div className="flex items-center gap-1.5 mb-1.5">
                     <div
-                      className={`p-1 rounded-lg shrink-0 ${
-                        isRoadRestrictionActive(selectedRoadPopup, new Date())
-                          ? "bg-red-100 text-red-600"
-                          : "bg-slate-100 text-slate-500"
-                      }`}
+                      className={`p-1 rounded-lg shrink-0 ${isRoadRestrictionActive(selectedRoadPopup, new Date())
+                        ? "bg-red-100 text-red-600"
+                        : "bg-slate-100 text-slate-500"
+                        }`}
                     >
                       <RouteOff size={14} />
                     </div>
@@ -2307,11 +2722,10 @@ export default function Home() {
                     );
                     return (
                       <div
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold mb-1.5 border ${
-                          active
-                            ? "bg-red-50 border-red-200 text-red-600 animate-pulse"
-                            : "bg-slate-50 border-slate-200 text-slate-500"
-                        }`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold mb-1.5 border ${active
+                          ? "bg-red-50 border-red-200 text-red-600 animate-pulse"
+                          : "bg-slate-50 border-slate-200 text-slate-500"
+                          }`}
                       >
                         {active
                           ? "🔴 ĐANG ÁP DỤNG CẤM ĐƯỜNG"
@@ -2369,9 +2783,12 @@ export default function Home() {
       </div>
 
       {/* HEADER TRÊN CÙNG & PANEL TÌM ĐƯỜNG */}
-      <div className="absolute top-6 left-6 right-6 z-10 flex items-start justify-between gap-4 pointer-events-none">
-        <div className="relative pointer-events-auto shrink-0 flex flex-col gap-2 max-h-[calc(100vh-80px)]">
-          {!isNavigating && (
+      <div className="absolute top-4 left-4 right-4 md:top-6 md:left-6 md:right-6 z-10 flex flex-col pointer-events-none gap-2">
+        {/* Hàng trên: Search + Bell + Avatar */}
+        <div className="flex items-center justify-between gap-2 w-full">
+          {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
+          <div className="relative pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:max-h-[calc(100vh-80px)] max-md:overflow-y-auto scrollbar-none">
+            {!isNavigating && (
               <>
                 <RoutePanel
                   viewMode={viewMode}
@@ -2419,7 +2836,7 @@ export default function Home() {
                 />
                 {viewMode === "pois" ? (
                   <>
-                    {selectedFilter !== null && (
+                    {selectedFilter !== null && !routeData && !isNavigating && (
                       <POIFeaturedSidebar
                         pois={pois}
                         selectedFilter={selectedFilter}
@@ -2442,6 +2859,16 @@ export default function Home() {
                           }
                         }}
                         hasRoute={!!routeData}
+                        onClose={() => {
+                          setSelectedFilter(null);
+                          setSelectedPOI(null);
+                          setRouteData(null);
+                          setDestination(null);
+                          setOrigin(null);
+                          setOriginQuery("");
+                          setDestinationQuery("");
+                          setRouteAlertMessage(null);
+                        }}
                       />
                     )}
                   </>
@@ -2452,7 +2879,11 @@ export default function Home() {
                         events={events}
                         categories={eventCategories}
                         onEventClick={handleEventClick}
-                        onClose={() => setShowEventsSidebar(false)}
+                        onClose={() => {
+                          setShowEventsSidebar(false);
+                          setSelectedEvent(null);
+                          setViewMode("pois");
+                        }}
                         hasRoute={!!routeData}
                       />
                     )}
@@ -2460,11 +2891,152 @@ export default function Home() {
                 )}
               </>
             )}
+          </div>
+          {/* Filter chips — desktop only: nằm cùng hàng giữa search và bell/avatar */}
+          {!isNavigating && viewMode === "pois" && (
+            <div className="hidden md:flex items-center justify-start gap-2 overflow-x-auto flex-nowrap flex-1 self-start pointer-events-auto scrollbar-none pb-2">
+              {filterCategories.map((cat) => {
+                const Icon = cat.icon;
+                const isSelected = selectedFilter === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleFilterClick(cat.id)}
+                    className={`flex items-center gap-1.5 px-3.5 h-[42px] rounded-full text-[11px] font-bold shadow-md border transition-all shrink-0 ${isSelected
+                      ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
+                      : "bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50 hover:text-blue-600"
+                      }`}
+                  >
+                    <Icon
+                      size={13}
+                      className={isSelected ? "text-white" : "text-slate-500"}
+                    />
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Thông báo & User - cùng hàng với search */}
+          {!isNavigating && (
+            <div className="flex flex-row items-center gap-2 shrink-0 pointer-events-auto self-start">
+              <div className="relative">
+                <button
+                  onClick={() => setShowNotificationModal(!showNotificationModal)}
+                  className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all relative"
+                >
+                  <Bell size={18} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white px-0.5">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                <NotificationCenter
+                  isOpen={showNotificationModal}
+                  onClose={() => setShowNotificationModal(false)}
+                  onFlyToZone={(notif: AppNotification) => {
+                    setShowNotificationModal(false);
+                    if (!notif) return;
+
+                    const match = notif.message?.match(/\[zone_id:(\d+)\]/);
+                    if (match) {
+                      const zoneId = parseInt(match[1]);
+                      const zone = floodZones.find(
+                        (z) => z.id === zoneId || z.zone_id === zoneId,
+                      );
+                      if (
+                        zone &&
+                        Array.isArray(zone.center) &&
+                        zone.center.length === 2
+                      ) {
+                        setMapControls((prev) => ({ ...prev, flood: true }));
+                        mapRef.current?.flyTo({
+                          center: [zone.center[0], zone.center[1]],
+                          zoom: 15,
+                          duration: 1500,
+                        });
+                        setSelectedFloodZone({
+                          lng: zone.center[0],
+                          lat: zone.center[1],
+                          properties: {
+                            id: zone.id,
+                            name: zone.name,
+                            depthCm: zone.depthCm,
+                            risk_level: zone.risk_level,
+                            description: zone.description,
+                          },
+                        });
+                        return;
+                      }
+                    }
+
+                    if (notif.alert_id) {
+                      const alert = trafficAlerts.find(
+                        (a) =>
+                          a.id === notif.alert_id ||
+                          a.alert_id === notif.alert_id,
+                      );
+                      if (alert) {
+                        setMapControls((prev) => ({ ...prev, traffic: true }));
+                        mapRef.current?.flyTo({
+                          center: [alert.longitude, alert.latitude],
+                          zoom: 16,
+                          duration: 1500,
+                        });
+                        setSelectedTrafficAlert(alert);
+                        setSelectedPOI(null);
+                        setSelectedEvent(null);
+                        setSelectedRoadPopup(null);
+                      }
+                    }
+                  }}
+                  onOpenEvent={(eventId) => {
+                    setViewMode("events");
+                    setShowEventsSidebar(true);
+                    const found = events.find((e) => e.event_id === eventId);
+                    if (found) handleEventClick(found);
+                    setShowNotificationModal(false);
+                  }}
+                />
+              </div>
+
+              {userRole === "admin" ? (
+                <button
+                  onClick={() => navigate("/admin/dashboard")}
+                  className="w-[42px] h-[42px] flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-md transition-all"
+                >
+                  <Settings size={18} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate("?tab=profile")}
+                  className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 overflow-hidden text-slate-600 hover:text-blue-600 transition-all"
+                >
+                  {userProfile?.avatar_url ? (
+                    <img
+                      src={
+                        userProfile.avatar_url.startsWith("http")
+                          ? userProfile.avatar_url
+                          : `${import.meta.env.VITE_API_URL || "http://localhost:5001"}${userProfile.avatar_url}`
+                      }
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User size={18} />
+                  )}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Các nút Filters */}
-        {!isNavigating && viewMode === "pois" ? (
-          <div className="flex-1 flex items-center justify-center gap-2 overflow-x-auto pb-1 scrollbar-none pointer-events-auto max-w-[calc(100vw-540px)]">
+        {/* Filter chips — mobile only: hàng riêng bênn dưới search */}
+        {!isNavigating && viewMode === "pois" && (
+          <div className="flex md:hidden items-center gap-2 overflow-x-auto pb-1 scrollbar-none pointer-events-auto w-full">
             {filterCategories.map((cat) => {
               const Icon = cat.icon;
               const isSelected = selectedFilter === cat.id;
@@ -2472,11 +3044,10 @@ export default function Home() {
                 <button
                   key={cat.id}
                   onClick={() => handleFilterClick(cat.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-bold shadow-md border transition-all shrink-0 ${
-                    isSelected
-                      ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
-                      : "bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50 hover:text-blue-600"
-                  }`}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-bold shadow-md border transition-all shrink-0 ${isSelected
+                    ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
+                    : "bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50 hover:text-blue-600"
+                    }`}
                 >
                   <Icon
                     size={13}
@@ -2487,125 +3058,24 @@ export default function Home() {
               );
             })}
           </div>
-        ) : (
-          <div className="flex-1" />
-        )}
-
-        {/* Thông báo & User */}
-        {!isNavigating && (
-          <div className="flex items-center gap-3 shrink-0 pointer-events-auto relative">
-            <div className="relative">
-              <button
-                onClick={() => setShowNotificationModal(!showNotificationModal)}
-                className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all relative"
-              >
-                <Bell size={18} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white px-0.5">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
-              </button>
-
-              <NotificationCenter
-                isOpen={showNotificationModal}
-                onClose={() => setShowNotificationModal(false)}
-                onFlyToZone={(notif: AppNotification) => {
-                  setShowNotificationModal(false);
-                  if (!notif) return;
-
-                  const match = notif.message?.match(/\[zone_id:(\d+)\]/);
-                  if (match) {
-                    const zoneId = parseInt(match[1]);
-                    const zone = floodZones.find(
-                      (z) => z.id === zoneId || z.zone_id === zoneId,
-                    );
-                    if (
-                      zone &&
-                      Array.isArray(zone.center) &&
-                      zone.center.length === 2
-                    ) {
-                      setMapControls((prev) => ({ ...prev, flood: true }));
-                      mapRef.current?.flyTo({
-                        center: [zone.center[0], zone.center[1]],
-                        zoom: 15,
-                        duration: 1500,
-                      });
-                      setSelectedFloodZone({
-                        lng: zone.center[0],
-                        lat: zone.center[1],
-                        properties: {
-                          id: zone.id,
-                          name: zone.name,
-                          depthCm: zone.depthCm,
-                          risk_level: zone.risk_level,
-                          description: zone.description,
-                        },
-                      });
-                      return;
-                    }
-                  }
-
-                  if (notif.alert_id) {
-                    const alert = trafficAlerts.find(
-                      (a) =>
-                        a.id === notif.alert_id ||
-                        a.alert_id === notif.alert_id,
-                    );
-                    if (alert) {
-                      setMapControls((prev) => ({ ...prev, traffic: true }));
-                      mapRef.current?.flyTo({
-                        center: [alert.longitude, alert.latitude],
-                        zoom: 16,
-                        duration: 1500,
-                      });
-                      setSelectedTrafficAlert(alert);
-                      setSelectedPOI(null);
-                      setSelectedEvent(null);
-                      setSelectedRoadPopup(null);
-                    }
-                  }
-                }}
-                onOpenEvent={(eventId) => {
-                  setViewMode("events");
-                  setShowEventsSidebar(true);
-                  const found = events.find((e) => e.event_id === eventId);
-                  if (found) handleEventClick(found);
-                  setShowNotificationModal(false);
-                }}
-              />
-            </div>
-
-            {userRole === "admin" ? (
-              <button
-                onClick={() => navigate("/admin/dashboard")}
-                className="w-[42px] h-[42px] flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-md transition-all"
-              >
-                <Settings size={18} />
-              </button>
-            ) : (
-              <button
-                onClick={() => navigate("?tab=profile")}
-                className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 overflow-hidden text-slate-600 hover:text-blue-600 transition-all"
-              >
-                {userProfile?.avatar_url ? (
-                  <img
-                    src={
-                      userProfile.avatar_url.startsWith("http")
-                        ? userProfile.avatar_url
-                        : `${import.meta.env.VITE_API_URL || "http://localhost:5001"}${userProfile.avatar_url}`
-                    }
-                    alt="Avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <User size={18} />
-                )}
-              </button>
-            )}
-          </div>
         )}
       </div>
+
+      {/* TRAFFIC LEGEND */}
+      {mapControls.traffic && !isNavigating && (
+        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2.5 rounded-full shadow-lg border border-slate-200 z-10 pointer-events-auto flex items-center gap-3 text-[11px] md:text-xs font-medium text-slate-600 hidden md:flex">
+          <span className="font-bold text-slate-800">Giao thông thời gian thực</span>
+          <div className="w-px h-4 bg-slate-300"></div>
+          <span className="italic">Nhanh</span>
+          <div className="flex items-center gap-0.5">
+            <div className="w-5 h-2 bg-[#22c55e] rounded-sm"></div>
+            <div className="w-5 h-2 bg-[#f59e0b] rounded-sm"></div>
+            <div className="w-5 h-2 bg-[#ef4444] rounded-sm"></div>
+            <div className="w-5 h-2 bg-[#7f1d1d] rounded-sm"></div>
+          </div>
+          <span className="italic">Chậm</span>
+        </div>
+      )}
 
       {/* MAP TOOLBAR DƯỚI GÓC PHẢI */}
       {!isNavigating && (
@@ -2631,6 +3101,27 @@ export default function Home() {
             const val = !isLowBandwidth;
             setIsLowBandwidth(val);
             localStorage.setItem('low_bandwidth_mode', val.toString());
+          }}
+          isAddingPOI={isAddingPOI}
+          setIsAddingPOI={(v: boolean) => {
+            setIsAddingPOI(v);
+            if (!v) {
+              setPendingPOILocation(null);
+              setShowAddPOIModal(false);
+            }
+          }}
+        />
+      )}
+
+      {/* MODAL THÊM POI */}
+      {showAddPOIModal && pendingPOILocation && (
+        <AddPOIModal
+          location={pendingPOILocation}
+          onClose={() => setShowAddPOIModal(false)}
+          onSubmitSuccess={() => {
+            setShowAddPOIModal(false);
+            setIsAddingPOI(false);
+            setPendingPOILocation(null);
           }}
         />
       )}
@@ -2666,109 +3157,140 @@ export default function Home() {
               // 3. Đóng Event Detail Sidebar
               setSelectedEvent(null);
             }}
-            onClose={() => setSelectedEvent(null)}
+            onClose={() => {
+              setSelectedEvent(null);
+              setRouteData(null);
+              setDestination(null);
+              setOrigin(null);
+              setOriginQuery("");
+              setDestinationQuery("");
+              setRouteAlertMessage(null);
+            }}
           />
         </div>
       )}
 
-      {/* SAVED ROUTES SIDEBAR */}
-      {!isNavigating && showSavedRoutesSidebar && (
-        <div className="absolute right-20 top-24 z-20 pointer-events-none">
-          <div className="w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 font-sans text-left flex flex-col max-h-[380px] shrink-0 animate-fade-in pointer-events-auto overflow-hidden">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3 shrink-0">
-              <h3 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
-                <Bookmark className="w-5 h-5 text-rose-500 fill-current" /> Lộ
-                trình đã lưu
-              </h3>
-              <button
-                onClick={() => setShowSavedRoutesSidebar(false)}
-                className="w-7 h-7 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto pr-1 scrollbar-none space-y-2.5">
-              {savedRoutes.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-                  <Bookmark size={32} className="text-slate-200 stroke-1" />
-                  <p className="text-[11px] font-semibold">
-                    Chưa có lộ trình nào được lưu
-                  </p>
-                </div>
-              ) : (
-                savedRoutes.map((route) => {
-                  const isFloodRoute = route.is_emergency;
-                  return (
-                    <div
-                      key={route.route_id}
-                      onClick={() => handleSelectSavedRoute(route)}
-                      className="p-3 bg-slate-50 hover:bg-rose-50/20 border border-slate-100 hover:border-rose-100 rounded-xl cursor-pointer transition-all flex flex-col gap-2 relative group"
-                    >
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="font-bold text-xs text-slate-800 line-clamp-1 pr-6 hover:text-rose-600 transition-colors">
-                          {route.route_name || "Lộ trình không tên"}
-                        </div>
-                        <button
-                          onClick={(e) =>
-                            handleDeleteSavedRoute(route.route_id, e)
-                          }
-                          className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 w-5 h-5 rounded-full flex items-center justify-center hover:bg-slate-100 transition-all"
-                        >
-                          <X size={12} />
-                        </button>
-                      </div>
-                      <div className="text-[10px] text-slate-500 flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
-                          <span className="line-clamp-1">
-                            <b>Đi từ:</b>{" "}
-                            {route.origin_name || "Vị trí xuất phát"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
-                          <span className="line-clamp-1">
-                            <b>Đến:</b> {route.destination_name || "Điểm đến"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between border-t border-slate-200/50 pt-2 mt-1 text-[9px] font-bold text-slate-400">
-                        <div className="flex items-center gap-2">
-                          <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 capitalize">
-                            {route.profile === "driving"
-                              ? "Ô tô/Xe máy"
-                              : route.profile === "walking"
-                                ? "Đi bộ"
-                                : "Xe đạp"}
-                          </span>
-                          {isFloodRoute && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 flex items-center gap-0.5">
-                              <CloudRain size={8} /> Tránh ngập
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-slate-600">
-                          {(route.distance_meters / 1000).toFixed(1)} km ·{" "}
-                          {Math.round(route.duration_seconds / 60)} phút
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+      {/* POI FEATURED SIDEBAR (RIGHT SIDE WHEN ROUTE IS ACTIVE) */}
+      {(routeData || isNavigating) && viewMode === "pois" && selectedFilter !== null && (
+        <div className="absolute right-20 top-24 z-20 pointer-events-none hidden md:block">
+          <div className="pointer-events-auto">
+            <POIFeaturedSidebar
+              pois={pois}
+              selectedFilter={selectedFilter}
+              onPOIClick={handlePOIClick}
+              onDirectionsClick={(poi) => {
+                setDestination({
+                  lng: poi.longitude,
+                  lat: poi.latitude,
+                  label: poi.name,
+                  poi_id: poi.poi_id,
+                });
+                setDestinationQuery(poi.name);
+                if (userLocation) {
+                  setOrigin({
+                    lng: userLocation.lng,
+                    lat: userLocation.lat,
+                    label: "Vị trí của bạn",
+                  });
+                  setOriginQuery("Vị trí của bạn");
+                }
+              }}
+              hasRoute={!!routeData}
+              onClose={() => {
+                setSelectedFilter(null);
+                setSelectedPOI(null);
+                setRouteData(null);
+                setDestination(null);
+                setOrigin(null);
+                setOriginQuery("");
+                setDestinationQuery("");
+                setRouteAlertMessage(null);
+              }}
+            />
           </div>
         </div>
       )}
 
-      {/* BUTTON DỪNG DẪN ĐƯỜNG */}
-      {isNavigating && (
-        <button
-          onClick={handleStopNavigation}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-red-600 text-white px-7 py-3 rounded-full font-bold shadow-xl z-50 hover:bg-red-700 hover:scale-105 transition-all"
-        >
-          🛑 Dừng dẫn đường
-        </button>
+      {/* SAVED ROUTES SIDEBAR */}
+      <SavedRoutesSidebar
+        isOpen={!isNavigating && showSavedRoutesSidebar}
+        onClose={() => setShowSavedRoutesSidebar(false)}
+        savedRoutes={savedRoutes}
+        onSelectRoute={handleSelectSavedRoute}
+        onDeleteRoute={handleDeleteSavedRoute}
+      />
+
+      {/* NAVIGATION PANEL */}
+      {isNavigating && routeData && (
+        <div className="absolute top-6 left-6 md:left-6 md:top-6 z-40 w-[calc(100%-48px)] md:w-80 pointer-events-auto max-md:top-auto max-md:bottom-4 max-md:left-4 max-md:w-[calc(100%-32px)]">
+          <NavigationPanel
+            steps={routeData.steps || []}
+            currentStepIndex={currentStepIndex}
+            distanceToNextStep={distanceToNextStep}
+            totalDistanceKm={routeData.totalDistanceKm}
+            totalTimeMin={routeData.totalTimeMin}
+            isVoiceMuted={isVoiceMuted}
+            onToggleVoice={() => {
+              const nextVal = !isVoiceMuted;
+              setIsVoiceMuted(nextVal);
+              if (nextVal) window.speechSynthesis.cancel();
+            }}
+            isSimulationMode={isSimulationMode}
+            isSimulating={isSimulating}
+            onToggleSimulation={() => {
+              if (isSimulating) {
+                pauseSimulation();
+              } else {
+                startSimulation(true);
+              }
+            }}
+            simulationSpeed={simulationSpeed}
+            onChangeSimulationSpeed={(speed) => setSimulationSpeed(speed)}
+            onStopNavigation={handleStopNavigation}
+            onNextStep={() => {
+              if (routeData.steps && currentStepIndex < routeData.steps.length - 1) {
+                setCurrentStepIndex((prev) => prev + 1);
+              }
+            }}
+            onPrevStep={() => {
+              if (currentStepIndex > 0) {
+                setCurrentStepIndex((prev) => prev - 1);
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* DIALOG CHỌN CHẾ ĐỘ DẪN ĐƯỜNG */}
+      {showNavModeSelector && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl shadow-2xl w-full max-w-sm p-6 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-black text-center mb-2 text-blue-400">CHỌN CHẾ ĐỘ DẪN ĐƯỜNG</h3>
+            <p className="text-xs text-slate-400 text-center mb-6 leading-relaxed">
+              Bạn có thể sử dụng định vị GPS thực tế trên thiết bị hoặc chạy mô phỏng di chuyển dọc theo tuyến đường để trải nghiệm.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleStartRealNavigation}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30 transition-all"
+              >
+                📡 BẮT ĐẦU VỚI GPS THỰC TẾ
+              </button>
+              <button
+                onClick={handleStartSimulationNavigation}
+                className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-2xl font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all"
+              >
+                🚗 CHẠY MÔ PHỎNG LỘ TRÌNH
+              </button>
+              <button
+                onClick={() => setShowNavModeSelector(false)}
+                className="w-full py-2.5 text-xs font-semibold text-slate-400 hover:text-slate-200 text-center transition-colors mt-2"
+              >
+                HỦY
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* MODALS */}
@@ -2786,179 +3308,31 @@ export default function Home() {
         onCancel={confirmModal.onCancel}
       />
 
-      {showReportModal && (
-        <div
-          style={{ animation: "fadeIn 250ms ease-out forwards" }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
-        >
-          <div
-            style={{
-              animation:
-                "scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
-            }}
-            className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-slate-100 overflow-hidden mx-4"
-          >
-            <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-4 flex items-center justify-between text-white">
-              <h3 className="font-extrabold text-sm flex items-center gap-2 tracking-wide uppercase">
-                <AlertTriangle className="w-5 h-5 animate-pulse" /> Báo cáo sự
-                cố
-              </h3>
-              <button
-                onClick={() => setShowReportModal(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <form
-              onSubmit={handleSubmitTrafficReport}
-              className="p-6 space-y-4 font-sans text-left"
-            >
-              <input
-                required
-                type="text"
-                placeholder="Mô tả sự cố..."
-                value={reportFormData.title}
-                onChange={(e) =>
-                  setReportFormData({
-                    ...reportFormData,
-                    title: e.target.value,
-                  })
-                }
-                className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20"
-              />
-              <textarea
-                rows={2}
-                placeholder="Chi tiết..."
-                value={reportFormData.description}
-                onChange={(e) =>
-                  setReportFormData({
-                    ...reportFormData,
-                    description: e.target.value,
-                  })
-                }
-                className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 resize-none"
-              />
-              <input
-                required
-                type="text"
-                value={reportFormData.location}
-                onChange={(e) =>
-                  setReportFormData({
-                    ...reportFormData,
-                    location: e.target.value,
-                  })
-                }
-                className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20"
-              />
-              <div className="flex justify-end gap-3 pt-3">
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl"
-                >
-                  Gửi báo cáo
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ReportTrafficModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        title={reportFormData.title}
+        onChangeTitle={(val) => setReportFormData({ ...reportFormData, title: val })}
+        description={reportFormData.description}
+        onChangeDescription={(val) => setReportFormData({ ...reportFormData, description: val })}
+        location={reportFormData.location}
+        onChangeLocation={(val) => setReportFormData({ ...reportFormData, location: val })}
+        onSubmit={handleSubmitTrafficReport}
+      />
 
-      {showSaveRouteModal && (
-        <div
-          style={{ backgroundColor: "rgba(15, 23, 42, 0.4)" }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm pointer-events-auto"
-        >
-          <div
-            style={{
-              animation:
-                "scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
-            }}
-            className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden mx-4 text-left"
-          >
-            {/* Đổi màu Gradient Header và icon Bookmark */}
-            <div className="bg-gradient-to-r from-amber-500 to-yellow-500 px-6 py-4 flex justify-between text-white">
-              <h3 className="font-extrabold text-sm flex gap-2">
-                <Bookmark className="w-5 h-5 fill-current animate-pulse" /> Lưu
-                lộ trình
-              </h3>
-              <button
-                onClick={() => setShowSaveRouteModal(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex justify-center items-center"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {/* Đổi màu viền focus của input sang màu vàng */}
-              <input
-                required
-                type="text"
-                placeholder="Tên lộ trình"
-                value={saveRouteName}
-                onChange={(e) => setSaveRouteName(e.target.value)}
-                className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none transition-all"
-              />
-              <div className="flex justify-end gap-3 pt-3 border-t">
-                {/* Đổi màu gradient của nút Lưu lại */}
-                <button
-                  onClick={handleSaveRoute}
-                  disabled={isSavingRoute}
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 rounded-xl transition-all disabled:opacity-50"
-                >
-                  {isSavingRoute ? "Đang lưu..." : "Lưu lại"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {showShareModal && (
-        <div
-          style={{ backgroundColor: "rgba(15, 23, 42, 0.4)" }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm pointer-events-auto"
-        >
-          <div
-            style={{
-              animation:
-                "scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards",
-            }}
-            className="bg-white rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden mx-4 text-left"
-          >
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 px-6 py-4 flex justify-between text-white">
-              <h3 className="font-extrabold text-sm flex gap-2">
-                <Share2 className="w-5 h-5 animate-pulse" /> Chia sẻ lộ trình
-              </h3>
-              <button
-                onClick={() => setShowShareModal(false)}
-                className="w-8 h-8 rounded-full bg-white/10 flex justify-center items-center"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex gap-2">
-                <input
-                  readOnly
-                  type="text"
-                  value={shareUrl}
-                  className="flex-1 px-3 py-2 text-[10px] bg-slate-50 rounded-xl border outline-none"
-                />
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(shareUrl);
-                    showPremiumToast("Đã sao chép!", "success");
-                  }}
-                  className="px-3 bg-slate-100 rounded-xl flex items-center justify-center"
-                >
-                  <Copy size={14} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SaveRouteModal
+        isOpen={showSaveRouteModal}
+        onClose={() => setShowSaveRouteModal(false)}
+        routeName={saveRouteName}
+        onChangeRouteName={setSaveRouteName}
+        onSubmit={handleSaveRoute}
+        isLoading={isSavingRoute}
+      />
+      <ShareRouteModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        shareUrl={shareUrl}
+      />
       {/* WEATHER WIDGET */}
       <WeatherWidget
         isCollapsed={!isWeatherExpanded}
@@ -2971,27 +3345,7 @@ export default function Home() {
       />
 
       {/* Offline / Low-Bandwidth status banner */}
-      {isOffline ? (
-        <div style={{
-          position: 'absolute', top: '84px', left: '50%', transform: 'translateX(-50%)', zIndex: 999,
-          backgroundColor: 'rgba(254, 243, 199, 0.95)', border: '1px solid #f59e0b', color: '#d97706',
-          padding: '8px 24px', borderRadius: '30px', fontSize: '12px', fontWeight: 'bold',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(4px)'
-        }}>
-          <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
-          ⚠️ Mất mạng — Đang ở chế độ Ngoại tuyến khẩn cấp
-        </div>
-      ) : isLowBandwidth ? (
-        <div style={{
-          position: 'absolute', top: '84px', left: '50%', transform: 'translateX(-50%)', zIndex: 999,
-          backgroundColor: 'rgba(239, 246, 255, 0.95)', border: '1px solid #3b82f6', color: '#1d4ed8',
-          padding: '8px 24px', borderRadius: '30px', fontSize: '12px', fontWeight: 'bold',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(4px)'
-        }}>
-          <span className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse" />
-          ⚡ Đang kích hoạt chế độ Tiết kiệm băng thông (Low-Bandwidth)
-        </div>
-      ) : null}
+      <StatusBanner isOffline={isOffline} isLowBandwidth={isLowBandwidth} />
 
       {/* AI Assistant Chatbot */}
       <AIChatbot

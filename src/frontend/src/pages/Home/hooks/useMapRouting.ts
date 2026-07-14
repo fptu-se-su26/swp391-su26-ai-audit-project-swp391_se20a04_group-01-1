@@ -7,10 +7,32 @@ import { findSafeEventRoute } from '../../../utils/eventRouteUtils';
 import { showPremiumToast } from '../../../utils/toastUtils';
 import { decodePolyline } from '../../../utils/polylineHelper';
 
+export interface RouteStep {
+  maneuver: {
+    type: string;
+    modifier?: string;
+    instruction?: string;
+    location: [number, number]; // [lng, lat]
+  };
+  name: string;
+  distance: number; // meters
+  duration: number; // seconds
+}
+
+export interface RouteInfo {
+  id: number;
+  totalDistanceKm: number;
+  totalTimeMin: number;
+  coordinates: [number, number][];
+  steps: RouteStep[];
+}
+
 export interface RouteData {
   totalDistanceKm: number;
   totalTimeMin: number;
   coordinates: [number, number][];
+  steps?: RouteStep[];
+  routes?: RouteInfo[]; // all candidate routes
 }
 
 export interface LocationPoint {
@@ -57,6 +79,7 @@ export function useMapRouting(
     "driving" | "walking" | "cycling"
   >("driving");
   const [routeData, setRouteData] = useState<RouteData | null>(null);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [routeAlertMessage, setRouteAlertMessage] = useState<string | null>(
     null,
@@ -139,7 +162,7 @@ export function useMapRouting(
 
         // 3. XỬ LÝ TRỰC TUYẾN BÌNH THƯỜNG
         const response = await fetch(
-          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&access_token=${mapboxToken}`,
+          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&steps=true&language=vi&access_token=${mapboxToken}`,
         );
         const data = await response.json();
 
@@ -232,12 +255,48 @@ export function useMapRouting(
           setRouteAlertMessage(alertMsg);
 
           if (selectedRoute) {
+            // Parse all routes
+            const allRoutesParsed: RouteInfo[] = data.routes.map((r: any, idx: number) => ({
+              id: idx,
+              totalDistanceKm: parseFloat((r.distance / 1000).toFixed(2)),
+              totalTimeMin: Math.round(r.duration / 60),
+              coordinates: r.geometry.coordinates,
+              steps: r.legs?.[0]?.steps?.map((s: any) => ({
+                maneuver: {
+                  type: s.maneuver?.type || '',
+                  modifier: s.maneuver?.modifier || '',
+                  instruction: s.maneuver?.instruction || '',
+                  location: s.maneuver?.location || [0, 0],
+                },
+                name: s.name || '',
+                distance: s.distance || 0,
+                duration: s.duration || 0,
+              })) || [],
+            }));
+
+            const activeIndex = data.routes.findIndex((r: any) => 
+              JSON.stringify(r.geometry.coordinates) === JSON.stringify(selectedRoute.geometry.coordinates)
+            );
+            setSelectedRouteIndex(activeIndex >= 0 ? activeIndex : 0);
+
             setRouteData({
               totalDistanceKm: parseFloat(
                 (selectedRoute.distance / 1000).toFixed(2),
               ),
               totalTimeMin: Math.round(selectedRoute.duration / 60),
               coordinates: selectedRoute.geometry.coordinates,
+              steps: selectedRoute.legs?.[0]?.steps?.map((s: any) => ({
+                maneuver: {
+                  type: s.maneuver?.type || '',
+                  modifier: s.maneuver?.modifier || '',
+                  instruction: s.maneuver?.instruction || '',
+                  location: s.maneuver?.location || [0, 0],
+                },
+                name: s.name || '',
+                distance: s.distance || 0,
+                duration: s.duration || 0,
+              })) || [],
+              routes: allRoutesParsed
             });
 
             // Căn chỉnh camera hiển thị đầy đủ tuyến đường đi
@@ -314,6 +373,19 @@ export function useMapRouting(
     isLoadedRouteRef.current = true;
   };
 
+  const selectRoute = (index: number) => {
+    if (!routeData?.routes || !routeData.routes[index]) return;
+    const targetRoute = routeData.routes[index];
+    setSelectedRouteIndex(index);
+    setRouteData({
+      ...routeData,
+      totalDistanceKm: targetRoute.totalDistanceKm,
+      totalTimeMin: targetRoute.totalTimeMin,
+      coordinates: targetRoute.coordinates,
+      steps: targetRoute.steps,
+    });
+  };
+
   return {
     origin,
     setOrigin,
@@ -333,5 +405,8 @@ export function useMapRouting(
     setRouteAlertMessage,
     isLoadedRouteRef,
     applyRouteToState,
+    selectedRouteIndex,
+    setSelectedRouteIndex,
+    selectRoute,
   };
 }

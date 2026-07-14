@@ -5,10 +5,11 @@ const path = require("path");
 const rateLimit = require("express-rate-limit");
 const { startScheduler } = require("./schedulerService");
 const { Server } = require("socket.io");
-const { poolPromise } = require("./db"); 
-const sql = require("mssql");             
+const { poolPromise } = require("./db");
+const sql = require("mssql");
 
 const app = express();
+
 app.use(cors({
     origin: process.env.ALLOWED_ORIGIN || "http://localhost:5173",
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -28,11 +29,13 @@ app.use("/api/admin", adminLimiter);
 app.use("/api/weather/simulate", adminLimiter);
 app.use("/api/auth/login", authLimiter);
 
+
 const PORT = process.env.PORT || 5001;
 const server = app.listen(PORT, () => {
     console.log(`🚀 Server chạy tại http://localhost:${PORT}`);
     startScheduler();
 });
+
 
 const io = new Server(server, {
     cors: {
