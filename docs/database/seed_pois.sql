@@ -1171,6 +1171,22 @@ VALUES (
     1
 ),
 (
+    54,
+    1,
+    6,
+    N'ATM SHB - Núi Thành',
+    16.051487,
+    108.220551,
+    N'33 Lê Duẩn, Hải Châu, Đà Nẵng',
+    N'ATM Saigon Hanoi Bank tại khu trung tâm',
+    'https://images.unsplash.com/photo-1601597111158-2fceff292cdc?w=400',
+    NULL,
+    '1900 599 932',
+    3.8,
+    0,
+    1
+),
+(
     55,
     1,
     6,
