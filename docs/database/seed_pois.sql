@@ -1171,22 +1171,6 @@ VALUES (
     1
 ),
 (
-    54,
-    1,
-    6,
-    N'ATM SHB - Núi Thành',
-    16.051487,
-    108.220551,
-    N'33 Lê Duẩn, Hải Châu, Đà Nẵng',
-    N'ATM Saigon Hanoi Bank tại khu trung tâm',
-    'https://images.unsplash.com/photo-1601597111158-2fceff292cdc?w=400',
-    NULL,
-    '1900 599 932',
-    3.8,
-    0,
-    1
-),
-(
     55,
     1,
     6,
@@ -1204,27 +1188,125 @@ VALUES (
 ),
 -- ===== TRẠM XĂNG (category_id = 7) =====
 (
-    56, 1, 7, N'Petrolimex Cửa Hàng 01', 16.0655, 108.2215, N'Nguyễn Văn Linh, Hải Châu', N'Trạm xăng dầu Petrolimex chính hãng', NULL, NULL, NULL, 4.5, 1, 'approved', 1
+    56,
+    1,
+    7,
+    N'Petrolimex Cửa Hàng 01',
+    16.0655,
+    108.2215,
+    N'Nguyễn Văn Linh, Hải Châu',
+    N'Trạm xăng dầu Petrolimex chính hãng',
+    NULL,
+    NULL,
+    NULL,
+    4.5,
+    1,
+    'approved',
+    1
 ),
 (
-    57, 1, 7, N'Trạm Xăng PVOIL', 16.0592, 108.2201, N'Hoàng Diệu, Hải Châu', N'Cây xăng PVOIL 24/7', NULL, NULL, NULL, 4.5, 1, 'approved', 1
+    57,
+    1,
+    7,
+    N'Trạm Xăng PVOIL',
+    16.0592,
+    108.2201,
+    N'Hoàng Diệu, Hải Châu',
+    N'Cây xăng PVOIL 24/7',
+    NULL,
+    NULL,
+    NULL,
+    4.5,
+    1,
+    'approved',
+    1
 ),
 -- ===== QUÁN CÀ PHÊ (category_id = 8) =====
 (
-    58, 1, 8, N'Highlands Coffee Bạch Đằng', 16.0718, 108.2255, N'Bạch Đằng, Hải Châu', N'Quán cà phê view sông Hàn tuyệt đẹp', NULL, NULL, NULL, 4.5, 1, 'approved', 1
+    58,
+    1,
+    8,
+    N'Highlands Coffee Bạch Đằng',
+    16.0718,
+    108.2255,
+    N'Bạch Đằng, Hải Châu',
+    N'Quán cà phê view sông Hàn tuyệt đẹp',
+    NULL,
+    NULL,
+    NULL,
+    4.5,
+    1,
+    'approved',
+    1
 ),
 (
-    59, 1, 8, N'The Coffee House Nguyễn Văn Linh', 16.0611, 108.2148, N'Nguyễn Văn Linh, Thanh Khê', N'The Coffee House thiết kế hiện đại', NULL, NULL, NULL, 4.5, 1, 'approved', 1
+    59,
+    1,
+    8,
+    N'The Coffee House Nguyễn Văn Linh',
+    16.0611,
+    108.2148,
+    N'Nguyễn Văn Linh, Thanh Khê',
+    N'The Coffee House thiết kế hiện đại',
+    NULL,
+    NULL,
+    NULL,
+    4.5,
+    1,
+    'approved',
+    1
 ),
 (
-    60, 1, 8, N'Cộng Cà Phê', 16.0689, 108.2238, N'Trần Phú, Hải Châu', N'Cà phê cốt dừa phong cách bao cấp', NULL, NULL, NULL, 4.5, 1, 'approved', 1
+    60,
+    1,
+    8,
+    N'Cộng Cà Phê',
+    16.0689,
+    108.2238,
+    N'Trần Phú, Hải Châu',
+    N'Cà phê cốt dừa phong cách bao cấp',
+    NULL,
+    NULL,
+    NULL,
+    4.5,
+    1,
+    'approved',
+    1
 ),
 -- ===== BỆNH VIỆN (category_id = 9) =====
 (
-    61, 1, 9, N'Bệnh viện Đà Nẵng', 16.0735, 108.2155, N'Hải Phòng, Hải Châu', N'Bệnh viện tuyến đầu của thành phố', NULL, NULL, NULL, 4.5, 1, 'approved', 1
+    61,
+    1,
+    9,
+    N'Bệnh viện Đà Nẵng',
+    16.0735,
+    108.2155,
+    N'Hải Phòng, Hải Châu',
+    N'Bệnh viện tuyến đầu của thành phố',
+    NULL,
+    NULL,
+    NULL,
+    4.5,
+    1,
+    'approved',
+    1
 ),
 (
-    62, 1, 9, N'Bệnh viện Hoàn Mỹ', 16.0601, 108.2132, N'Nguyễn Văn Linh, Thanh Khê', N'Bệnh viện đa khoa quốc tế Hoàn Mỹ', NULL, NULL, NULL, 4.5, 1, 'approved', 1
+    62,
+    1,
+    9,
+    N'Bệnh viện Hoàn Mỹ',
+    16.0601,
+    108.2132,
+    N'Nguyễn Văn Linh, Thanh Khê',
+    N'Bệnh viện đa khoa quốc tế Hoàn Mỹ',
+    NULL,
+    NULL,
+    NULL,
+    4.5,
+    1,
+    'approved',
+    1
 );
 
 SET IDENTITY_INSERT POIs OFF;
