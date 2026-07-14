@@ -10,6 +10,9 @@ const FILTER_TO_CATEGORY: Record<string, string> = {
     'entertainment': 'Giải trí',
     'museums': 'Bảo tàng',
     'atm': 'ATM',
+    'cafe': 'Quán cà phê',
+    'gas_station': 'Trạm xăng',
+    'hospital': 'Bệnh viện',
 };
 
 // Mapping filter ID → icon emoji
@@ -20,6 +23,9 @@ const FILTER_EMOJI: Record<string, string> = {
     'entertainment': '🎡',
     'museums': '🏛️',
     'atm': '💳',
+    'cafe': '☕',
+    'gas_station': '⛽',
+    'hospital': '🏥',
 };
 
 interface POIFeaturedSidebarProps {

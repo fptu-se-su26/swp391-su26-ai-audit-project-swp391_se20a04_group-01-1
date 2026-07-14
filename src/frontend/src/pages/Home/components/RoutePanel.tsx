@@ -201,7 +201,8 @@ export function RoutePanel({
   if (viewMode !== "pois" && viewMode !== "events") return null;
 
   return (
-    <div ref={searchContainerRef} className="relative">
+    <>
+      <div ref={searchContainerRef} className="relative z-50">
       {!destination ? (
         <div className="w-full h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
           <Search className="text-blue-500 mr-2 shrink-0" size={18} />
@@ -292,6 +293,7 @@ export function RoutePanel({
           ))}
         </div>
       )}
+      </div>
 
       {routeData && (
         <div className="w-full max-md:max-h-[45vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 mt-2 max-md:fixed max-md:bottom-4 max-md:left-4 max-md:w-[calc(100%-32px)] max-md:mt-0 max-md:z-40">
@@ -467,7 +469,7 @@ export function RoutePanel({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

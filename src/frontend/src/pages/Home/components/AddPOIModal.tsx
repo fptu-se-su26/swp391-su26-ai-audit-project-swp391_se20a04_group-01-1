@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, MapPin, UploadCloud, Image as ImageIcon } from "lucide-react";
 import { poiAPI } from "../../../services/api";
 import { showPremiumToast } from "../../../utils/toastUtils";
@@ -32,6 +32,31 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialData?.image_url ? `http://localhost:5001${initialData.image_url}` : null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+
+  useEffect(() => {
+    if (location && !initialData) {
+      const fetchAddress = async () => {
+        setIsLoadingAddress(true);
+        try {
+          const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+          const response = await fetch(
+            `https://api.mapbox.com/geocoding/v5/mapbox.places/${location.lng},${location.lat}.json?access_token=${mapboxToken}&language=vi&limit=1`
+          );
+          const data = await response.json();
+          if (data.features && data.features.length > 0) {
+            const addressStr = data.features[0].place_name_vi || data.features[0].place_name || "";
+            setFormData((prev) => ({ ...prev, address: addressStr }));
+          }
+        } catch (error) {
+          console.error("Lỗi lấy địa chỉ tự động:", error);
+        } finally {
+          setIsLoadingAddress(false);
+        }
+      };
+      fetchAddress();
+    }
+  }, [location, initialData]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -142,8 +167,9 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
             </label>
             <input
               type="text"
-              placeholder="Nhập địa chỉ cụ thể..."
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-200"
+              placeholder={isLoadingAddress ? "Đang tự động xác định địa chỉ..." : "Nhập địa chỉ cụ thể..."}
+              disabled={isLoadingAddress}
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-200 disabled:opacity-60"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
             />
