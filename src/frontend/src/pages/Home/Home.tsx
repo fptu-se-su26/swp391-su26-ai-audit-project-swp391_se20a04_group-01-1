@@ -2426,9 +2426,9 @@ export default function Home() {
                   "line-color": "#ffffff",
                   "line-width": [
                     "interpolate", ["linear"], ["zoom"],
-                    10, ["case", ["get", "isSelected"], 12, ["case", ["get", "isActive"], 8, 6]],
-                    14, ["case", ["get", "isSelected"], 22, ["case", ["get", "isActive"], 18, 12]],
-                    18, ["case", ["get", "isSelected"], 36, ["case", ["get", "isActive"], 28, 20]]
+                    10, ["case", ["get", "isSelected"], 14, ["case", ["get", "isActive"], 10, 8]],
+                    14, ["case", ["get", "isSelected"], 24, ["case", ["get", "isActive"], 20, 14]],
+                    18, ["case", ["get", "isSelected"], 40, ["case", ["get", "isActive"], 32, 24]]
                   ],
                   "line-opacity": 1.0,
                 }}
@@ -2442,9 +2442,9 @@ export default function Home() {
                   "line-color": "#dc2626",
                   "line-width": [
                     "interpolate", ["linear"], ["zoom"],
-                    10, ["case", ["get", "isSelected"], 8, ["case", ["get", "isActive"], 5, 3]],
-                    14, ["case", ["get", "isSelected"], 14, ["case", ["get", "isActive"], 10, 6]],
-                    18, ["case", ["get", "isSelected"], 24, ["case", ["get", "isActive"], 18, 12]]
+                    10, ["case", ["get", "isSelected"], 10, ["case", ["get", "isActive"], 7, 5]],
+                    14, ["case", ["get", "isSelected"], 18, ["case", ["get", "isActive"], 14, 10]],
+                    18, ["case", ["get", "isSelected"], 32, ["case", ["get", "isActive"], 26, 20]]
                   ],
                   "line-opacity": 1.0,
                   "line-dasharray": [4, 4],
@@ -2465,10 +2465,10 @@ export default function Home() {
                     "#EF4444",
                   ],
                   "line-width": [
-                    "case",
-                    ["get", "isSelected"],
-                    10.5,
-                    ["case", ["get", "isActive"], 8.0, 5.0],
+                    "interpolate", ["linear"], ["zoom"],
+                    10, ["case", ["get", "isSelected"], 8, ["case", ["get", "isActive"], 6, 4]],
+                    14, ["case", ["get", "isSelected"], 14, ["case", ["get", "isActive"], 10, 8]],
+                    18, ["case", ["get", "isSelected"], 26, ["case", ["get", "isActive"], 20, 14]]
                   ],
                   "line-opacity": [
                     "case",
@@ -2515,10 +2515,10 @@ export default function Home() {
                       setSelectedRoadPopup(road);
                     }
                   }}
-                  className={`flex items-center justify-center border-[2px] border-white w-5 h-5 md:w-5 md:h-5 rounded-full shadow-sm cursor-pointer transform hover:scale-125 transition-all z-30 bg-[#dc2626] ${isSelected ? "ring-2 ring-red-500/50 scale-110" : "scale-90 opacity-90"}`}
+                  className={`flex items-center justify-center border-2 border-white w-6 h-6 md:w-6 md:h-6 rounded-full shadow-md cursor-pointer transform hover:scale-125 transition-all z-30 bg-[#dc2626] ${isSelected ? "ring-4 ring-red-500/35 scale-110" : "scale-100 opacity-95"}`}
                   title={road.road_name}
                 >
-                  <div className="w-2.5 h-[2.5px] bg-white rounded-sm"></div>
+                  <Ban size={12} strokeWidth={3.5} className="text-white" />
                 </div>
               </Marker>
             );
@@ -3171,7 +3171,7 @@ export default function Home() {
       )}
 
       {/* POI FEATURED SIDEBAR (RIGHT SIDE WHEN ROUTE IS ACTIVE) */}
-      {(routeData || isNavigating) && viewMode === "pois" && selectedFilter !== null && (
+      {routeData && !isNavigating && viewMode === "pois" && selectedFilter !== null && (
         <div className="absolute right-20 top-24 z-20 pointer-events-none hidden md:block">
           <div className="pointer-events-auto">
             <POIFeaturedSidebar
