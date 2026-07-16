@@ -70,6 +70,9 @@ import { useMapRouting } from "./hooks/useMapRouting";
 import { useFloodZones } from "./hooks/useFloodZones";
 import { useEventRoads } from "./hooks/useEventRoads";
 import { useUserLocation } from "./hooks/useUserLocation";
+import { usePOIState } from "./hooks/usePOIState";
+import { useTrafficAlertState } from "./hooks/useTrafficAlertState";
+import { useEventsState } from "./hooks/useEventsState";
 import { ConfirmModal } from "./components/ConfirmModal";
 import { RoutePanel, TurnByTurnSteps } from "./components/RoutePanel";
 import { MapToolbar } from "./components/MapToolbar";
@@ -199,11 +202,6 @@ export default function Home() {
   const approachSpokenRef = useRef<number>(-1);
   const simulationIndexRef = useRef<number>(0);
 
-  // States cho việc đóng góp POI
-  const [isAddingPOI, setIsAddingPOI] = useState(false);
-  const [pendingPOILocation, setPendingPOILocation] = useState<{ lng: number; lat: number } | null>(null);
-  const [showAddPOIModal, setShowAddPOIModal] = useState(false);
-
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -316,7 +314,6 @@ export default function Home() {
     };
   }, [isSharingLocation, liveShareToken]);
 
-  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(1);
 
   // State lưu trữ dữ liệu ngập lụt
@@ -330,19 +327,40 @@ export default function Home() {
   const [selectedFloodZone, setSelectedFloodZone] = useState<any | null>(null);
   const [hoveredFloodZone, setHoveredFloodZone] = useState<any | null>(null);
 
-  // State lưu trữ POIs
-  const [pois, setPois] = useState<POIData[]>([]);
-  const [selectedPOI, setSelectedPOI] = useState<POIData | null>(null);
+  // Tách Logic POIs
+  const {
+    pois,
+    setPois,
+    selectedPOI,
+    setSelectedPOI,
+    selectedFilter,
+    setSelectedFilter,
+    isAddingPOI,
+    setIsAddingPOI,
+    pendingPOILocation,
+    setPendingPOILocation,
+    showAddPOIModal,
+    setShowAddPOIModal,
+    fetchPOIs,
+  } = usePOIState();
 
-  // State cho Sự Kiện
+  // Tách Logic Sự Kiện
   const [viewMode, setViewMode] = useState<"pois" | "events">("pois");
-  const [events, setEvents] = useState<EventData[]>([]);
-  const [eventCategories, setEventCategories] = useState<any[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<EventData | null>(null);
-  const [favoriteEventIds, setFavoriteEventIds] = useState<Set<number>>(
-    new Set(),
-  );
-  const [showEventsSidebar, setShowEventsSidebar] = useState(true);
+  const {
+    events,
+    setEvents,
+    eventCategories,
+    setEventCategories,
+    selectedEvent,
+    setSelectedEvent,
+    favoriteEventIds,
+    setFavoriteEventIds,
+    showEventsSidebar,
+    setShowEventsSidebar,
+    handleFavoriteEventToggle,
+    fetchEventsAndCategories,
+    fetchUserFavoriteEventIds,
+  } = useEventsState();
 
   // State cho Đường cấm sự kiện
   const {
@@ -356,21 +374,19 @@ export default function Home() {
     null,
   );
 
-  // State cho Cảnh báo giao thông (Traffic Alerts)
-  const [trafficAlerts, setTrafficAlerts] = useState<any[]>([]);
-  const [selectedTrafficAlert, setSelectedTrafficAlert] = useState<any | null>(
-    null,
-  );
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [reportFormData, setReportFormData] = useState({
-    type: "CONGESTION",
-    title: "",
-    description: "",
-    location: "",
-    latitude: 16.0544,
-    longitude: 108.2022,
-    severity: "MEDIUM",
-  });
+  // Tách Logic Cảnh báo giao thông (Traffic Alerts)
+  const {
+    trafficAlerts,
+    setTrafficAlerts,
+    selectedTrafficAlert,
+    setSelectedTrafficAlert,
+    showReportModal,
+    setShowReportModal,
+    reportFormData,
+    setReportFormData,
+    fetchTrafficAlerts,
+    handleSubmitTrafficReport,
+  } = useTrafficAlertState();
 
   const [mapControls, setMapControls] = useState({
     layers: true,
@@ -787,31 +803,7 @@ export default function Home() {
     setPendingDestination(null);
   };
 
-  const handleSubmitTrafficReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await trafficAlertAPI.createTrafficAlert(reportFormData);
-      if (response.data && response.data.success) {
-        showPremiumToast(
-          "Gửi báo cáo sự cố giao thông thành công! Đang chờ phê duyệt.",
-          "success",
-        );
-        setShowReportModal(false);
-        fetchTrafficAlerts();
-      } else {
-        showPremiumToast(
-          response.data.message || "Lỗi gửi báo cáo sự cố.",
-          "error",
-        );
-      }
-    } catch (error: any) {
-      console.error("Lỗi gửi báo cáo sự cố:", error);
-      showPremiumToast(
-        error.response?.data?.message || "Không thể gửi báo cáo lên hệ thống.",
-        "error",
-      );
-    }
-  };
+
 
   const handleEventClick = (evt: EventData) => {
     setSelectedEvent(evt);
@@ -885,40 +877,7 @@ export default function Home() {
     }
   };
 
-  const handleFavoriteEventToggle = async (eventObj: EventData) => {
-    try {
-      const res = await eventAPI.toggleFavorite(eventObj.event_id);
-      const { isFavorite, favoriteCount } = res.data;
 
-      setFavoriteEventIds((prev) => {
-        const next = new Set(prev);
-        if (isFavorite) {
-          next.add(eventObj.event_id);
-        } else {
-          next.delete(eventObj.event_id);
-        }
-        return next;
-      });
-
-      setEvents((prev) =>
-        prev.map((e) => {
-          if (e.event_id === eventObj.event_id) {
-            return { ...e, favorite_count: favoriteCount };
-          }
-          return e;
-        }),
-      );
-
-      if (selectedEvent && selectedEvent.event_id === eventObj.event_id) {
-        setSelectedEvent((prev) =>
-          prev ? { ...prev, favorite_count: favoriteCount } : null,
-        );
-      }
-    } catch (error) {
-      console.error("Lỗi toggle yêu thích sự kiện:", error);
-      throw error;
-    }
-  };
 
   const fetchUserProfile = async () => {
     const token =
@@ -1640,69 +1599,6 @@ export default function Home() {
     });
   };
 
-  useEffect(() => {
-    const fetchPOIs = async () => {
-      try {
-        const response = await poiAPI.getAllPOIs();
-        if (response.data && response.data.data) {
-          setPois(response.data.data);
-        }
-      } catch (error) {
-        console.error("Lỗi tải POIs:", error);
-      }
-    };
-    fetchPOIs();
-  }, []);
-
-  const fetchTrafficAlerts = async () => {
-    try {
-      const response = await trafficAlertAPI.getTrafficAlerts();
-      if (response.data && response.data.success) {
-        setTrafficAlerts(response.data.data);
-      }
-    } catch (error) {
-      console.error("Lỗi tải danh sách cảnh báo giao thông:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchTrafficAlerts();
-  }, []);
-
-  const fetchUserFavoriteEventIds = async () => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) return;
-    try {
-      const favsRes = await eventAPI.getFavoriteEventIds();
-      if (favsRes.data && favsRes.data.data) {
-        setFavoriteEventIds(new Set(favsRes.data.data));
-      }
-    } catch (error) {
-      console.error("Lỗi tải danh sách sự kiện yêu thích:", error);
-    }
-  };
-
-  useEffect(() => {
-    const fetchEventsAndCategories = async () => {
-      try {
-        const eventsRes = await eventAPI.getAllEvents("approved");
-        if (eventsRes.data && eventsRes.data.data) {
-          setEvents(eventsRes.data.data);
-        }
-
-        const catsRes = await eventAPI.getEventCategories();
-        if (catsRes.data && catsRes.data.data) {
-          setEventCategories(catsRes.data.data);
-        }
-      } catch (error) {
-        console.error("Lỗi tải sự kiện/danh mục:", error);
-      }
-    };
-
-    fetchEventsAndCategories();
-    fetchUserFavoriteEventIds();
-  }, []);
   const isPreferencesLoaded = useRef(false);
   // Chỉ dùng 1 useEffect này để đồng bộ Store -> UI
   // 1. Đồng bộ khi Store thay đổi (đảm bảo Home luôn update theo Settings)
