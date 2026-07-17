@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { eventRoadService, EventRoad } from '../../../services/eventRoadService';
 
 export function useEventRoads(selectedEvent: any) {
     const [eventRoads, setEventRoads] = useState<EventRoad[]>([]);
+    // Tick mỗi phút để re-evaluate active roads theo thời gian thực
+    const [tick, setTick] = useState(0);
 
     const isRoadRestrictionActive = (road: EventRoad, now: Date) => {
         const start = new Date(road.restriction_start);
@@ -39,6 +41,14 @@ export function useEventRoads(selectedEvent: any) {
         return true;
     };
 
+    // Re-evaluate mỗi 60 giây để cập nhật đường cấm đang active
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setTick(t => t + 1);
+        }, 60000);
+        return () => clearInterval(interval);
+    }, []);
+
     const activeOrSelectedEventRoads = useMemo(() => {
         const now = new Date();
         const futureTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 mins later
@@ -50,7 +60,8 @@ export function useEventRoads(selectedEvent: any) {
 
             return isActiveNow || isActiveSoon || isSelectedEventRoad;
         });
-    }, [eventRoads, selectedEvent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [eventRoads, selectedEvent, tick]);
 
     const fetchEventRoads = async () => {
         try {

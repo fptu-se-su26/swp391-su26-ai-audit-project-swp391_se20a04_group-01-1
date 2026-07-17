@@ -1,7 +1,7 @@
 import React from 'react';
 import {
     Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight,
-    AlertCircle, RefreshCw, Save, Calendar, X
+    AlertCircle, RefreshCw, Save, Calendar, X, Upload
 } from 'lucide-react';
 import { DBEvent, EventFormData } from './types';
 import Map, { Marker, NavigationControl } from 'react-map-gl/mapbox';
@@ -25,6 +25,7 @@ interface Props {
     handleApproveEvent: (id: number, currentStatus: string) => void;
     handleDeleteEvent: (id: number) => void;
     handleCreateEvent: (e: React.FormEvent) => void;
+    onImageChange: (banner: File | null, thumbnail: File | null) => void;
 }
 
 const ROWS_PER_PAGE = 5;
@@ -41,15 +42,33 @@ const formatDateTimeLocal = (dateStr: any) => {
     return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 };
 
+const BASE_URL = 'http://localhost:5001';
+
+const resolveImageUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `${BASE_URL}${url}`;
+};
+
 export default function EventsTab({
     events, loadingEvents, searchTerm, setSearchTerm, statusFilter, setStatusFilter,
     currentPage, setCurrentPage, showModal, setShowModal, editingEvent, setEditingEvent,
-    eventFormData, setEventFormData, handleApproveEvent, handleDeleteEvent, handleCreateEvent
+    eventFormData, setEventFormData, handleApproveEvent, handleDeleteEvent, handleCreateEvent,
+    onImageChange
 }: Props) {
     const [addressSuggestions, setAddressSuggestions] = React.useState<any[]>([]);
     const [showAddressSuggestions, setShowAddressSuggestions] = React.useState(false);
     const [loadingAddressSearch, setLoadingAddressSearch] = React.useState(false);
     const [isFocused, setIsFocused] = React.useState(false);
+
+    // Image upload states
+    const [bannerFile, setBannerFile] = React.useState<File | null>(null);
+    const [thumbnailFile, setThumbnailFile] = React.useState<File | null>(null);
+    const [bannerPreview, setBannerPreview] = React.useState<string | null>(null);
+    const [thumbnailPreview, setThumbnailPreview] = React.useState<string | null>(null);
+
+    const bannerInputRef = React.useRef<HTMLInputElement>(null);
+    const thumbnailInputRef = React.useRef<HTMLInputElement>(null);
 
     const miniMapRef = React.useRef<any>(null);
 
@@ -106,6 +125,22 @@ export default function EventsTab({
             location_name: placeName
         });
     };
+
+    // Sync image previews when editingEvent changes (modal open)
+    React.useEffect(() => {
+        if (showModal) {
+            if (editingEvent) {
+                setBannerPreview(resolveImageUrl(editingEvent.banner_url));
+                setThumbnailPreview(resolveImageUrl(editingEvent.thumbnail_url));
+            } else {
+                setBannerFile(null);
+                setThumbnailFile(null);
+                setBannerPreview(null);
+                setThumbnailPreview(null);
+                onImageChange(null, null);
+            }
+        }
+    }, [showModal, editingEvent]);
 
     React.useEffect(() => {
         if (editingEvent && eventFormData.location_name === editingEvent.location_name) {
@@ -207,6 +242,11 @@ export default function EventsTab({
                                 status: 'pending',
                                 category_id: 1
                             });
+                            setBannerFile(null);
+                            setThumbnailFile(null);
+                            setBannerPreview(null);
+                            setThumbnailPreview(null);
+                            onImageChange(null, null);
                             setShowModal(true);
                         }}
                         className="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-500/10 shrink-0"
@@ -528,6 +568,116 @@ export default function EventsTab({
                                             onChange={(e) => setEventFormData({ ...eventFormData, description: e.target.value })}
                                             className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
                                         />
+                                    </div>
+
+                                    {/* Banner Upload */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Ảnh Banner</label>
+                                        <input
+                                            ref={bannerInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            id="banner-upload-input"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0] || null;
+                                                setBannerFile(file);
+                                                if (file) {
+                                                    const url = URL.createObjectURL(file);
+                                                    setBannerPreview(url);
+                                                } else {
+                                                    setBannerPreview(null);
+                                                }
+                                                onImageChange(file, thumbnailFile);
+                                            }}
+                                        />
+                                        {bannerPreview ? (
+                                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                                                <img src={bannerPreview} alt="Banner preview" className="w-full h-28 object-cover" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setBannerFile(null);
+                                                        setBannerPreview(null);
+                                                        if (bannerInputRef.current) bannerInputRef.current.value = '';
+                                                        onImageChange(null, thumbnailFile);
+                                                    }}
+                                                    className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 rounded-full p-1 shadow-md transition"
+                                                    title="Xóa ảnh"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                                <label
+                                                    htmlFor="banner-upload-input"
+                                                    className="absolute bottom-2 right-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1 rounded-lg cursor-pointer flex items-center gap-1 shadow transition"
+                                                >
+                                                    <Upload size={12} /> Đổi ảnh
+                                                </label>
+                                            </div>
+                                        ) : (
+                                            <label
+                                                htmlFor="banner-upload-input"
+                                                className="flex flex-col items-center justify-center gap-2 w-full h-24 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition text-slate-400 hover:text-blue-500"
+                                            >
+                                                <Upload size={20} />
+                                                <span className="text-xs font-semibold">Nhấp để chọn ảnh banner</span>
+                                            </label>
+                                        )}
+                                    </div>
+
+                                    {/* Thumbnail Upload */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Ảnh Thumbnail</label>
+                                        <input
+                                            ref={thumbnailInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            id="thumbnail-upload-input"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0] || null;
+                                                setThumbnailFile(file);
+                                                if (file) {
+                                                    const url = URL.createObjectURL(file);
+                                                    setThumbnailPreview(url);
+                                                } else {
+                                                    setThumbnailPreview(null);
+                                                }
+                                                onImageChange(bannerFile, file);
+                                            }}
+                                        />
+                                        {thumbnailPreview ? (
+                                            <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                                                <img src={thumbnailPreview} alt="Thumbnail preview" className="w-full h-28 object-cover" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setThumbnailFile(null);
+                                                        setThumbnailPreview(null);
+                                                        if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+                                                        onImageChange(bannerFile, null);
+                                                    }}
+                                                    className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 rounded-full p-1 shadow-md transition"
+                                                    title="Xóa ảnh"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                                <label
+                                                    htmlFor="thumbnail-upload-input"
+                                                    className="absolute bottom-2 right-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1 rounded-lg cursor-pointer flex items-center gap-1 shadow transition"
+                                                >
+                                                    <Upload size={12} /> Đổi ảnh
+                                                </label>
+                                            </div>
+                                        ) : (
+                                            <label
+                                                htmlFor="thumbnail-upload-input"
+                                                className="flex flex-col items-center justify-center gap-2 w-full h-24 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition text-slate-400 hover:text-blue-500"
+                                            >
+                                                <Upload size={20} />
+                                                <span className="text-xs font-semibold">Nhấp để chọn ảnh thumbnail</span>
+                                            </label>
+                                        )}
                                     </div>
                                 </div>
 
