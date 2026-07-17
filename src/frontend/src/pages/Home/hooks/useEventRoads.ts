@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { eventRoadService, EventRoad } from '../../../services/eventRoadService';
 
 export function useEventRoads(selectedEvent: any) {
     const [eventRoads, setEventRoads] = useState<EventRoad[]>([]);
-    // Tick mỗi phút để re-evaluate active roads theo thời gian thực
+    // Đường cấm đang active (backend đã lọc theo GETDATE())
+    const [activeEventRoads, setActiveEventRoads] = useState<EventRoad[]>([]);
+    // Tick mỗi phút để refetch và re-evaluate
     const [tick, setTick] = useState(0);
 
     const isRoadRestrictionActive = (road: EventRoad, now: Date) => {
@@ -41,7 +43,7 @@ export function useEventRoads(selectedEvent: any) {
         return true;
     };
 
-    // Re-evaluate mỗi 60 giây để cập nhật đường cấm đang active
+    // Re-fetch active roads mỗi 60 giây
     useEffect(() => {
         const interval = setInterval(() => {
             setTick(t => t + 1);
@@ -49,24 +51,31 @@ export function useEventRoads(selectedEvent: any) {
         return () => clearInterval(interval);
     }, []);
 
+    // Đường cấm hiển thị = active roads (từ backend) + roads của sự kiện đang chọn
     const activeOrSelectedEventRoads = useMemo(() => {
-        const now = new Date();
-        const futureTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 mins later
-        
-        return eventRoads.filter(road => {
-            const isActiveNow = isRoadRestrictionActive(road, now);
-            const isActiveSoon = isRoadRestrictionActive(road, futureTime);
-            const isSelectedEventRoad = selectedEvent && road.event_id === selectedEvent.event_id;
-
-            return isActiveNow || isActiveSoon || isSelectedEventRoad;
+        if (!selectedEvent) {
+            return activeEventRoads;
+        }
+        // Thêm roads của sự kiện được chọn vào list
+        const selectedRoads = eventRoads.filter(r => r.event_id === selectedEvent.event_id);
+        const merged = [...activeEventRoads];
+        selectedRoads.forEach(r => {
+            if (!merged.find(a => a.road_id === r.road_id)) {
+                merged.push(r);
+            }
         });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [eventRoads, selectedEvent, tick]);
+        return merged;
+    }, [activeEventRoads, eventRoads, selectedEvent]);
 
     const fetchEventRoads = async () => {
         try {
-            const data = await eventRoadService.getEventRoads({ approved_only: true });
-            setEventRoads(data);
+            // Lấy TẤT CẢ đường cấm đã được duyệt (để dùng khi user chọn sự kiện)
+            const allData = await eventRoadService.getEventRoads({ approved_only: true });
+            setEventRoads(allData);
+
+            // Lấy các đường cấm đang ACTIVE theo server time (tránh lỗi timezone)
+            const activeData = await eventRoadService.getEventRoads({ approved_only: true, active_only: true });
+            setActiveEventRoads(activeData);
         } catch (error) {
             console.error("Lỗi tải đường cấm sự kiện từ backend:", error);
         }
@@ -74,12 +83,14 @@ export function useEventRoads(selectedEvent: any) {
 
     useEffect(() => {
         fetchEventRoads();
-    }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tick]);
 
     return {
         eventRoads,
         setEventRoads,
         activeOrSelectedEventRoads,
+        activeEventRoads,
         isRoadRestrictionActive,
         fetchEventRoads
     };
