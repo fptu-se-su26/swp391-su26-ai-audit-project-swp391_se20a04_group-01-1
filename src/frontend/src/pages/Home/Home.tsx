@@ -409,6 +409,16 @@ export default function Home() {
     trafficAlerts,
     isLowBandwidth,
     isOffline,
+    onCrossedRestrictedRoad: (blockedRoads, onAvoid, onCancel) => {
+      showCustomConfirm(
+        "Phát hiện đường cấm",
+        `Tuyến đường dự kiến đi qua đoạn đường cấm: ${blockedRoads
+          .map((r) => r.road_name)
+          .join(", ")}. Bạn có muốn đổi tuyến đường khác để né tránh không?`,
+        onAvoid,
+        onCancel
+      );
+    },
   });
 
   // CÁC HÀM XỬ LÝ DẪN ĐƯỜNG (NAVIGATION)

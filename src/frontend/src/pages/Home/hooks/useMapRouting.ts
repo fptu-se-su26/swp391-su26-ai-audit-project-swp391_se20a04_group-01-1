@@ -3,7 +3,7 @@ import { MapRef } from 'react-map-gl/mapbox';
 import { EventRoad } from '../../../services/eventRoadService';
 import { findSafeRoute as findSafeRouteZone } from '../../../utils/floodZoneRouteUtils';
 import { findSafeTrafficRoute } from '../../../utils/trafficRouteUtils';
-import { findSafeEventRoute } from '../../../utils/eventRouteUtils';
+import { findSafeEventRoute, getBlockedRoadsForRoute } from '../../../utils/eventRouteUtils';
 import { showPremiumToast } from '../../../utils/toastUtils';
 import { decodePolyline } from '../../../utils/polylineHelper';
 
@@ -69,6 +69,11 @@ export function useMapRouting(
     confirmedFloodZoneIds: string[];
     isLowBandwidth: boolean;
     isOffline: boolean;
+    onCrossedRestrictedRoad?: (
+      blockedRoads: EventRoad[],
+      onAvoid: () => void,
+      onCancel: () => void
+    ) => void;
   },
 ) {
   const [origin, setOrigin] = useState<LocationPoint | null>(null);
@@ -85,6 +90,13 @@ export function useMapRouting(
     null,
   );
   const isLoadedRouteRef = useRef(false);
+
+  const [avoidEventRoadsMode, setAvoidEventRoadsMode] = useState<"avoid" | "none" | null>(null);
+
+  // Reset avoidEventRoadsMode when origin, destination or travelMode changes
+  useEffect(() => {
+    setAvoidEventRoadsMode(null);
+  }, [origin, destination, travelMode]);
 
   // Fetch and process map route
   useEffect(() => {
@@ -233,22 +245,49 @@ export function useMapRouting(
           }
 
           if (options.activeEventRoads.length > 0 && selectedRoute) {
-            const result = await findSafeEventRoute(
-              [
-                selectedRoute,
-                ...data.routes.filter((r: any) => r !== selectedRoute),
-              ],
+            const originalBlockedRoads = getBlockedRoadsForRoute(
+              selectedRoute.geometry.coordinates,
               options.activeEventRoads,
               origin,
-              destination,
-              travelMode,
-              mapboxToken,
+              destination
             );
-            selectedRoute = result.selectedRoute;
-            if (result.alertMsg) {
-              alertMsg = alertMsg
-                ? `${alertMsg}\n${result.alertMsg}`
-                : result.alertMsg;
+
+            if (originalBlockedRoads.length > 0) {
+              if (avoidEventRoadsMode === null) {
+                if (options.onCrossedRestrictedRoad) {
+                  setLoadingRoute(false);
+                  options.onCrossedRestrictedRoad(
+                    originalBlockedRoads,
+                    () => setAvoidEventRoadsMode("avoid"),
+                    () => {
+                      setDestination(null);
+                      setDestinationQuery("");
+                      setRouteData(null);
+                      setAvoidEventRoadsMode(null);
+                      setLoadingRoute(false);
+                    }
+                  );
+                  return;
+                }
+              } else if (avoidEventRoadsMode === "avoid") {
+                const result = await findSafeEventRoute(
+                  [
+                    selectedRoute,
+                    ...data.routes.filter((r: any) => r !== selectedRoute),
+                  ],
+                  options.activeEventRoads,
+                  origin,
+                  destination,
+                  travelMode,
+                  mapboxToken,
+                );
+                selectedRoute = result.selectedRoute;
+                if (result.alertMsg) {
+                  alertMsg = alertMsg
+                    ? `${alertMsg}\n${result.alertMsg}`
+                    : result.alertMsg;
+                }
+              }
             }
           }
 
@@ -354,6 +393,7 @@ export function useMapRouting(
     options.trafficAlerts,
     options.isOffline,
     options.isLowBandwidth,
+    avoidEventRoadsMode,
     mapRef,
   ]);
 
