@@ -93,6 +93,22 @@ export function useMapRouting(
 
   const [avoidEventRoadsMode, setAvoidEventRoadsMode] = useState<"avoid" | "none" | null>(null);
 
+  // Stable refs to avoid stale closures in the routing effect
+  const onCrossedRestrictedRoadRef = useRef(options.onCrossedRestrictedRoad);
+  useEffect(() => {
+    onCrossedRestrictedRoadRef.current = options.onCrossedRestrictedRoad;
+  });
+
+  const activeEventRoadsRef = useRef<EventRoad[]>(options.activeEventRoads);
+  useEffect(() => {
+    activeEventRoadsRef.current = options.activeEventRoads;
+  });
+
+  const avoidEventRoadsModeRef = useRef(avoidEventRoadsMode);
+  useEffect(() => {
+    avoidEventRoadsModeRef.current = avoidEventRoadsMode;
+  });
+
   // Reset avoidEventRoadsMode when origin, destination or travelMode changes
   useEffect(() => {
     setAvoidEventRoadsMode(null);
@@ -244,19 +260,21 @@ export function useMapRouting(
             }
           }
 
-          if (options.activeEventRoads.length > 0 && selectedRoute) {
+          if (activeEventRoadsRef.current.length > 0 && selectedRoute) {
+            const currentEventRoads = activeEventRoadsRef.current;
             const originalBlockedRoads = getBlockedRoadsForRoute(
               selectedRoute.geometry.coordinates,
-              options.activeEventRoads,
+              currentEventRoads,
               origin,
               destination
             );
 
             if (originalBlockedRoads.length > 0) {
-              if (avoidEventRoadsMode === null) {
-                if (options.onCrossedRestrictedRoad) {
+              const currentMode = avoidEventRoadsModeRef.current;
+              if (currentMode === null) {
+                if (onCrossedRestrictedRoadRef.current) {
                   setLoadingRoute(false);
-                  options.onCrossedRestrictedRoad(
+                  onCrossedRestrictedRoadRef.current(
                     originalBlockedRoads,
                     () => setAvoidEventRoadsMode("avoid"),
                     () => {
@@ -269,13 +287,13 @@ export function useMapRouting(
                   );
                   return;
                 }
-              } else if (avoidEventRoadsMode === "avoid") {
+              } else if (currentMode === "avoid") {
                 const result = await findSafeEventRoute(
                   [
                     selectedRoute,
                     ...data.routes.filter((r: any) => r !== selectedRoute),
                   ],
-                  options.activeEventRoads,
+                  currentEventRoads,
                   origin,
                   destination,
                   travelMode,
@@ -389,7 +407,6 @@ export function useMapRouting(
     options.avoidCongestion,
     options.confirmedFloodZoneIds,
     options.floodZones,
-    options.activeEventRoads,
     options.trafficAlerts,
     options.isOffline,
     options.isLowBandwidth,

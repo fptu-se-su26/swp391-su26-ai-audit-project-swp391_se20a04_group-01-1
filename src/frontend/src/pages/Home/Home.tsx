@@ -86,7 +86,7 @@ import POIsLayer from "./components/POIsLayer";
 import { poiAPI, eventAPI, trafficAlertAPI } from "../../services/api";
 import { POIData } from "./components/POIPopup";
 import POIFeaturedSidebar from "./components/POIFeaturedSidebar";
-import EventsLayer, { EventData } from "./components/EventsLayer";
+import EventsLayer, { EventData, getEventStatus } from "./components/EventsLayer";
 import EventsSidebar from "./components/EventsSidebar";
 import EventDetailSidebar from "./components/EventDetailSidebar";
 import {
@@ -1735,29 +1735,38 @@ export default function Home() {
           />
 
           {viewMode === "pois" ? (
-            <POIsLayer
-              pois={pois}
-              selectedFilter={selectedFilter}
-              onDirectionsClick={(poi) => {
-                setDestination({
-                  lng: poi.longitude,
-                  lat: poi.latitude,
-                  label: poi.name,
-                  poi_id: poi.poi_id,
-                });
-                setDestinationQuery(poi.name);
-                if (userLocation) {
-                  setOrigin({
-                    lng: userLocation.lng,
-                    lat: userLocation.lat,
-                    label: "Vị trí của bạn",
+            <>
+              <POIsLayer
+                pois={pois}
+                selectedFilter={selectedFilter}
+                onDirectionsClick={(poi) => {
+                  setDestination({
+                    lng: poi.longitude,
+                    lat: poi.latitude,
+                    label: poi.name,
+                    poi_id: poi.poi_id,
                   });
-                  setOriginQuery("Vị trí của bạn");
-                }
-              }}
-              selectedPOI={selectedPOI}
-              onSelectPOI={setSelectedPOI}
-            />
+                  setDestinationQuery(poi.name);
+                  if (userLocation) {
+                    setOrigin({
+                      lng: userLocation.lng,
+                      lat: userLocation.lat,
+                      label: "Vị trí của bạn",
+                    });
+                    setOriginQuery("Vị trí của bạn");
+                  }
+                }}
+                selectedPOI={selectedPOI}
+                onSelectPOI={setSelectedPOI}
+              />
+              <EventsLayer
+                events={events.filter(
+                  (evt) =>
+                    getEventStatus(evt.start_time, evt.end_time) === "ongoing"
+                )}
+                onSelectEvent={handleEventClick}
+              />
+            </>
           ) : (
             <EventsLayer events={events} onSelectEvent={handleEventClick} />
           )}
