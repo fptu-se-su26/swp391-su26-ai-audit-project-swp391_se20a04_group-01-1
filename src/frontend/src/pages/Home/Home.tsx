@@ -89,7 +89,6 @@ import POIFeaturedSidebar from "./components/POIFeaturedSidebar";
 import EventsLayer, { EventData } from "./components/EventsLayer";
 import EventsSidebar from "./components/EventsSidebar";
 import EventDetailSidebar from "./components/EventDetailSidebar";
-import NotificationCenter from "./components/NotificationCenter";
 import {
   useNotificationStore,
   AppNotification,
@@ -99,18 +98,12 @@ import { SavedRoutesSidebar } from "./components/SavedRoutesSidebar";
 import { ModalsOrchestrator } from "./components/ModalsOrchestrator";
 import { MapPopupsOrchestrator } from "./components/MapPopupsOrchestrator";
 import { StatusBanner } from "./components/StatusBanner";
+import { useGPSNavigation } from "./hooks/useGPSNavigation";
+import { FilterChips } from "./components/FilterChips";
+import { TrafficLegend } from "./components/TrafficLegend";
+import { TopRightActions } from "./components/TopRightActions";
 
-const filterCategories = [
-  { id: "attractions", label: "Điểm tham quan", icon: Compass },
-  { id: "restaurants", label: "Nhà hàng", icon: Utensils },
-  { id: "hotels", label: "Khách sạn", icon: Hotel },
-  { id: "cafe", label: "Quán cà phê", icon: Coffee },
-  { id: "gas_station", label: "Trạm xăng", icon: Fuel },
-  { id: "hospital", label: "Bệnh viện", icon: Hospital },
-  { id: "entertainment", label: "Giải trí", icon: Gamepad2 },
-  { id: "museums", label: "Bảo tàng", icon: Landmark },
-  { id: "atm", label: "ATM", icon: DollarSign },
-];
+
 
 const mockAlerts = [
   {
@@ -182,24 +175,8 @@ function getCirclePolygon(
 export default function Home() {
   // KHOẢNG KHAI BÁO STATE VÀ REFS BẮT BUỘC PHẢI Ở TRONG COMPONENT
   const mapRef = useRef<MapRef>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const watchPositionId = useRef<number | null>(null);
-
   // States nâng cấp dẫn đường
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [distanceToNextStep, setDistanceToNextStep] = useState(0);
-  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
-  const [isSimulationMode, setIsSimulationMode] = useState(false);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationSpeed, setSimulationSpeed] = useState(2); // 2x
-  const [simulatedCoords, setSimulatedCoords] = useState<[number, number] | null>(null);
-  const [simulatedHeading, setSimulatedHeading] = useState(0);
   const [showNavModeSelector, setShowNavModeSelector] = useState(false);
-
-  const simulationIntervalRef = useRef<number | null>(null);
-  const lastSpokenStepIndexRef = useRef<number>(-1);
-  const approachSpokenRef = useRef<number>(-1);
-  const simulationIndexRef = useRef<number>(0);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -482,158 +459,6 @@ export default function Home() {
   });
 
   // CÁC HÀM XỬ LÝ DẪN ĐƯỜNG (NAVIGATION)
-  // Helper tính khoảng cách Haversine (mét)
-  const getDistanceMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371000;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lng2 - lng1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  // Helper tính khoảng cách từ điểm đến đoạn thẳng (mét)
-  const getDistanceToSegment = (p: [number, number], a: [number, number], b: [number, number]) => {
-    const dy = (b[1] - a[1]) * 111320;
-    const dx = (b[0] - a[0]) * 111320 * Math.cos((a[1] * Math.PI) / 180);
-    const p_y = (p[1] - a[1]) * 111320;
-    const p_x = (p[0] - a[0]) * 111320 * Math.cos((a[1] * Math.PI) / 180);
-
-    const len2 = dx * dx + dy * dy;
-    if (len2 === 0) return Math.sqrt(p_x * p_x + p_y * p_y);
-
-    let t = (p_x * dx + p_y * dy) / len2;
-    t = Math.max(0, Math.min(1, t));
-
-    const proj_x = t * dx;
-    const proj_y = t * dy;
-
-    const diff_x = p_x - proj_x;
-    const diff_y = p_y - proj_y;
-    return Math.sqrt(diff_x * diff_x + diff_y * diff_y);
-  };
-
-  const speakInstruction = (text: string) => {
-    if (isVoiceMuted) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "vi-VN";
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.error("TTS error:", e);
-    }
-  };
-
-  // Đọc TTS khi đổi bước đi
-  useEffect(() => {
-    if (!isNavigating || !routeData?.steps) return;
-    const currentStep = routeData.steps[currentStepIndex];
-    if (currentStep && currentStepIndex !== lastSpokenStepIndexRef.current) {
-      speakInstruction(currentStep.maneuver.instruction || "Tiếp tục đi thẳng");
-      lastSpokenStepIndexRef.current = currentStepIndex;
-    }
-  }, [currentStepIndex, isNavigating, routeData]);
-
-  // Logic mô phỏng (Simulation loop)
-  const startSimulation = (resume = false) => {
-    if (!routeData || routeData.coordinates.length < 2) return;
-
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-    }
-
-    setIsSimulating(true);
-    if (!resume) {
-      simulationIndexRef.current = 0;
-      setCurrentStepIndex(0);
-      lastSpokenStepIndexRef.current = -1;
-      approachSpokenRef.current = -1;
-    }
-
-    const coords = routeData.coordinates;
-
-    const runSimulationStep = () => {
-      const index = simulationIndexRef.current;
-      if (index >= coords.length - 1) {
-        if (simulationIntervalRef.current) {
-          clearInterval(simulationIntervalRef.current);
-          simulationIntervalRef.current = null;
-        }
-        setIsSimulating(false);
-        speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
-        showPremiumToast("Mô phỏng kết thúc. Bạn đã đến nơi!", "success");
-        handleStopNavigation();
-        return;
-      }
-
-      const p1 = coords[index];
-      const p2 = coords[index + 1];
-
-      const dy = p2[1] - p1[1];
-      const dx = (p2[0] - p1[0]) * Math.cos((p1[1] * Math.PI) / 180);
-      const angle = (Math.atan2(dx, dy) * 180) / Math.PI;
-      setSimulatedHeading(angle);
-      setSimulatedCoords(p2);
-
-      mapRef.current?.easeTo({
-        center: p2,
-        bearing: angle,
-        pitch: 60,
-        zoom: 17.5,
-        duration: 300,
-      });
-
-      if (routeData.steps && routeData.steps.length > 0) {
-        const nextStepInfo = routeData.steps[currentStepIndex + 1];
-        if (nextStepInfo) {
-          const [nextLng, nextLat] = nextStepInfo.maneuver.location;
-          const distToNext = getDistanceMeters(p2[1], p2[0], nextLat, nextLng);
-          setDistanceToNextStep(distToNext);
-
-          if (distToNext < 25) {
-            setCurrentStepIndex((prev) => prev + 1);
-          }
-
-          if (distToNext < 100 && distToNext > 45 && approachSpokenRef.current !== currentStepIndex) {
-            speakInstruction(`Chuẩn bị ${nextStepInfo.maneuver.instruction}`);
-            approachSpokenRef.current = currentStepIndex;
-          }
-        } else {
-          const lastStep = routeData.steps[routeData.steps.length - 1];
-          if (lastStep) {
-            const [destLng, destLat] = lastStep.maneuver.location;
-            const distToDest = getDistanceMeters(p2[1], p2[0], destLat, destLng);
-            setDistanceToNextStep(distToDest);
-          }
-        }
-      }
-
-      simulationIndexRef.current = index + 1;
-    };
-
-    const intervalTime = 600 / simulationSpeed;
-    simulationIntervalRef.current = window.setInterval(runSimulationStep, intervalTime);
-  };
-
-  const pauseSimulation = () => {
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-      simulationIntervalRef.current = null;
-    }
-    setIsSimulating(false);
-  };
-
-  useEffect(() => {
-    if (isSimulating && isSimulationMode) {
-      startSimulation(true);
-    }
-  }, [simulationSpeed]);
 
   const handleStartNavigation = () => {
     if (!routeData) {
@@ -643,140 +468,9 @@ export default function Home() {
     setShowNavModeSelector(true);
   };
 
-  const handleStartRealNavigation = () => {
-    setShowNavModeSelector(false);
-    setIsSimulationMode(false);
-    setIsNavigating(true);
-    setCurrentStepIndex(0);
-    lastSpokenStepIndexRef.current = -1;
-    approachSpokenRef.current = -1;
 
-    if (!navigator.geolocation) {
-      showPremiumToast("Thiết bị không hỗ trợ GPS.", "error");
-      return;
-    }
 
-    if (watchPositionId.current !== null) return;
 
-    if (routeData?.steps?.[0]) {
-      speakInstruction(routeData.steps[0].maneuver.instruction);
-    }
-
-    watchPositionId.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude, heading } = position.coords;
-
-        mapRef.current?.flyTo({
-          center: [longitude, latitude],
-          zoom: 18,
-          pitch: 60,
-          bearing: heading ?? 0,
-          duration: 500,
-        });
-
-        // Tự động tìm lại đường khi lệch hướng
-        if (routeData && routeData.coordinates.length > 1) {
-          let minDist = Infinity;
-          for (let i = 0; i < routeData.coordinates.length - 1; i++) {
-            const dist = getDistanceToSegment(
-              [longitude, latitude],
-              routeData.coordinates[i],
-              routeData.coordinates[i + 1]
-            );
-            if (dist < minDist) minDist = dist;
-          }
-
-          if (minDist > 60) {
-            speakInstruction("Bạn đã đi chệch hướng. Đang tính toán lại lộ trình.");
-            showPremiumToast("Đang tự động tính toán lại lộ trình...", "warning");
-            setOrigin({
-              lat: latitude,
-              lng: longitude,
-              label: "Vị trí của bạn (tính lại)"
-            });
-            return;
-          }
-        }
-
-        if (routeData?.steps && routeData.steps.length > 0) {
-          const nextStepInfo = routeData.steps[currentStepIndex + 1];
-          if (nextStepInfo) {
-            const [nextLng, nextLat] = nextStepInfo.maneuver.location;
-            const distToNext = getDistanceMeters(latitude, longitude, nextLat, nextLng);
-            setDistanceToNextStep(distToNext);
-
-            if (distToNext < 25) {
-              setCurrentStepIndex((prev) => prev + 1);
-            }
-
-            if (distToNext < 100 && distToNext > 45 && approachSpokenRef.current !== currentStepIndex) {
-              speakInstruction(`Chuẩn bị ${nextStepInfo.maneuver.instruction}`);
-              approachSpokenRef.current = currentStepIndex;
-            }
-          } else {
-            const lastStep = routeData.steps[routeData.steps.length - 1];
-            if (lastStep) {
-              const [destLng, destLat] = lastStep.maneuver.location;
-              const distToDest = getDistanceMeters(latitude, longitude, destLat, destLng);
-              setDistanceToNextStep(distToDest);
-              if (distToDest < 15) {
-                speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
-                showPremiumToast("Bạn đã đến nơi!", "success");
-                handleStopNavigation();
-              }
-            }
-          }
-        }
-      },
-      (err) => {
-        console.error(err);
-        showPremiumToast("Không thể lấy GPS.", "error");
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000,
-      },
-    );
-  };
-
-  const handleStartSimulationNavigation = () => {
-    setShowNavModeSelector(false);
-    setIsSimulationMode(true);
-    setIsNavigating(true);
-
-    if (routeData?.steps?.[0]) {
-      speakInstruction(routeData.steps[0].maneuver.instruction);
-    }
-
-    startSimulation(false);
-  };
-
-  const handleStopNavigation = () => {
-    setIsNavigating(false);
-    setIsSimulationMode(false);
-    setIsSimulating(false);
-    setSimulatedCoords(null);
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-      simulationIntervalRef.current = null;
-    }
-    if (watchPositionId.current !== null) {
-      navigator.geolocation.clearWatch(watchPositionId.current);
-      watchPositionId.current = null;
-    }
-    mapRef.current?.easeTo({ pitch: 0, bearing: 0, zoom: 14 });
-    window.speechSynthesis.cancel();
-  };
-
-  // Dọn dẹp simulation khi unmount
-  useEffect(() => {
-    return () => {
-      if (simulationIntervalRef.current) {
-        clearInterval(simulationIntervalRef.current);
-      }
-    };
-  }, []);
 
   const handleOpenReportModal = (lat: number, lng: number) => {
     const token =
@@ -979,6 +673,34 @@ export default function Home() {
 
   const { userLocation, setUserLocation, handleGetCurrentLocation } =
     useUserLocation(mapRef, validateLocation, setOrigin, setOriginQuery);
+
+  const {
+    isNavigating,
+    isSimulationMode,
+    isSimulating,
+    simulatedCoords,
+    simulatedHeading,
+    simulationSpeed,
+    setSimulationSpeed,
+    isVoiceMuted,
+    setIsVoiceMuted,
+    currentStepIndex,
+    setCurrentStepIndex,
+    distanceToNextStep,
+    handleStartRealNavigation,
+    handleStartSimulationNavigation,
+    handleStopNavigation,
+    speakInstruction,
+    startSimulation,
+    pauseSimulation,
+  } = useGPSNavigation({
+    mapRef,
+    routeData,
+    userLocation,
+    setUserLocation,
+    setOrigin,
+    setOriginQuery,
+  });
 
   // ============ SAVED ROUTES & SHARING ============
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
@@ -2557,188 +2279,50 @@ export default function Home() {
           </div>
           {/* Filter chips — desktop only: nằm cùng hàng giữa search và bell/avatar */}
           {!isNavigating && viewMode === "pois" && (
-            <div className="hidden md:flex items-center justify-start gap-2 overflow-x-auto flex-nowrap flex-1 self-start pointer-events-auto scrollbar-none pb-2">
-              {filterCategories.map((cat) => {
-                const Icon = cat.icon;
-                const isSelected = selectedFilter === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => handleFilterClick(cat.id)}
-                    className={`flex items-center gap-1.5 px-3.5 h-[42px] rounded-full text-[11px] font-bold shadow-md border transition-all shrink-0 ${isSelected
-                      ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
-                      : "bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50 hover:text-blue-600"
-                      }`}
-                  >
-                    <Icon
-                      size={13}
-                      className={isSelected ? "text-white" : "text-slate-500"}
-                    />
-                    <span>{cat.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <FilterChips
+              selectedFilter={selectedFilter}
+              onFilterClick={handleFilterClick}
+            />
           )}
 
           {/* Thông báo & User - cùng hàng với search */}
           {!isNavigating && (
-            <div className="flex flex-row items-center gap-2 shrink-0 pointer-events-auto self-start">
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotificationModal(!showNotificationModal)}
-                  className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all relative"
-                >
-                  <Bell size={18} />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white px-0.5">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </button>
-
-                <NotificationCenter
-                  isOpen={showNotificationModal}
-                  onClose={() => setShowNotificationModal(false)}
-                  onFlyToZone={(notif: AppNotification) => {
-                    setShowNotificationModal(false);
-                    if (!notif) return;
-
-                    const match = notif.message?.match(/\[zone_id:(\d+)\]/);
-                    if (match) {
-                      const zoneId = parseInt(match[1]);
-                      const zone = floodZones.find(
-                        (z) => z.id === zoneId || z.zone_id === zoneId,
-                      );
-                      if (
-                        zone &&
-                        Array.isArray(zone.center) &&
-                        zone.center.length === 2
-                      ) {
-                        setMapControls((prev) => ({ ...prev, flood: true }));
-                        mapRef.current?.flyTo({
-                          center: [zone.center[0], zone.center[1]],
-                          zoom: 15,
-                          duration: 1500,
-                        });
-                        setSelectedFloodZone({
-                          lng: zone.center[0],
-                          lat: zone.center[1],
-                          properties: {
-                            id: zone.id,
-                            name: zone.name,
-                            depthCm: zone.depthCm,
-                            risk_level: zone.risk_level,
-                            description: zone.description,
-                          },
-                        });
-                        return;
-                      }
-                    }
-
-                    if (notif.alert_id) {
-                      const alert = trafficAlerts.find(
-                        (a) =>
-                          a.id === notif.alert_id ||
-                          a.alert_id === notif.alert_id,
-                      );
-                      if (alert) {
-                        setMapControls((prev) => ({ ...prev, traffic: true }));
-                        mapRef.current?.flyTo({
-                          center: [alert.longitude, alert.latitude],
-                          zoom: 16,
-                          duration: 1500,
-                        });
-                        setSelectedTrafficAlert(alert);
-                        setSelectedPOI(null);
-                        setSelectedEvent(null);
-                        setSelectedRoadPopup(null);
-                      }
-                    }
-                  }}
-                  onOpenEvent={(eventId) => {
-                    setViewMode("events");
-                    setShowEventsSidebar(true);
-                    const found = events.find((e) => e.event_id === eventId);
-                    if (found) handleEventClick(found);
-                    setShowNotificationModal(false);
-                  }}
-                />
-              </div>
-
-              {userRole === "admin" ? (
-                <button
-                  onClick={() => navigate("/admin/dashboard")}
-                  className="w-[42px] h-[42px] flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-md transition-all"
-                >
-                  <Settings size={18} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => navigate("?tab=profile")}
-                  className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 overflow-hidden text-slate-600 hover:text-blue-600 transition-all"
-                >
-                  {userProfile?.avatar_url ? (
-                    <img
-                      src={
-                        userProfile.avatar_url.startsWith("http")
-                          ? userProfile.avatar_url
-                          : `${import.meta.env.VITE_API_URL || "http://localhost:5001"}${userProfile.avatar_url}`
-                      }
-                      alt="Avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <User size={18} />
-                  )}
-                </button>
-              )}
-            </div>
+            <TopRightActions
+              userRole={userRole || "user"}
+              userProfile={userProfile}
+              unreadCount={unreadCount}
+              showNotificationModal={showNotificationModal}
+              setShowNotificationModal={setShowNotificationModal}
+              navigate={navigate}
+              floodZones={floodZones}
+              trafficAlerts={trafficAlerts}
+              events={events}
+              setMapControls={setMapControls}
+              mapRef={mapRef}
+              setSelectedFloodZone={setSelectedFloodZone}
+              setSelectedTrafficAlert={setSelectedTrafficAlert}
+              setSelectedPOI={setSelectedPOI}
+              setSelectedEvent={setSelectedEvent}
+              setSelectedRoadPopup={setSelectedRoadPopup}
+              setViewMode={setViewMode}
+              setShowEventsSidebar={setShowEventsSidebar}
+              handleEventClick={handleEventClick}
+            />
           )}
         </div>
 
         {/* Filter chips — mobile only: hàng riêng bênn dưới search */}
         {!isNavigating && viewMode === "pois" && (
-          <div className="flex md:hidden items-center gap-2 overflow-x-auto pb-1 scrollbar-none pointer-events-auto w-full">
-            {filterCategories.map((cat) => {
-              const Icon = cat.icon;
-              const isSelected = selectedFilter === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => handleFilterClick(cat.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-bold shadow-md border transition-all shrink-0 ${isSelected
-                    ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
-                    : "bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50 hover:text-blue-600"
-                    }`}
-                >
-                  <Icon
-                    size={13}
-                    className={isSelected ? "text-white" : "text-slate-500"}
-                  />
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <FilterChips
+            selectedFilter={selectedFilter}
+            onFilterClick={handleFilterClick}
+            isMobile
+          />
         )}
       </div>
 
       {/* TRAFFIC LEGEND */}
-      {mapControls.traffic && !isNavigating && (
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2.5 rounded-full shadow-lg border border-slate-200 z-10 pointer-events-auto flex items-center gap-3 text-[11px] md:text-xs font-medium text-slate-600 hidden md:flex">
-          <span className="font-bold text-slate-800">Giao thông thời gian thực</span>
-          <div className="w-px h-4 bg-slate-300"></div>
-          <span className="italic">Nhanh</span>
-          <div className="flex items-center gap-0.5">
-            <div className="w-5 h-2 bg-[#22c55e] rounded-sm"></div>
-            <div className="w-5 h-2 bg-[#f59e0b] rounded-sm"></div>
-            <div className="w-5 h-2 bg-[#ef4444] rounded-sm"></div>
-            <div className="w-5 h-2 bg-[#7f1d1d] rounded-sm"></div>
-          </div>
-          <span className="italic">Chậm</span>
-        </div>
-      )}
+      <TrafficLegend show={mapControls.traffic && !isNavigating} />
 
       {/* MAP TOOLBAR DƯỚI GÓC PHẢI */}
       {!isNavigating && (
