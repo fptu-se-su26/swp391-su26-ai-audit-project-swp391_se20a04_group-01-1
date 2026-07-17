@@ -1,4 +1,3 @@
-// NEW CODE: Flood zone route avoidance feature - Tiện ích kiểm tra định tuyến né tránh vùng ngập
 
 export interface FloodZone {
   id: string;
@@ -508,4 +507,36 @@ if (originalBlockedList.length > 1) {
   }
 
   return { selectedRoute, alertMsg };
+}
+export function isNearRoute(
+  routeCoords: [number, number][],
+  pointLng: number,
+  pointLat: number,
+  thresholdMeters: number
+): boolean {
+
+    if (!routeCoords || routeCoords.length < 2) {
+        return false;
+    }
+
+    for (let i = 0; i < routeCoords.length - 1; i++) {
+
+        const p1 = getLngLat(routeCoords[i]);
+        const p2 = getLngLat(routeCoords[i + 1]);
+
+        const dist = getDistanceToSegment(
+            pointLng,
+            pointLat,
+            p1[0],
+            p1[1],
+            p2[0],
+            p2[1]
+        );
+
+        if (dist <= thresholdMeters) {
+            return true;
+        }
+    }
+
+    return false;
 }
