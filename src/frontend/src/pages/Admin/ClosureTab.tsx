@@ -95,11 +95,17 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
                 if (!mapboxToken) return;
                 const response = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(startQuery)}.json?access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
+                    `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(startQuery)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
                 );
                 const data = await response.json();
                 if (data.features) {
-                    setStartSuggestions(data.features);
+                    const normalized = data.features.map((f: any) => ({
+                        id: f.properties?.mapbox_id || f.id,
+                        place_name: f.properties?.full_address || f.properties?.name || "",
+                        place_name_vi: f.properties?.full_address || f.properties?.name || "",
+                        center: f.geometry?.coordinates || [0, 0]
+                    }));
+                    setStartSuggestions(normalized);
                     setShowStartSuggestions(true);
                 }
             } catch (error) {
@@ -123,11 +129,17 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
                 if (!mapboxToken) return;
                 const response = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(endQuery)}.json?access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
+                    `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(endQuery)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
                 );
                 const data = await response.json();
                 if (data.features) {
-                    setEndSuggestions(data.features);
+                    const normalized = data.features.map((f: any) => ({
+                        id: f.properties?.mapbox_id || f.id,
+                        place_name: f.properties?.full_address || f.properties?.name || "",
+                        place_name_vi: f.properties?.full_address || f.properties?.name || "",
+                        center: f.geometry?.coordinates || [0, 0]
+                    }));
+                    setEndSuggestions(normalized);
                     setShowEndSuggestions(true);
                 }
             } catch (error) {

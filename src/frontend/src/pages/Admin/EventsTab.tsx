@@ -126,11 +126,17 @@ export default function EventsTab({
                 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
                 if (!mapboxToken) return;
                 const response = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(eventFormData.location_name)}.json?access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
+                    `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(eventFormData.location_name)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
                 );
                 const data = await response.json();
                 if (data.features) {
-                    setAddressSuggestions(data.features);
+                    const normalized = data.features.map((f: any) => ({
+                        id: f.properties?.mapbox_id || f.id,
+                        place_name: f.properties?.full_address || f.properties?.name || "",
+                        place_name_vi: f.properties?.full_address || f.properties?.name || "",
+                        center: f.geometry?.coordinates || [0, 0]
+                    }));
+                    setAddressSuggestions(normalized);
                     setShowAddressSuggestions(true);
                 }
             } catch (error) {
