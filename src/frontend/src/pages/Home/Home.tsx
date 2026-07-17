@@ -99,6 +99,8 @@ import { ModalsOrchestrator } from "./components/ModalsOrchestrator";
 import { MapPopupsOrchestrator } from "./components/MapPopupsOrchestrator";
 import { StatusBanner } from "./components/StatusBanner";
 import { useGPSNavigation } from "./hooks/useGPSNavigation";
+import { useLiveLocationSharing } from "./hooks/useLiveLocationSharing";
+import { useSavedRoutesState } from "./hooks/useSavedRoutesState";
 import { FilterChips } from "./components/FilterChips";
 import { TrafficLegend } from "./components/TrafficLegend";
 import { TopRightActions } from "./components/TopRightActions";
@@ -239,56 +241,7 @@ export default function Home() {
     };
   }, []);
 
-  // States cho Chia sẻ vị trí trực tiếp (Live Location Sharing)
-  const [isSharingLocation, setIsSharingLocation] = useState(false);
-  const [liveShareToken, setLiveShareToken] = useState<string | null>(null);
-  const socketRef = useRef<any>(null);
-  const shareWatchId = useRef<number | null>(null);
 
-  // Cleanup kết nối socket và GPS watch khi unmount
-  useEffect(() => {
-    return () => {
-      if (socketRef.current) socketRef.current.disconnect();
-      if (shareWatchId.current !== null) navigator.geolocation.clearWatch(shareWatchId.current);
-    };
-  }, []);
-
-  // Watch position định vị GPS và gửi tọa độ thời gian thực qua socket
-  useEffect(() => {
-    if (!isSharingLocation || !liveShareToken) {
-      if (shareWatchId.current !== null) {
-        navigator.geolocation.clearWatch(shareWatchId.current);
-        shareWatchId.current = null;
-      }
-      return;
-    }
-    if (!navigator.geolocation) {
-      showPremiumToast('Thiết bị không hỗ trợ định vị GPS.', 'error');
-      setIsSharingLocation(false);
-      return;
-    }
-    shareWatchId.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude, heading } = position.coords;
-        if (socketRef.current && socketRef.current.connected) {
-          socketRef.current.emit('update-location', {
-            shareToken: liveShareToken,
-            lat: latitude,
-            lng: longitude,
-            heading: heading || 0
-          });
-        }
-      },
-      (err) => console.error('❌ [Share GPS] Lỗi định vị:', err),
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
-    );
-    return () => {
-      if (shareWatchId.current !== null) {
-        navigator.geolocation.clearWatch(shareWatchId.current);
-        shareWatchId.current = null;
-      }
-    };
-  }, [isSharingLocation, liveShareToken]);
 
   const [countdown, setCountdown] = useState(1);
 
@@ -518,57 +471,7 @@ export default function Home() {
     });
   };
 
-  const handleToggleShareLocation = async () => {
-    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
-    if (!token) {
-      showPremiumToast('Vui lòng đăng nhập để sử dụng tính năng chia sẻ vị trí.', 'error');
-      return;
-    }
-    if (isSharingLocation) {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-        const res = await fetch(`${apiUrl}/api/location/stop`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ share_token: liveShareToken })
-        });
-        const data = await res.json();
-        if (data.success) {
-          setIsSharingLocation(false);
-          setLiveShareToken(null);
-          if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
-          showPremiumToast('Đã dừng chia sẻ vị trí trực tiếp.', 'success');
-        } else {
-          showPremiumToast(data.message || 'Lỗi dừng chia sẻ.', 'error');
-        }
-      } catch (err) {
-        showPremiumToast('Lỗi kết nối máy chủ.', 'error');
-      }
-    } else {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-        const res = await fetch(`${apiUrl}/api/location/share`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (data.success && data.share_token) {
-          const shareToken = data.share_token;
-          setLiveShareToken(shareToken);
-          socketRef.current = io(apiUrl);
-          socketRef.current.on('connect', () => { socketRef.current.emit('join-session', { shareToken }); });
-          setIsSharingLocation(true);
-          const shareLink = `${window.location.origin}/track/${shareToken}`;
-          navigator.clipboard.writeText(shareLink);
-          showPremiumToast(`Đã bật chia sẻ vị trí trực tiếp! Link theo dõi đã được sao chép: ${shareLink}`, 'success', 6000);
-        } else {
-          showPremiumToast(data.message || 'Lỗi khởi tạo chia sẻ vị trí.', 'error');
-        }
-      } catch (err) {
-        showPremiumToast('Lỗi kết nối máy chủ.', 'error');
-      }
-    }
-  };
+
 
 
 
@@ -702,364 +605,48 @@ export default function Home() {
     setOriginQuery,
   });
 
-  // ============ SAVED ROUTES & SHARING ============
-  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
-  const [showSavedRoutesSidebar, setShowSavedRoutesSidebar] = useState(false);
-  const [showSaveRouteModal, setShowSaveRouteModal] = useState(false);
-  const [saveRouteName, setSaveRouteName] = useState("");
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [shareUrl, setShareUrl] = useState("");
-  const [isSavingRoute, setIsSavingRoute] = useState(false);
-  const [isSharingRoute, setIsSharingRoute] = useState(false);
+  const {
+    isSharingLocation,
+    liveShareToken,
+    handleToggleShareLocation,
+  } = useLiveLocationSharing();
 
-  const fetchSavedRoutes = async () => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) return;
-    try {
-      const routes = await savedRouteService.getSavedRoutes();
-      setSavedRoutes(routes);
-    } catch (error) {
-      console.error("Lỗi khi tải danh sách lộ trình:", error);
-    }
-  };
-
-  useEffect(() => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (token) {
-      fetchSavedRoutes();
-    }
-  }, [showSavedRoutesSidebar]);
-
-  const handleSaveRoute = async () => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) {
-      showPremiumToast("Vui lòng đăng nhập để lưu lộ trình.", "error");
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
-      return;
-    }
-
-    if (!routeData || !origin || !destination) {
-      showPremiumToast("Không tìm thấy dữ liệu lộ trình để lưu.", "error");
-      return;
-    }
-
-    setIsSavingRoute(true);
-    try {
-      await savedRouteService.saveRoute({
-        origin_name: origin.label || originQuery,
-        origin_lat: origin.lat,
-        origin_lng: origin.lng,
-        destination_name: destination.label || destinationQuery,
-        destination_lat: destination.lat,
-        destination_lng: destination.lng,
-        route_name:
-          saveRouteName.trim() ||
-          `Lộ trình từ ${origin.label || "Vị trí hiện tại"} đến ${destination.label || "Điểm đến"}`,
-        route_data: JSON.stringify(routeData.coordinates),
-        distance_meters: Math.round(routeData.totalDistanceKm * 1000),
-        duration_seconds: routeData.totalTimeMin * 60,
-        profile: travelMode,
-        is_emergency: avoidFlood || activeOrSelectedEventRoads.length > 0,
-      });
-      showPremiumToast("Lưu lộ trình thành công!", "success");
-      setShowSaveRouteModal(false);
-      setSaveRouteName("");
-      fetchSavedRoutes();
-    } catch (error: any) {
-      console.error("Lỗi khi lưu lộ trình:", error);
-      showPremiumToast(
-        error.response?.data?.message || "Không thể lưu lộ trình.",
-        "error",
-      );
-    } finally {
-      setIsSavingRoute(false);
-    }
-  };
-
-  const handleShareRoute = async () => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) {
-      showPremiumToast("Vui lòng đăng nhập để chia sẻ lộ trình.", "error");
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
-      return;
-    }
-
-    if (!routeData || !origin || !destination) {
-      showPremiumToast("Không tìm thấy dữ liệu lộ trình để chia sẻ.", "error");
-      return;
-    }
-
-    setIsSharingRoute(true);
-    try {
-      const data = await savedRouteService.shareDirectRoute({
-        origin_name: origin.label || originQuery,
-        origin_lat: origin.lat,
-        origin_lng: origin.lng,
-        destination_name: destination.label || destinationQuery,
-        destination_lat: destination.lat,
-        destination_lng: destination.lng,
-        route_name: `Chia sẻ - ${destination.label || "Điểm đến"}`,
-        route_data: JSON.stringify(routeData.coordinates),
-        distance_meters: Math.round(routeData.totalDistanceKm * 1000),
-        duration_seconds: routeData.totalTimeMin * 60,
-        profile: travelMode,
-        is_emergency: avoidFlood || activeOrSelectedEventRoads.length > 0,
-      });
-
-      if (data.success && data.share_token) {
-        const shareLink = `${window.location.origin}${import.meta.env.BASE_URL}dashboard?share=${data.share_token}`;
-        setShareUrl(shareLink);
-        setShowShareModal(true);
-        showPremiumToast("Đã tạo liên kết chia sẻ!", "success");
-      } else {
-        showPremiumToast("Không thể tạo liên kết chia sẻ.", "error");
-      }
-    } catch (error: any) {
-      console.error("Lỗi khi chia sẻ lộ trình:", error);
-      showPremiumToast(
-        error.response?.data?.message || "Không thể tạo liên kết chia sẻ.",
-        "error",
-      );
-    } finally {
-      setIsSharingRoute(false);
-    }
-  };
-
-  const handleDeleteSavedRoute = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    showCustomConfirm(
-      "Xác nhận xóa",
-      "Bạn có chắc chắn muốn xóa lộ trình này không?",
-      async () => {
-        try {
-          await savedRouteService.deleteRoute(id);
-          showPremiumToast("Đã xóa lộ trình!", "success");
-          fetchSavedRoutes();
-        } catch (error) {
-          console.error("Lỗi khi xóa lộ trình:", error);
-          showPremiumToast("Không thể xóa lộ trình.", "error");
-        }
-      },
-      () => { },
-    );
-  };
-
-  const handleSelectSavedRoute = (route: SavedRoute) => {
-    setOrigin({
-      lat: route.origin_lat,
-      lng: route.origin_lng,
-      label: route.origin_name || "Vị trí xuất phát",
-    });
-    setOriginQuery(route.origin_name || "Vị trí xuất phát");
-
-    setDestination({
-      lat: route.destination_lat,
-      lng: route.destination_lng,
-      label: route.destination_name || "Vị trí đến",
-    });
-    setDestinationQuery(route.destination_name || "Vị trí đến");
-    setTravelMode(route.profile as any);
-
-    let coords: [number, number][] = [];
-    try {
-      coords = JSON.parse(route.route_data);
-    } catch (e) {
-      console.error("Lỗi parse route_data:", e);
-    }
-
-    setRouteData({
-      totalDistanceKm: parseFloat((route.distance_meters / 1000).toFixed(2)),
-      totalTimeMin: Math.round(route.duration_seconds / 60),
-      coordinates: coords,
-    });
-
-    if (coords.length > 0) {
-      let minLng = coords[0][0],
-        maxLng = coords[0][0];
-      let minLat = coords[0][1],
-        maxLat = coords[0][1];
-      for (const c of coords) {
-        if (c[0] < minLng) minLng = c[0];
-        if (c[0] > maxLng) maxLng = c[0];
-        if (c[1] < minLat) minLat = c[1];
-        if (c[1] > maxLat) maxLat = c[1];
-      }
-
-      mapRef.current?.fitBounds(
-        [
-          [minLng, minLat],
-          [maxLng, maxLat],
-        ],
-        { padding: 80, duration: 1500 },
-      );
-    }
-
-    setShowSavedRoutesSidebar(false);
-    showPremiumToast("Đã tải lộ trình đã lưu!", "success");
-  };
-
-  useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search);
-    const shareToken = queryParams.get("share");
-    if (shareToken) {
-      const loadSharedRoute = async () => {
-        try {
-          showPremiumToast("Đang tải lộ trình chia sẻ...", "success");
-          const route = await savedRouteService.getSharedRoute(shareToken);
-          if (route) {
-            isLoadedRouteRef.current = true;
-            setOrigin({
-              lat: route.origin_lat,
-              lng: route.origin_lng,
-              label: route.origin_name || "Điểm xuất phát chia sẻ",
-            });
-            setOriginQuery(route.origin_name || "Điểm xuất phát chia sẻ");
-
-            setDestination({
-              lat: route.destination_lat,
-              lng: route.destination_lng,
-              label: route.destination_name || "Điểm đến chia sẻ",
-            });
-            setDestinationQuery(route.destination_name || "Điểm đến chia sẻ");
-            setTravelMode(route.profile as any);
-
-            let coords: [number, number][] = [];
-            try {
-              coords = JSON.parse(route.route_data);
-            } catch (e) {
-              console.error("Lỗi parse route_data:", e);
-            }
-
-            setRouteData({
-              totalDistanceKm: parseFloat(
-                (route.distance_meters / 1000).toFixed(2),
-              ),
-              totalTimeMin: Math.round(route.duration_seconds / 60),
-              coordinates: coords,
-            });
-
-            if (coords.length > 0) {
-              let minLng = coords[0][0],
-                maxLng = coords[0][0];
-              let minLat = coords[0][1],
-                maxLat = coords[0][1];
-              for (const c of coords) {
-                if (c[0] < minLng) minLng = c[0];
-                if (c[0] > maxLng) maxLng = c[0];
-                if (c[1] < minLat) minLat = c[1];
-                if (c[1] > maxLat) maxLat = c[1];
-              }
-
-              mapRef.current?.fitBounds(
-                [
-                  [minLng, minLat],
-                  [maxLng, maxLat],
-                ],
-                { padding: 80, duration: 1500 },
-              );
-            }
-
-            const newUrl =
-              window.location.pathname +
-              window.location.search.replace(/[\?&]share=[^&]+/, "");
-            window.history.replaceState({}, "", newUrl || "/");
-            showPremiumToast("Tải lộ trình chia sẻ thành công!", "success");
-          }
-        } catch (error) {
-          console.error("Lỗi khi tải lộ trình chia sẻ:", error);
-          showPremiumToast(
-            "Không thể tải lộ trình chia sẻ. Liên kết có thể đã hết hạn.",
-            "error",
-          );
-        }
-      };
-      loadSharedRoute();
-    }
-  }, [location.search]);
-
-  useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search);
-    const routeId = queryParams.get("routeId");
-    if (routeId) {
-      const loadSavedRouteById = async () => {
-        try {
-          showPremiumToast("Đang tải lộ trình đã lưu...", "success");
-          const route = await savedRouteService.getRouteById(parseInt(routeId));
-          if (route) {
-            isLoadedRouteRef.current = true;
-            setOrigin({
-              lat: route.origin_lat,
-              lng: route.origin_lng,
-              label: route.origin_name || "Điểm xuất phát",
-            });
-            setOriginQuery(route.origin_name || "Điểm xuất phát");
-
-            setDestination({
-              lat: route.destination_lat,
-              lng: route.destination_lng,
-              label: route.destination_name || "Điểm đến",
-            });
-            setDestinationQuery(route.destination_name || "Điểm đến");
-            setTravelMode(route.profile as any);
-
-            let coords: [number, number][] = [];
-            try {
-              coords = JSON.parse(route.route_data);
-            } catch (e) {
-              console.error("Lỗi parse route_data:", e);
-            }
-
-            setRouteData({
-              totalDistanceKm: parseFloat(
-                (route.distance_meters / 1000).toFixed(2),
-              ),
-              totalTimeMin: Math.round(route.duration_seconds / 60),
-              coordinates: coords,
-            });
-
-            if (coords.length > 0) {
-              let minLng = coords[0][0],
-                maxLng = coords[0][0];
-              let minLat = coords[0][1],
-                maxLat = coords[0][1];
-              for (const c of coords) {
-                if (c[0] < minLng) minLng = c[0];
-                if (c[0] > maxLng) maxLng = c[0];
-                if (c[1] < minLat) minLat = c[1];
-                if (c[1] > maxLat) maxLat = c[1];
-              }
-
-              mapRef.current?.fitBounds(
-                [
-                  [minLng, minLat],
-                  [maxLng, maxLat],
-                ],
-                { padding: 80, duration: 1500 },
-              );
-            }
-
-            const newUrl =
-              window.location.pathname +
-              window.location.search.replace(/[\?&]routeId=[^&]+/, "");
-            window.history.replaceState({}, "", newUrl || "/");
-            showPremiumToast("Tải lộ trình thành công!", "success");
-          }
-        } catch (error) {
-          console.error("Lỗi khi tải lộ trình đã lưu:", error);
-          showPremiumToast("Không thể tải lộ trình đã lưu.", "error");
-        }
-      };
-      loadSavedRouteById();
-    }
-  }, [location.search]);
+  const {
+    savedRoutes,
+    showSavedRoutesSidebar,
+    setShowSavedRoutesSidebar,
+    showSaveRouteModal,
+    setShowSaveRouteModal,
+    saveRouteName,
+    setSaveRouteName,
+    showShareModal,
+    setShowShareModal,
+    shareUrl,
+    isSavingRoute,
+    isSharingRoute,
+    handleSaveRoute,
+    handleShareRoute,
+    handleDeleteSavedRoute,
+    handleSelectSavedRoute,
+  } = useSavedRoutesState({
+    mapRef,
+    origin,
+    setOrigin,
+    originQuery,
+    setOriginQuery,
+    destination,
+    setDestination,
+    destinationQuery,
+    setDestinationQuery,
+    travelMode,
+    setTravelMode,
+    routeData,
+    setRouteData,
+    isEmergency: avoidFlood || activeOrSelectedEventRoads.length > 0,
+    navigate,
+    showCustomConfirm,
+    isLoadedRouteRef,
+  });
 
   const selectedRoadPopupRef = useRef(selectedRoadPopup);
   const selectedPOIRef = useRef(selectedPOI);
