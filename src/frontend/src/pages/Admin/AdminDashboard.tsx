@@ -48,6 +48,14 @@ export default function AdminDashboard() {
         status: 'pending', category_id: 1
     });
 
+    const [eventBannerFile, setEventBannerFile] = useState<File | null>(null);
+    const [eventThumbnailFile, setEventThumbnailFile] = useState<File | null>(null);
+
+    const handleEventImageChange = (banner: File | null, thumbnail: File | null) => {
+        setEventBannerFile(banner);
+        setEventThumbnailFile(thumbnail);
+    };
+
         const [trafficAlerts, setTrafficAlerts] = useState<TrafficAlert[]>([]);
 
     const [floodZones, setFloodZones] = useState<FloodZone[]>([]);
@@ -328,33 +336,38 @@ export default function AdminDashboard() {
     const handleCreateEvent = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const body = {
-                title: eventFormData.title,
-                short_description: eventFormData.short_description,
-                description: eventFormData.description,
-                location_name: eventFormData.location_name,
-                latitude: eventFormData.latitude,
-                longitude: eventFormData.longitude,
-                start_time: eventFormData.start_time,
-                end_time: eventFormData.end_time || null,
-                status: eventFormData.status,
-                category_id: eventFormData.category_id || 1,
-                is_featured: editingEvent ? editingEvent.is_featured : false,
-                is_free: editingEvent ? editingEvent.is_free : true,
-                ticket_price: editingEvent ? editingEvent.ticket_price : 0,
-                banner_url: editingEvent ? editingEvent.banner_url : null,
-                thumbnail_url: editingEvent ? editingEvent.thumbnail_url : null
-            };
+            const formData = new FormData();
+            formData.append('title', eventFormData.title);
+            formData.append('short_description', eventFormData.short_description || '');
+            formData.append('description', eventFormData.description || '');
+            formData.append('location_name', eventFormData.location_name);
+            formData.append('latitude', String(eventFormData.latitude));
+            formData.append('longitude', String(eventFormData.longitude));
+            formData.append('start_time', eventFormData.start_time);
+            formData.append('end_time', eventFormData.end_time || '');
+            formData.append('status', eventFormData.status);
+            formData.append('category_id', String(eventFormData.category_id || 1));
+            formData.append('is_featured', String(editingEvent ? editingEvent.is_featured : false));
+            formData.append('is_free', String(editingEvent ? editingEvent.is_free : true));
+            formData.append('ticket_price', String(editingEvent ? editingEvent.ticket_price : 0));
+            if (eventBannerFile) {
+                formData.append('banner', eventBannerFile);
+            }
+            if (eventThumbnailFile) {
+                formData.append('thumbnail', eventThumbnailFile);
+            }
 
             if (editingEvent) {
-                await eventAPI.updateEvent(editingEvent.event_id, body);
+                await eventAPI.updateEvent(editingEvent.event_id, formData);
                 showPremiumToast('Cập nhật sự kiện thành công!', 'success');
             } else {
-                await eventAPI.createEvent(body);
+                await eventAPI.createEvent(formData);
                 showPremiumToast('Thêm sự kiện mới thành công!', 'success');
             }
             setShowModal(false);
             setEditingEvent(null);
+            setEventBannerFile(null);
+            setEventThumbnailFile(null);
             fetchEvents();
         } catch (error) {
             showPremiumToast('Lỗi kết nối máy chủ hoặc lưu sự kiện.', 'error');
@@ -556,6 +569,7 @@ export default function AdminDashboard() {
                     showModal={showModal} setShowModal={setShowModal} editingEvent={editingEvent} setEditingEvent={setEditingEvent}
                     eventFormData={eventFormData} setEventFormData={setEventFormData} handleApproveEvent={handleApproveEvent}
                     handleDeleteEvent={handleDeleteEvent} handleCreateEvent={handleCreateEvent}
+                    onImageChange={handleEventImageChange}
                 />
             )}
             {activeMenu === 'traffic' && (

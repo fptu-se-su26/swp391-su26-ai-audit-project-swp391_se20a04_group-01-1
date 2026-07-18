@@ -13,6 +13,8 @@ const FILTER_TO_CATEGORY: Record<string, string> = {
     'cafe': 'Quán cà phê',
     'gas_station': 'Trạm xăng',
     'hospital': 'Bệnh viện',
+    'pharmacy': 'Nhà thuốc',
+    'shopping': 'Khu mua sắm',
 };
 
 // Mapping filter ID → icon emoji
@@ -21,11 +23,13 @@ const FILTER_EMOJI: Record<string, string> = {
     'restaurants': '🍜',
     'hotels': '🏨',
     'entertainment': '🎡',
-    'museums': '🏛️',
+    'museums': '🏙️',
     'atm': '💳',
     'cafe': '☕',
     'gas_station': '⛽',
     'hospital': '🏥',
+    'pharmacy': '💊',
+    'shopping': '🛍️',
 };
 
 interface POIFeaturedSidebarProps {
@@ -143,7 +147,12 @@ export default function POIFeaturedSidebar({
                         {/* Thumbnail */}
                         <div className="shrink-0 w-12 h-12 rounded-xl overflow-hidden bg-slate-100 relative">
                             <img
-                                src={poi.image_url || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200'}
+                                src={(() => {
+                                    const base = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+                                    const url = poi.image_url;
+                                    if (!url) return 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200';
+                                    return url.startsWith('http') || url.startsWith('blob:') ? url : `${base}${url}`;
+                                })()}
                                 alt={poi.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {

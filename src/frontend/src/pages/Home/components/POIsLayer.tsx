@@ -13,6 +13,8 @@ const FILTER_TO_CATEGORY: Record<string, string> = {
     'gas_station': 'Trạm xăng',
     'cafe': 'Quán cà phê',
     'hospital': 'Bệnh viện',
+    'pharmacy': 'Nhà thuốc',
+    'shopping': 'Khu mua sắm',
 };
 
 interface POIsLayerProps {

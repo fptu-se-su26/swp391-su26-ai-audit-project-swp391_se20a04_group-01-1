@@ -3,7 +3,7 @@ import { MapRef } from 'react-map-gl/mapbox';
 import { EventRoad } from '../../../services/eventRoadService';
 import { findSafeRoute as findSafeRouteZone } from '../../../utils/floodZoneRouteUtils';
 import { findSafeTrafficRoute } from '../../../utils/trafficRouteUtils';
-import { findSafeEventRoute } from '../../../utils/eventRouteUtils';
+import { findSafeEventRoute, getBlockedRoadsForRoute } from '../../../utils/eventRouteUtils';
 import { showPremiumToast } from '../../../utils/toastUtils';
 import { decodePolyline } from '../../../utils/polylineHelper';
 
@@ -69,6 +69,11 @@ export function useMapRouting(
     confirmedFloodZoneIds: string[];
     isLowBandwidth: boolean;
     isOffline: boolean;
+    onCrossedRestrictedRoad?: (
+      blockedRoads: EventRoad[],
+      onAvoid: () => void,
+      onCancel: () => void
+    ) => void;
   },
 ) {
   const [origin, setOrigin] = useState<LocationPoint | null>(null);
@@ -85,6 +90,29 @@ export function useMapRouting(
     null,
   );
   const isLoadedRouteRef = useRef(false);
+
+  const [avoidEventRoadsMode, setAvoidEventRoadsMode] = useState<"avoid" | "none" | null>(null);
+
+  // Stable refs to avoid stale closures in the routing effect
+  const onCrossedRestrictedRoadRef = useRef(options.onCrossedRestrictedRoad);
+  useEffect(() => {
+    onCrossedRestrictedRoadRef.current = options.onCrossedRestrictedRoad;
+  });
+
+  const activeEventRoadsRef = useRef<EventRoad[]>(options.activeEventRoads);
+  useEffect(() => {
+    activeEventRoadsRef.current = options.activeEventRoads;
+  });
+
+  const avoidEventRoadsModeRef = useRef(avoidEventRoadsMode);
+  useEffect(() => {
+    avoidEventRoadsModeRef.current = avoidEventRoadsMode;
+  });
+
+  // Reset avoidEventRoadsMode when origin, destination or travelMode changes
+  useEffect(() => {
+    setAvoidEventRoadsMode(null);
+  }, [origin, destination, travelMode]);
 
   // Fetch and process map route
   useEffect(() => {
@@ -232,23 +260,52 @@ export function useMapRouting(
             }
           }
 
-          if (options.activeEventRoads.length > 0 && selectedRoute) {
-            const result = await findSafeEventRoute(
-              [
-                selectedRoute,
-                ...data.routes.filter((r: any) => r !== selectedRoute),
-              ],
-              options.activeEventRoads,
+          if (activeEventRoadsRef.current.length > 0 && selectedRoute) {
+            const currentEventRoads = activeEventRoadsRef.current;
+            const originalBlockedRoads = getBlockedRoadsForRoute(
+              selectedRoute.geometry.coordinates,
+              currentEventRoads,
               origin,
-              destination,
-              travelMode,
-              mapboxToken,
+              destination
             );
-            selectedRoute = result.selectedRoute;
-            if (result.alertMsg) {
-              alertMsg = alertMsg
-                ? `${alertMsg}\n${result.alertMsg}`
-                : result.alertMsg;
+
+            if (originalBlockedRoads.length > 0) {
+              const currentMode = avoidEventRoadsModeRef.current;
+              if (currentMode === null) {
+                if (onCrossedRestrictedRoadRef.current) {
+                  setLoadingRoute(false);
+                  onCrossedRestrictedRoadRef.current(
+                    originalBlockedRoads,
+                    () => setAvoidEventRoadsMode("avoid"),
+                    () => {
+                      setDestination(null);
+                      setDestinationQuery("");
+                      setRouteData(null);
+                      setAvoidEventRoadsMode(null);
+                      setLoadingRoute(false);
+                    }
+                  );
+                  return;
+                }
+              } else if (currentMode === "avoid") {
+                const result = await findSafeEventRoute(
+                  [
+                    selectedRoute,
+                    ...data.routes.filter((r: any) => r !== selectedRoute),
+                  ],
+                  currentEventRoads,
+                  origin,
+                  destination,
+                  travelMode,
+                  mapboxToken,
+                );
+                selectedRoute = result.selectedRoute;
+                if (result.alertMsg) {
+                  alertMsg = alertMsg
+                    ? `${alertMsg}\n${result.alertMsg}`
+                    : result.alertMsg;
+                }
+              }
             }
           }
 
@@ -350,10 +407,10 @@ export function useMapRouting(
     options.avoidCongestion,
     options.confirmedFloodZoneIds,
     options.floodZones,
-    options.activeEventRoads,
     options.trafficAlerts,
     options.isOffline,
     options.isLowBandwidth,
+    avoidEventRoadsMode,
     mapRef,
   ]);
 

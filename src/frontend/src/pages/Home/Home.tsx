@@ -86,32 +86,26 @@ import POIsLayer from "./components/POIsLayer";
 import { poiAPI, eventAPI, trafficAlertAPI } from "../../services/api";
 import { POIData } from "./components/POIPopup";
 import POIFeaturedSidebar from "./components/POIFeaturedSidebar";
-import EventsLayer, { EventData } from "./components/EventsLayer";
+import EventsLayer, { EventData, getEventStatus } from "./components/EventsLayer";
 import EventsSidebar from "./components/EventsSidebar";
 import EventDetailSidebar from "./components/EventDetailSidebar";
-import NotificationCenter from "./components/NotificationCenter";
 import {
   useNotificationStore,
   AppNotification,
 } from "../../store/notificationStore";
 import { AIChatbot } from "./components/AIChatbot";
 import { SavedRoutesSidebar } from "./components/SavedRoutesSidebar";
-import { ReportTrafficModal } from "./components/ReportTrafficModal";
-import { SaveRouteModal } from "./components/SaveRouteModal";
-import { ShareRouteModal } from "./components/ShareRouteModal";
+import { ModalsOrchestrator } from "./components/ModalsOrchestrator";
+import { MapPopupsOrchestrator } from "./components/MapPopupsOrchestrator";
 import { StatusBanner } from "./components/StatusBanner";
+import { useGPSNavigation } from "./hooks/useGPSNavigation";
+import { useLiveLocationSharing } from "./hooks/useLiveLocationSharing";
+import { useSavedRoutesState } from "./hooks/useSavedRoutesState";
+import { FilterChips } from "./components/FilterChips";
+import { TrafficLegend } from "./components/TrafficLegend";
+import { TopRightActions } from "./components/TopRightActions";
 
-const filterCategories = [
-  { id: "attractions", label: "Điểm tham quan", icon: Compass },
-  { id: "restaurants", label: "Nhà hàng", icon: Utensils },
-  { id: "hotels", label: "Khách sạn", icon: Hotel },
-  { id: "cafe", label: "Quán cà phê", icon: Coffee },
-  { id: "gas_station", label: "Trạm xăng", icon: Fuel },
-  { id: "hospital", label: "Bệnh viện", icon: Hospital },
-  { id: "entertainment", label: "Giải trí", icon: Gamepad2 },
-  { id: "museums", label: "Bảo tàng", icon: Landmark },
-  { id: "atm", label: "ATM", icon: DollarSign },
-];
+
 
 const mockAlerts = [
   {
@@ -183,24 +177,8 @@ function getCirclePolygon(
 export default function Home() {
   // KHOẢNG KHAI BÁO STATE VÀ REFS BẮT BUỘC PHẢI Ở TRONG COMPONENT
   const mapRef = useRef<MapRef>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
-  const watchPositionId = useRef<number | null>(null);
-
   // States nâng cấp dẫn đường
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [distanceToNextStep, setDistanceToNextStep] = useState(0);
-  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
-  const [isSimulationMode, setIsSimulationMode] = useState(false);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationSpeed, setSimulationSpeed] = useState(2); // 2x
-  const [simulatedCoords, setSimulatedCoords] = useState<[number, number] | null>(null);
-  const [simulatedHeading, setSimulatedHeading] = useState(0);
   const [showNavModeSelector, setShowNavModeSelector] = useState(false);
-
-  const simulationIntervalRef = useRef<number | null>(null);
-  const lastSpokenStepIndexRef = useRef<number>(-1);
-  const approachSpokenRef = useRef<number>(-1);
-  const simulationIndexRef = useRef<number>(0);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -263,56 +241,7 @@ export default function Home() {
     };
   }, []);
 
-  // States cho Chia sẻ vị trí trực tiếp (Live Location Sharing)
-  const [isSharingLocation, setIsSharingLocation] = useState(false);
-  const [liveShareToken, setLiveShareToken] = useState<string | null>(null);
-  const socketRef = useRef<any>(null);
-  const shareWatchId = useRef<number | null>(null);
 
-  // Cleanup kết nối socket và GPS watch khi unmount
-  useEffect(() => {
-    return () => {
-      if (socketRef.current) socketRef.current.disconnect();
-      if (shareWatchId.current !== null) navigator.geolocation.clearWatch(shareWatchId.current);
-    };
-  }, []);
-
-  // Watch position định vị GPS và gửi tọa độ thời gian thực qua socket
-  useEffect(() => {
-    if (!isSharingLocation || !liveShareToken) {
-      if (shareWatchId.current !== null) {
-        navigator.geolocation.clearWatch(shareWatchId.current);
-        shareWatchId.current = null;
-      }
-      return;
-    }
-    if (!navigator.geolocation) {
-      showPremiumToast('Thiết bị không hỗ trợ định vị GPS.', 'error');
-      setIsSharingLocation(false);
-      return;
-    }
-    shareWatchId.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude, heading } = position.coords;
-        if (socketRef.current && socketRef.current.connected) {
-          socketRef.current.emit('update-location', {
-            shareToken: liveShareToken,
-            lat: latitude,
-            lng: longitude,
-            heading: heading || 0
-          });
-        }
-      },
-      (err) => console.error('❌ [Share GPS] Lỗi định vị:', err),
-      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
-    );
-    return () => {
-      if (shareWatchId.current !== null) {
-        navigator.geolocation.clearWatch(shareWatchId.current);
-        shareWatchId.current = null;
-      }
-    };
-  }, [isSharingLocation, liveShareToken]);
 
   const [countdown, setCountdown] = useState(1);
 
@@ -480,161 +409,19 @@ export default function Home() {
     trafficAlerts,
     isLowBandwidth,
     isOffline,
+    onCrossedRestrictedRoad: (blockedRoads, onAvoid, onCancel) => {
+      showCustomConfirm(
+        "Phát hiện đường cấm",
+        `Tuyến đường dự kiến đi qua đoạn đường cấm: ${blockedRoads
+          .map((r) => r.road_name)
+          .join(", ")}. Bạn có muốn đổi tuyến đường khác để né tránh không?`,
+        onAvoid,
+        onCancel
+      );
+    },
   });
 
   // CÁC HÀM XỬ LÝ DẪN ĐƯỜNG (NAVIGATION)
-  // Helper tính khoảng cách Haversine (mét)
-  const getDistanceMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371000;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lng2 - lng1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  // Helper tính khoảng cách từ điểm đến đoạn thẳng (mét)
-  const getDistanceToSegment = (p: [number, number], a: [number, number], b: [number, number]) => {
-    const dy = (b[1] - a[1]) * 111320;
-    const dx = (b[0] - a[0]) * 111320 * Math.cos((a[1] * Math.PI) / 180);
-    const p_y = (p[1] - a[1]) * 111320;
-    const p_x = (p[0] - a[0]) * 111320 * Math.cos((a[1] * Math.PI) / 180);
-
-    const len2 = dx * dx + dy * dy;
-    if (len2 === 0) return Math.sqrt(p_x * p_x + p_y * p_y);
-
-    let t = (p_x * dx + p_y * dy) / len2;
-    t = Math.max(0, Math.min(1, t));
-
-    const proj_x = t * dx;
-    const proj_y = t * dy;
-
-    const diff_x = p_x - proj_x;
-    const diff_y = p_y - proj_y;
-    return Math.sqrt(diff_x * diff_x + diff_y * diff_y);
-  };
-
-  const speakInstruction = (text: string) => {
-    if (isVoiceMuted) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "vi-VN";
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.error("TTS error:", e);
-    }
-  };
-
-  // Đọc TTS khi đổi bước đi
-  useEffect(() => {
-    if (!isNavigating || !routeData?.steps) return;
-    const currentStep = routeData.steps[currentStepIndex];
-    if (currentStep && currentStepIndex !== lastSpokenStepIndexRef.current) {
-      speakInstruction(currentStep.maneuver.instruction || "Tiếp tục đi thẳng");
-      lastSpokenStepIndexRef.current = currentStepIndex;
-    }
-  }, [currentStepIndex, isNavigating, routeData]);
-
-  // Logic mô phỏng (Simulation loop)
-  const startSimulation = (resume = false) => {
-    if (!routeData || routeData.coordinates.length < 2) return;
-
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-    }
-
-    setIsSimulating(true);
-    if (!resume) {
-      simulationIndexRef.current = 0;
-      setCurrentStepIndex(0);
-      lastSpokenStepIndexRef.current = -1;
-      approachSpokenRef.current = -1;
-    }
-
-    const coords = routeData.coordinates;
-
-    const runSimulationStep = () => {
-      const index = simulationIndexRef.current;
-      if (index >= coords.length - 1) {
-        if (simulationIntervalRef.current) {
-          clearInterval(simulationIntervalRef.current);
-          simulationIntervalRef.current = null;
-        }
-        setIsSimulating(false);
-        speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
-        showPremiumToast("Mô phỏng kết thúc. Bạn đã đến nơi!", "success");
-        handleStopNavigation();
-        return;
-      }
-
-      const p1 = coords[index];
-      const p2 = coords[index + 1];
-
-      const dy = p2[1] - p1[1];
-      const dx = (p2[0] - p1[0]) * Math.cos((p1[1] * Math.PI) / 180);
-      const angle = (Math.atan2(dx, dy) * 180) / Math.PI;
-      setSimulatedHeading(angle);
-      setSimulatedCoords(p2);
-
-      mapRef.current?.easeTo({
-        center: p2,
-        bearing: angle,
-        pitch: 60,
-        zoom: 17.5,
-        duration: 300,
-      });
-
-      if (routeData.steps && routeData.steps.length > 0) {
-        const nextStepInfo = routeData.steps[currentStepIndex + 1];
-        if (nextStepInfo) {
-          const [nextLng, nextLat] = nextStepInfo.maneuver.location;
-          const distToNext = getDistanceMeters(p2[1], p2[0], nextLat, nextLng);
-          setDistanceToNextStep(distToNext);
-
-          if (distToNext < 25) {
-            setCurrentStepIndex((prev) => prev + 1);
-          }
-
-          if (distToNext < 100 && distToNext > 45 && approachSpokenRef.current !== currentStepIndex) {
-            speakInstruction(`Chuẩn bị ${nextStepInfo.maneuver.instruction}`);
-            approachSpokenRef.current = currentStepIndex;
-          }
-        } else {
-          const lastStep = routeData.steps[routeData.steps.length - 1];
-          if (lastStep) {
-            const [destLng, destLat] = lastStep.maneuver.location;
-            const distToDest = getDistanceMeters(p2[1], p2[0], destLat, destLng);
-            setDistanceToNextStep(distToDest);
-          }
-        }
-      }
-
-      simulationIndexRef.current = index + 1;
-    };
-
-    const intervalTime = 600 / simulationSpeed;
-    simulationIntervalRef.current = window.setInterval(runSimulationStep, intervalTime);
-  };
-
-  const pauseSimulation = () => {
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-      simulationIntervalRef.current = null;
-    }
-    setIsSimulating(false);
-  };
-
-  useEffect(() => {
-    if (isSimulating && isSimulationMode) {
-      startSimulation(true);
-    }
-  }, [simulationSpeed]);
 
   const handleStartNavigation = () => {
     if (!routeData) {
@@ -644,140 +431,9 @@ export default function Home() {
     setShowNavModeSelector(true);
   };
 
-  const handleStartRealNavigation = () => {
-    setShowNavModeSelector(false);
-    setIsSimulationMode(false);
-    setIsNavigating(true);
-    setCurrentStepIndex(0);
-    lastSpokenStepIndexRef.current = -1;
-    approachSpokenRef.current = -1;
 
-    if (!navigator.geolocation) {
-      showPremiumToast("Thiết bị không hỗ trợ GPS.", "error");
-      return;
-    }
 
-    if (watchPositionId.current !== null) return;
 
-    if (routeData?.steps?.[0]) {
-      speakInstruction(routeData.steps[0].maneuver.instruction);
-    }
-
-    watchPositionId.current = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude, heading } = position.coords;
-
-        mapRef.current?.flyTo({
-          center: [longitude, latitude],
-          zoom: 18,
-          pitch: 60,
-          bearing: heading ?? 0,
-          duration: 500,
-        });
-
-        // Tự động tìm lại đường khi lệch hướng
-        if (routeData && routeData.coordinates.length > 1) {
-          let minDist = Infinity;
-          for (let i = 0; i < routeData.coordinates.length - 1; i++) {
-            const dist = getDistanceToSegment(
-              [longitude, latitude],
-              routeData.coordinates[i],
-              routeData.coordinates[i + 1]
-            );
-            if (dist < minDist) minDist = dist;
-          }
-
-          if (minDist > 60) {
-            speakInstruction("Bạn đã đi chệch hướng. Đang tính toán lại lộ trình.");
-            showPremiumToast("Đang tự động tính toán lại lộ trình...", "warning");
-            setOrigin({
-              lat: latitude,
-              lng: longitude,
-              label: "Vị trí của bạn (tính lại)"
-            });
-            return;
-          }
-        }
-
-        if (routeData?.steps && routeData.steps.length > 0) {
-          const nextStepInfo = routeData.steps[currentStepIndex + 1];
-          if (nextStepInfo) {
-            const [nextLng, nextLat] = nextStepInfo.maneuver.location;
-            const distToNext = getDistanceMeters(latitude, longitude, nextLat, nextLng);
-            setDistanceToNextStep(distToNext);
-
-            if (distToNext < 25) {
-              setCurrentStepIndex((prev) => prev + 1);
-            }
-
-            if (distToNext < 100 && distToNext > 45 && approachSpokenRef.current !== currentStepIndex) {
-              speakInstruction(`Chuẩn bị ${nextStepInfo.maneuver.instruction}`);
-              approachSpokenRef.current = currentStepIndex;
-            }
-          } else {
-            const lastStep = routeData.steps[routeData.steps.length - 1];
-            if (lastStep) {
-              const [destLng, destLat] = lastStep.maneuver.location;
-              const distToDest = getDistanceMeters(latitude, longitude, destLat, destLng);
-              setDistanceToNextStep(distToDest);
-              if (distToDest < 15) {
-                speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
-                showPremiumToast("Bạn đã đến nơi!", "success");
-                handleStopNavigation();
-              }
-            }
-          }
-        }
-      },
-      (err) => {
-        console.error(err);
-        showPremiumToast("Không thể lấy GPS.", "error");
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000,
-      },
-    );
-  };
-
-  const handleStartSimulationNavigation = () => {
-    setShowNavModeSelector(false);
-    setIsSimulationMode(true);
-    setIsNavigating(true);
-
-    if (routeData?.steps?.[0]) {
-      speakInstruction(routeData.steps[0].maneuver.instruction);
-    }
-
-    startSimulation(false);
-  };
-
-  const handleStopNavigation = () => {
-    setIsNavigating(false);
-    setIsSimulationMode(false);
-    setIsSimulating(false);
-    setSimulatedCoords(null);
-    if (simulationIntervalRef.current) {
-      clearInterval(simulationIntervalRef.current);
-      simulationIntervalRef.current = null;
-    }
-    if (watchPositionId.current !== null) {
-      navigator.geolocation.clearWatch(watchPositionId.current);
-      watchPositionId.current = null;
-    }
-    mapRef.current?.easeTo({ pitch: 0, bearing: 0, zoom: 14 });
-    window.speechSynthesis.cancel();
-  };
-
-  // Dọn dẹp simulation khi unmount
-  useEffect(() => {
-    return () => {
-      if (simulationIntervalRef.current) {
-        clearInterval(simulationIntervalRef.current);
-      }
-    };
-  }, []);
 
   const handleOpenReportModal = (lat: number, lng: number) => {
     const token =
@@ -825,57 +481,7 @@ export default function Home() {
     });
   };
 
-  const handleToggleShareLocation = async () => {
-    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
-    if (!token) {
-      showPremiumToast('Vui lòng đăng nhập để sử dụng tính năng chia sẻ vị trí.', 'error');
-      return;
-    }
-    if (isSharingLocation) {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-        const res = await fetch(`${apiUrl}/api/location/stop`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ share_token: liveShareToken })
-        });
-        const data = await res.json();
-        if (data.success) {
-          setIsSharingLocation(false);
-          setLiveShareToken(null);
-          if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
-          showPremiumToast('Đã dừng chia sẻ vị trí trực tiếp.', 'success');
-        } else {
-          showPremiumToast(data.message || 'Lỗi dừng chia sẻ.', 'error');
-        }
-      } catch (err) {
-        showPremiumToast('Lỗi kết nối máy chủ.', 'error');
-      }
-    } else {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-        const res = await fetch(`${apiUrl}/api/location/share`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (data.success && data.share_token) {
-          const shareToken = data.share_token;
-          setLiveShareToken(shareToken);
-          socketRef.current = io(apiUrl);
-          socketRef.current.on('connect', () => { socketRef.current.emit('join-session', { shareToken }); });
-          setIsSharingLocation(true);
-          const shareLink = `${window.location.origin}/track/${shareToken}`;
-          navigator.clipboard.writeText(shareLink);
-          showPremiumToast(`Đã bật chia sẻ vị trí trực tiếp! Link theo dõi đã được sao chép: ${shareLink}`, 'success', 6000);
-        } else {
-          showPremiumToast(data.message || 'Lỗi khởi tạo chia sẻ vị trí.', 'error');
-        }
-      } catch (err) {
-        showPremiumToast('Lỗi kết nối máy chủ.', 'error');
-      }
-    }
-  };
+
 
 
 
@@ -981,364 +587,76 @@ export default function Home() {
   const { userLocation, setUserLocation, handleGetCurrentLocation } =
     useUserLocation(mapRef, validateLocation, setOrigin, setOriginQuery);
 
-  // ============ SAVED ROUTES & SHARING ============
-  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
-  const [showSavedRoutesSidebar, setShowSavedRoutesSidebar] = useState(false);
-  const [showSaveRouteModal, setShowSaveRouteModal] = useState(false);
-  const [saveRouteName, setSaveRouteName] = useState("");
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [shareUrl, setShareUrl] = useState("");
-  const [isSavingRoute, setIsSavingRoute] = useState(false);
-  const [isSharingRoute, setIsSharingRoute] = useState(false);
+  const {
+    isNavigating,
+    isSimulationMode,
+    isSimulating,
+    simulatedCoords,
+    simulatedHeading,
+    simulationSpeed,
+    setSimulationSpeed,
+    isVoiceMuted,
+    setIsVoiceMuted,
+    currentStepIndex,
+    setCurrentStepIndex,
+    distanceToNextStep,
+    handleStartRealNavigation,
+    handleStartSimulationNavigation,
+    handleStopNavigation,
+    speakInstruction,
+    startSimulation,
+    pauseSimulation,
+  } = useGPSNavigation({
+    mapRef,
+    routeData,
+    userLocation,
+    setUserLocation,
+    setOrigin,
+    setOriginQuery,
+  });
 
-  const fetchSavedRoutes = async () => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) return;
-    try {
-      const routes = await savedRouteService.getSavedRoutes();
-      setSavedRoutes(routes);
-    } catch (error) {
-      console.error("Lỗi khi tải danh sách lộ trình:", error);
-    }
-  };
+  const {
+    isSharingLocation,
+    liveShareToken,
+    handleToggleShareLocation,
+  } = useLiveLocationSharing();
 
-  useEffect(() => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (token) {
-      fetchSavedRoutes();
-    }
-  }, [showSavedRoutesSidebar]);
-
-  const handleSaveRoute = async () => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) {
-      showPremiumToast("Vui lòng đăng nhập để lưu lộ trình.", "error");
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
-      return;
-    }
-
-    if (!routeData || !origin || !destination) {
-      showPremiumToast("Không tìm thấy dữ liệu lộ trình để lưu.", "error");
-      return;
-    }
-
-    setIsSavingRoute(true);
-    try {
-      await savedRouteService.saveRoute({
-        origin_name: origin.label || originQuery,
-        origin_lat: origin.lat,
-        origin_lng: origin.lng,
-        destination_name: destination.label || destinationQuery,
-        destination_lat: destination.lat,
-        destination_lng: destination.lng,
-        route_name:
-          saveRouteName.trim() ||
-          `Lộ trình từ ${origin.label || "Vị trí hiện tại"} đến ${destination.label || "Điểm đến"}`,
-        route_data: JSON.stringify(routeData.coordinates),
-        distance_meters: Math.round(routeData.totalDistanceKm * 1000),
-        duration_seconds: routeData.totalTimeMin * 60,
-        profile: travelMode,
-        is_emergency: avoidFlood || activeOrSelectedEventRoads.length > 0,
-      });
-      showPremiumToast("Lưu lộ trình thành công!", "success");
-      setShowSaveRouteModal(false);
-      setSaveRouteName("");
-      fetchSavedRoutes();
-    } catch (error: any) {
-      console.error("Lỗi khi lưu lộ trình:", error);
-      showPremiumToast(
-        error.response?.data?.message || "Không thể lưu lộ trình.",
-        "error",
-      );
-    } finally {
-      setIsSavingRoute(false);
-    }
-  };
-
-  const handleShareRoute = async () => {
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    if (!token) {
-      showPremiumToast("Vui lòng đăng nhập để chia sẻ lộ trình.", "error");
-      setTimeout(() => {
-        navigate("/login");
-      }, 2000);
-      return;
-    }
-
-    if (!routeData || !origin || !destination) {
-      showPremiumToast("Không tìm thấy dữ liệu lộ trình để chia sẻ.", "error");
-      return;
-    }
-
-    setIsSharingRoute(true);
-    try {
-      const data = await savedRouteService.shareDirectRoute({
-        origin_name: origin.label || originQuery,
-        origin_lat: origin.lat,
-        origin_lng: origin.lng,
-        destination_name: destination.label || destinationQuery,
-        destination_lat: destination.lat,
-        destination_lng: destination.lng,
-        route_name: `Chia sẻ - ${destination.label || "Điểm đến"}`,
-        route_data: JSON.stringify(routeData.coordinates),
-        distance_meters: Math.round(routeData.totalDistanceKm * 1000),
-        duration_seconds: routeData.totalTimeMin * 60,
-        profile: travelMode,
-        is_emergency: avoidFlood || activeOrSelectedEventRoads.length > 0,
-      });
-
-      if (data.success && data.share_token) {
-        const shareLink = `${window.location.origin}${import.meta.env.BASE_URL}dashboard?share=${data.share_token}`;
-        setShareUrl(shareLink);
-        setShowShareModal(true);
-        showPremiumToast("Đã tạo liên kết chia sẻ!", "success");
-      } else {
-        showPremiumToast("Không thể tạo liên kết chia sẻ.", "error");
-      }
-    } catch (error: any) {
-      console.error("Lỗi khi chia sẻ lộ trình:", error);
-      showPremiumToast(
-        error.response?.data?.message || "Không thể tạo liên kết chia sẻ.",
-        "error",
-      );
-    } finally {
-      setIsSharingRoute(false);
-    }
-  };
-
-  const handleDeleteSavedRoute = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    showCustomConfirm(
-      "Xác nhận xóa",
-      "Bạn có chắc chắn muốn xóa lộ trình này không?",
-      async () => {
-        try {
-          await savedRouteService.deleteRoute(id);
-          showPremiumToast("Đã xóa lộ trình!", "success");
-          fetchSavedRoutes();
-        } catch (error) {
-          console.error("Lỗi khi xóa lộ trình:", error);
-          showPremiumToast("Không thể xóa lộ trình.", "error");
-        }
-      },
-      () => { },
-    );
-  };
-
-  const handleSelectSavedRoute = (route: SavedRoute) => {
-    setOrigin({
-      lat: route.origin_lat,
-      lng: route.origin_lng,
-      label: route.origin_name || "Vị trí xuất phát",
-    });
-    setOriginQuery(route.origin_name || "Vị trí xuất phát");
-
-    setDestination({
-      lat: route.destination_lat,
-      lng: route.destination_lng,
-      label: route.destination_name || "Vị trí đến",
-    });
-    setDestinationQuery(route.destination_name || "Vị trí đến");
-    setTravelMode(route.profile as any);
-
-    let coords: [number, number][] = [];
-    try {
-      coords = JSON.parse(route.route_data);
-    } catch (e) {
-      console.error("Lỗi parse route_data:", e);
-    }
-
-    setRouteData({
-      totalDistanceKm: parseFloat((route.distance_meters / 1000).toFixed(2)),
-      totalTimeMin: Math.round(route.duration_seconds / 60),
-      coordinates: coords,
-    });
-
-    if (coords.length > 0) {
-      let minLng = coords[0][0],
-        maxLng = coords[0][0];
-      let minLat = coords[0][1],
-        maxLat = coords[0][1];
-      for (const c of coords) {
-        if (c[0] < minLng) minLng = c[0];
-        if (c[0] > maxLng) maxLng = c[0];
-        if (c[1] < minLat) minLat = c[1];
-        if (c[1] > maxLat) maxLat = c[1];
-      }
-
-      mapRef.current?.fitBounds(
-        [
-          [minLng, minLat],
-          [maxLng, maxLat],
-        ],
-        { padding: 80, duration: 1500 },
-      );
-    }
-
-    setShowSavedRoutesSidebar(false);
-    showPremiumToast("Đã tải lộ trình đã lưu!", "success");
-  };
-
-  useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search);
-    const shareToken = queryParams.get("share");
-    if (shareToken) {
-      const loadSharedRoute = async () => {
-        try {
-          showPremiumToast("Đang tải lộ trình chia sẻ...", "success");
-          const route = await savedRouteService.getSharedRoute(shareToken);
-          if (route) {
-            isLoadedRouteRef.current = true;
-            setOrigin({
-              lat: route.origin_lat,
-              lng: route.origin_lng,
-              label: route.origin_name || "Điểm xuất phát chia sẻ",
-            });
-            setOriginQuery(route.origin_name || "Điểm xuất phát chia sẻ");
-
-            setDestination({
-              lat: route.destination_lat,
-              lng: route.destination_lng,
-              label: route.destination_name || "Điểm đến chia sẻ",
-            });
-            setDestinationQuery(route.destination_name || "Điểm đến chia sẻ");
-            setTravelMode(route.profile as any);
-
-            let coords: [number, number][] = [];
-            try {
-              coords = JSON.parse(route.route_data);
-            } catch (e) {
-              console.error("Lỗi parse route_data:", e);
-            }
-
-            setRouteData({
-              totalDistanceKm: parseFloat(
-                (route.distance_meters / 1000).toFixed(2),
-              ),
-              totalTimeMin: Math.round(route.duration_seconds / 60),
-              coordinates: coords,
-            });
-
-            if (coords.length > 0) {
-              let minLng = coords[0][0],
-                maxLng = coords[0][0];
-              let minLat = coords[0][1],
-                maxLat = coords[0][1];
-              for (const c of coords) {
-                if (c[0] < minLng) minLng = c[0];
-                if (c[0] > maxLng) maxLng = c[0];
-                if (c[1] < minLat) minLat = c[1];
-                if (c[1] > maxLat) maxLat = c[1];
-              }
-
-              mapRef.current?.fitBounds(
-                [
-                  [minLng, minLat],
-                  [maxLng, maxLat],
-                ],
-                { padding: 80, duration: 1500 },
-              );
-            }
-
-            const newUrl =
-              window.location.pathname +
-              window.location.search.replace(/[\?&]share=[^&]+/, "");
-            window.history.replaceState({}, "", newUrl || "/");
-            showPremiumToast("Tải lộ trình chia sẻ thành công!", "success");
-          }
-        } catch (error) {
-          console.error("Lỗi khi tải lộ trình chia sẻ:", error);
-          showPremiumToast(
-            "Không thể tải lộ trình chia sẻ. Liên kết có thể đã hết hạn.",
-            "error",
-          );
-        }
-      };
-      loadSharedRoute();
-    }
-  }, [location.search]);
-
-  useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search);
-    const routeId = queryParams.get("routeId");
-    if (routeId) {
-      const loadSavedRouteById = async () => {
-        try {
-          showPremiumToast("Đang tải lộ trình đã lưu...", "success");
-          const route = await savedRouteService.getRouteById(parseInt(routeId));
-          if (route) {
-            isLoadedRouteRef.current = true;
-            setOrigin({
-              lat: route.origin_lat,
-              lng: route.origin_lng,
-              label: route.origin_name || "Điểm xuất phát",
-            });
-            setOriginQuery(route.origin_name || "Điểm xuất phát");
-
-            setDestination({
-              lat: route.destination_lat,
-              lng: route.destination_lng,
-              label: route.destination_name || "Điểm đến",
-            });
-            setDestinationQuery(route.destination_name || "Điểm đến");
-            setTravelMode(route.profile as any);
-
-            let coords: [number, number][] = [];
-            try {
-              coords = JSON.parse(route.route_data);
-            } catch (e) {
-              console.error("Lỗi parse route_data:", e);
-            }
-
-            setRouteData({
-              totalDistanceKm: parseFloat(
-                (route.distance_meters / 1000).toFixed(2),
-              ),
-              totalTimeMin: Math.round(route.duration_seconds / 60),
-              coordinates: coords,
-            });
-
-            if (coords.length > 0) {
-              let minLng = coords[0][0],
-                maxLng = coords[0][0];
-              let minLat = coords[0][1],
-                maxLat = coords[0][1];
-              for (const c of coords) {
-                if (c[0] < minLng) minLng = c[0];
-                if (c[0] > maxLng) maxLng = c[0];
-                if (c[1] < minLat) minLat = c[1];
-                if (c[1] > maxLat) maxLat = c[1];
-              }
-
-              mapRef.current?.fitBounds(
-                [
-                  [minLng, minLat],
-                  [maxLng, maxLat],
-                ],
-                { padding: 80, duration: 1500 },
-              );
-            }
-
-            const newUrl =
-              window.location.pathname +
-              window.location.search.replace(/[\?&]routeId=[^&]+/, "");
-            window.history.replaceState({}, "", newUrl || "/");
-            showPremiumToast("Tải lộ trình thành công!", "success");
-          }
-        } catch (error) {
-          console.error("Lỗi khi tải lộ trình đã lưu:", error);
-          showPremiumToast("Không thể tải lộ trình đã lưu.", "error");
-        }
-      };
-      loadSavedRouteById();
-    }
-  }, [location.search]);
+  const {
+    savedRoutes,
+    showSavedRoutesSidebar,
+    setShowSavedRoutesSidebar,
+    showSaveRouteModal,
+    setShowSaveRouteModal,
+    saveRouteName,
+    setSaveRouteName,
+    showShareModal,
+    setShowShareModal,
+    shareUrl,
+    isSavingRoute,
+    isSharingRoute,
+    handleSaveRoute,
+    handleShareRoute,
+    handleDeleteSavedRoute,
+    handleSelectSavedRoute,
+  } = useSavedRoutesState({
+    mapRef,
+    origin,
+    setOrigin,
+    originQuery,
+    setOriginQuery,
+    destination,
+    setDestination,
+    destinationQuery,
+    setDestinationQuery,
+    travelMode,
+    setTravelMode,
+    routeData,
+    setRouteData,
+    isEmergency: avoidFlood || activeOrSelectedEventRoads.length > 0,
+    navigate,
+    showCustomConfirm,
+    isLoadedRouteRef,
+  });
 
   const selectedRoadPopupRef = useRef(selectedRoadPopup);
   const selectedPOIRef = useRef(selectedPOI);
@@ -2024,171 +1342,36 @@ export default function Home() {
           )}
 
           {pendingDestination && (
-            <>
-              <Marker
-                longitude={pendingDestination.lng}
-                latitude={pendingDestination.lat}
-                anchor="bottom"
-              >
-                <div className="relative w-[36px] h-[42px] flex flex-col items-center justify-end cursor-pointer animate-bounce">
-                  <svg
-                    width="36"
-                    height="42"
-                    viewBox="0 0 36 42"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="filter drop-shadow-md"
-                  >
-                    <ellipse
-                      cx="18"
-                      cy="38"
-                      rx="8"
-                      ry="2.5"
-                      fill="#64748b"
-                      opacity="0.4"
-                    />
-                    <path
-                      d="M18 0C8.059 0 0 8.059 0 18c0 13.5 18 24 18 24s18-10.5 18-24C36 8.059 27.941 0 18 0z"
-                      fill="#ef4444"
-                    />
-                    <circle cx="18" cy="18" r="8" fill="white" />
-                  </svg>
-                </div>
-              </Marker>
-
-              <Popup
-                longitude={pendingDestination.lng}
-                latitude={pendingDestination.lat}
-                anchor="bottom"
-                onClose={() => setPendingDestination(null)}
-                closeOnClick={false}
-                closeButton={false}
-                offset={[0, -35]}
-                className="z-50"
-              >
-                <div className="p-4 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 font-sans relative overflow-hidden">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
-                      <Navigation size={13} className="rotate-45" />
-                    </div>
-                    <div className="text-left flex-1 min-w-0">
-                      <h4 className="font-black text-[12px] text-slate-800 leading-tight">
-                        Chỉ đường tới đây?
-                      </h4>
-                      <p className="text-[9px] text-slate-400 font-semibold truncate">
-                        {pendingDestination.lng.toFixed(5)},{" "}
-                        {pendingDestination.lat.toFixed(5)}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setPendingDestination(null)}
-                      className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-all active:scale-95 shrink-0"
-                      title="Đóng"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-slate-500 mb-3 text-left leading-normal">
-                    Hệ thống sẽ vẽ lộ trình tối ưu và cảnh báo tránh các vùng
-                    ngập lụt nếu có.
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => {
-                        const { lng, lat } = pendingDestination;
-                        const label = `Tọa độ: ${lng.toFixed(4)}, ${lat.toFixed(4)}`;
-                        validateLocation(
-                          lng,
-                          lat,
-                          label,
-                          "destination",
-                          () => {
-                            setDestination({ lng, lat, label });
-                            setDestinationQuery(label);
-                            if (userLocation && !origin) {
-                              setOrigin({
-                                lng: userLocation.lng,
-                                lat: userLocation.lat,
-                                label: "Vị trí của bạn",
-                              });
-                              setOriginQuery("Vị trí của bạn");
-                            }
-                            setPendingDestination(null);
-                          },
-                          () => {
-                            setDestination(null);
-                            setDestinationQuery("");
-                            setPendingDestination(null);
-                          },
-                        );
-                      }}
-                      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[11px] font-black py-2 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md shadow-blue-500/20 active:scale-95"
-                    >
-                      Chỉ đường
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (pendingDestination) {
-                          handleOpenReportModal(
-                            pendingDestination.lat,
-                            pendingDestination.lng,
-                          );
-                        }
-                      }}
-                      className="bg-orange-50 border border-orange-200 text-orange-600 text-[11px] font-bold py-2 px-3 rounded-xl hover:bg-orange-100 hover:text-orange-700 transition-all active:scale-95"
-                    >
-                      Báo cáo
-                    </button>
-                    <button
-                      onClick={() => setPendingDestination(null)}
-                      className="bg-slate-50 border border-slate-200/60 text-slate-600 text-[11px] font-bold py-2 px-2.5 rounded-xl hover:bg-slate-100 hover:text-slate-800 transition-all active:scale-95"
-                    >
-                      Hủy
-                    </button>
-                  </div>
-                </div>
-              </Popup>
-            </>
-          )}
-
-          {selectedFloodZone && mapControls.flood && (
-            <Popup
-              longitude={selectedFloodZone.lng}
-              latitude={selectedFloodZone.lat}
+            <Marker
+              longitude={pendingDestination.lng}
+              latitude={pendingDestination.lat}
               anchor="bottom"
-              onClose={() => setSelectedFloodZone(null)}
-              closeOnClick={false}
-              offset={[0, -15]}
-              className="z-50"
             >
-              <div className="p-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 text-slate-800 font-sans">
-                <h3 className="font-bold text-[13px] mb-1.5 leading-tight">
-                  {selectedFloodZone.properties.name}
-                </h3>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <span className="text-[11px] text-slate-500 font-semibold">
-                    Mức độ:
-                  </span>
-                  <span
-                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${selectedFloodZone.properties.risk_level === "High"
-                      ? "bg-red-100 text-red-600"
-                      : selectedFloodZone.properties.risk_level === "Medium"
-                        ? "bg-orange-100 text-orange-600"
-                        : "bg-yellow-100 text-yellow-600"
-                      }`}
-                  >
-                    {selectedFloodZone.properties.risk_level === "High"
-                      ? "Cao"
-                      : selectedFloodZone.properties.risk_level === "Medium"
-                        ? "Trung bình"
-                        : "Thấp"}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed border-t border-slate-100 pt-1.5 pb-1.5">
-                  {selectedFloodZone.properties.description}
-                </p>
+              <div className="relative w-[36px] h-[42px] flex flex-col items-center justify-end cursor-pointer animate-bounce">
+                <svg
+                  width="36"
+                  height="42"
+                  viewBox="0 0 36 42"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="filter drop-shadow-md"
+                >
+                  <ellipse
+                    cx="18"
+                    cy="38"
+                    rx="8"
+                    ry="2.5"
+                    fill="#64748b"
+                    opacity="0.4"
+                  />
+                  <path
+                    d="M18 0C8.059 0 0 8.059 0 18c0 13.5 18 24 18 24s18-10.5 18-24C36 8.059 27.941 0 18 0z"
+                    fill="#ef4444"
+                  />
+                  <circle cx="18" cy="18" r="8" fill="white" />
+                </svg>
               </div>
-            </Popup>
+            </Marker>
           )}
 
           {/* VẼ CÁC TUYẾN ĐƯỜNG THAY THẾ (ALTERNATIVE ROUTES) */}
@@ -2530,148 +1713,60 @@ export default function Home() {
             );
           })}
 
-          {mapControls.traffic && selectedTrafficAlert && (
-            <Popup
-              longitude={selectedTrafficAlert.longitude}
-              latitude={selectedTrafficAlert.latitude}
-              anchor="top"
-              onClose={() => setSelectedTrafficAlert(null)}
-              closeButton={true}
-              closeOnClick={false}
-              offset={[0, 10]}
-              className="z-50"
-            >
-              <div className="p-4 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 text-slate-800 font-sans text-left">
-                <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${selectedTrafficAlert.type === "CONGESTION"
-                      ? "bg-orange-50 border-orange-200 text-orange-600"
-                      : selectedTrafficAlert.type === "ACCIDENT"
-                        ? "bg-red-50 border-red-200 text-red-600"
-                        : "bg-blue-50 border-blue-200 text-blue-600"
-                      }`}
-                  >
-                    {selectedTrafficAlert.type === "CONGESTION"
-                      ? "Kẹt xe"
-                      : selectedTrafficAlert.type === "ACCIDENT"
-                        ? "Tai nạn"
-                        : "Thi công"}
-                  </span>
-                  <span
-                    className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${selectedTrafficAlert.severity === "HIGH"
-                      ? "bg-red-100 border-red-300 text-red-700"
-                      : selectedTrafficAlert.severity === "MEDIUM"
-                        ? "bg-orange-100 border-orange-300 text-orange-700"
-                        : "bg-blue-100 border-blue-300 text-blue-700"
-                      }`}
-                  >
-                    {selectedTrafficAlert.severity}
-                  </span>
-                </div>
-                <h4 className="font-extrabold text-sm text-slate-800 leading-snug mb-1">
-                  {selectedTrafficAlert.title}
-                </h4>
-                {selectedTrafficAlert.description && (
-                  <p className="text-xs text-slate-600 mb-2 leading-relaxed">
-                    {selectedTrafficAlert.description}
-                  </p>
-                )}
-                <p className="text-[10px] text-slate-400 font-semibold mb-1 flex items-center gap-1">
-                  📍 {selectedTrafficAlert.location}
-                </p>
-              </div>
-            </Popup>
-          )}
-
-          {selectedRoadPopup &&
-            selectedRoadPopup.geojson_coords &&
-            selectedRoadPopup.geojson_coords.length > 0 && (
-              <Popup
-                longitude={selectedRoadPopup.geojson_coords[0][0]}
-                latitude={selectedRoadPopup.geojson_coords[0][1]}
-                anchor="top"
-                onClose={() => setSelectedRoadPopup(null)}
-                closeButton={true}
-                closeOnClick={false}
-                offset={[0, 10]}
-                className="z-50"
-              >
-                <div className="p-3 w-60 bg-white rounded-2xl shadow-xl border border-slate-100 text-slate-800 font-sans">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <div
-                      className={`p-1 rounded-lg shrink-0 ${isRoadRestrictionActive(selectedRoadPopup, new Date())
-                        ? "bg-red-100 text-red-600"
-                        : "bg-slate-100 text-slate-500"
-                        }`}
-                    >
-                      <RouteOff size={14} />
-                    </div>
-                    <h4 className="font-bold text-[12px] leading-tight text-slate-800">
-                      {selectedRoadPopup.road_name}
-                    </h4>
-                  </div>
-
-                  {(() => {
-                    const active = isRoadRestrictionActive(
-                      selectedRoadPopup,
-                      new Date(),
-                    );
-                    return (
-                      <div
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold mb-1.5 border ${active
-                          ? "bg-red-50 border-red-200 text-red-600 animate-pulse"
-                          : "bg-slate-50 border-slate-200 text-slate-500"
-                          }`}
-                      >
-                        {active
-                          ? "🔴 ĐANG ÁP DỤNG CẤM ĐƯỜNG"
-                          : "⚪ ĐANG MỞ (CHƯA ĐẾN GIỜ CẤM)"}
-                      </div>
-                    );
-                  })()}
-
-                  <p className="text-[10px] text-slate-500 mb-1.5 font-bold">
-                    {selectedRoadPopup.restriction_type === "CLOSED"
-                      ? "🔴 Cấm hoàn toàn"
-                      : selectedRoadPopup.restriction_type === "LIMITED"
-                        ? "🟡 Hạn chế lưu thông"
-                        : selectedRoadPopup.restriction_type === "ONE_WAY"
-                          ? "🔵 Đường một chiều"
-                          : "Hạn chế cấm đỗ"}
-                  </p>
-
-                  <p className="text-[11px] text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-100 mb-1.5 leading-relaxed">
-                    {selectedRoadPopup.description ||
-                      "Hạn chế giao thông phục vụ sự kiện."}
-                  </p>
-                </div>
-              </Popup>
-            )}
+          <MapPopupsOrchestrator
+            pendingDestination={pendingDestination}
+            setPendingDestination={setPendingDestination}
+            userLocation={userLocation}
+            setOrigin={setOrigin}
+            setOriginQuery={setOriginQuery}
+            setDestination={setDestination}
+            setDestinationQuery={setDestinationQuery}
+            origin={origin}
+            validateLocation={validateLocation}
+            handleOpenReportModal={handleOpenReportModal}
+            selectedFloodZone={selectedFloodZone}
+            setSelectedFloodZone={setSelectedFloodZone}
+            mapControls={mapControls}
+            selectedTrafficAlert={selectedTrafficAlert}
+            setSelectedTrafficAlert={setSelectedTrafficAlert}
+            selectedRoadPopup={selectedRoadPopup}
+            setSelectedRoadPopup={setSelectedRoadPopup}
+            isRoadRestrictionActive={isRoadRestrictionActive}
+          />
 
           {viewMode === "pois" ? (
-            <POIsLayer
-              pois={pois}
-              selectedFilter={selectedFilter}
-              onDirectionsClick={(poi) => {
-                setDestination({
-                  lng: poi.longitude,
-                  lat: poi.latitude,
-                  label: poi.name,
-                  poi_id: poi.poi_id,
-                });
-                setDestinationQuery(poi.name);
-                if (userLocation) {
-                  setOrigin({
-                    lng: userLocation.lng,
-                    lat: userLocation.lat,
-                    label: "Vị trí của bạn",
+            <>
+              <POIsLayer
+                pois={pois}
+                selectedFilter={selectedFilter}
+                onDirectionsClick={(poi) => {
+                  setDestination({
+                    lng: poi.longitude,
+                    lat: poi.latitude,
+                    label: poi.name,
+                    poi_id: poi.poi_id,
                   });
-                  setOriginQuery("Vị trí của bạn");
-                }
-              }}
-              selectedPOI={selectedPOI}
-              onSelectPOI={setSelectedPOI}
-            />
+                  setDestinationQuery(poi.name);
+                  if (userLocation) {
+                    setOrigin({
+                      lng: userLocation.lng,
+                      lat: userLocation.lat,
+                      label: "Vị trí của bạn",
+                    });
+                    setOriginQuery("Vị trí của bạn");
+                  }
+                }}
+                selectedPOI={selectedPOI}
+                onSelectPOI={setSelectedPOI}
+              />
+              <EventsLayer
+                events={events.filter(
+                  (evt) =>
+                    getEventStatus(evt.start_time, evt.end_time) === "ongoing"
+                )}
+                onSelectEvent={handleEventClick}
+              />
+            </>
           ) : (
             <EventsLayer events={events} onSelectEvent={handleEventClick} />
           )}
@@ -2790,188 +1885,50 @@ export default function Home() {
           </div>
           {/* Filter chips — desktop only: nằm cùng hàng giữa search và bell/avatar */}
           {!isNavigating && viewMode === "pois" && (
-            <div className="hidden md:flex items-center justify-start gap-2 overflow-x-auto flex-nowrap flex-1 self-start pointer-events-auto scrollbar-none pb-2">
-              {filterCategories.map((cat) => {
-                const Icon = cat.icon;
-                const isSelected = selectedFilter === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => handleFilterClick(cat.id)}
-                    className={`flex items-center gap-1.5 px-3.5 h-[42px] rounded-full text-[11px] font-bold shadow-md border transition-all shrink-0 ${isSelected
-                      ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
-                      : "bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50 hover:text-blue-600"
-                      }`}
-                  >
-                    <Icon
-                      size={13}
-                      className={isSelected ? "text-white" : "text-slate-500"}
-                    />
-                    <span>{cat.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+            <FilterChips
+              selectedFilter={selectedFilter}
+              onFilterClick={handleFilterClick}
+            />
           )}
 
           {/* Thông báo & User - cùng hàng với search */}
           {!isNavigating && (
-            <div className="flex flex-row items-center gap-2 shrink-0 pointer-events-auto self-start">
-              <div className="relative">
-                <button
-                  onClick={() => setShowNotificationModal(!showNotificationModal)}
-                  className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all relative"
-                >
-                  <Bell size={18} />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white px-0.5">
-                      {unreadCount > 99 ? "99+" : unreadCount}
-                    </span>
-                  )}
-                </button>
-
-                <NotificationCenter
-                  isOpen={showNotificationModal}
-                  onClose={() => setShowNotificationModal(false)}
-                  onFlyToZone={(notif: AppNotification) => {
-                    setShowNotificationModal(false);
-                    if (!notif) return;
-
-                    const match = notif.message?.match(/\[zone_id:(\d+)\]/);
-                    if (match) {
-                      const zoneId = parseInt(match[1]);
-                      const zone = floodZones.find(
-                        (z) => z.id === zoneId || z.zone_id === zoneId,
-                      );
-                      if (
-                        zone &&
-                        Array.isArray(zone.center) &&
-                        zone.center.length === 2
-                      ) {
-                        setMapControls((prev) => ({ ...prev, flood: true }));
-                        mapRef.current?.flyTo({
-                          center: [zone.center[0], zone.center[1]],
-                          zoom: 15,
-                          duration: 1500,
-                        });
-                        setSelectedFloodZone({
-                          lng: zone.center[0],
-                          lat: zone.center[1],
-                          properties: {
-                            id: zone.id,
-                            name: zone.name,
-                            depthCm: zone.depthCm,
-                            risk_level: zone.risk_level,
-                            description: zone.description,
-                          },
-                        });
-                        return;
-                      }
-                    }
-
-                    if (notif.alert_id) {
-                      const alert = trafficAlerts.find(
-                        (a) =>
-                          a.id === notif.alert_id ||
-                          a.alert_id === notif.alert_id,
-                      );
-                      if (alert) {
-                        setMapControls((prev) => ({ ...prev, traffic: true }));
-                        mapRef.current?.flyTo({
-                          center: [alert.longitude, alert.latitude],
-                          zoom: 16,
-                          duration: 1500,
-                        });
-                        setSelectedTrafficAlert(alert);
-                        setSelectedPOI(null);
-                        setSelectedEvent(null);
-                        setSelectedRoadPopup(null);
-                      }
-                    }
-                  }}
-                  onOpenEvent={(eventId) => {
-                    setViewMode("events");
-                    setShowEventsSidebar(true);
-                    const found = events.find((e) => e.event_id === eventId);
-                    if (found) handleEventClick(found);
-                    setShowNotificationModal(false);
-                  }}
-                />
-              </div>
-
-              {userRole === "admin" ? (
-                <button
-                  onClick={() => navigate("/admin/dashboard")}
-                  className="w-[42px] h-[42px] flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-md transition-all"
-                >
-                  <Settings size={18} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => navigate("?tab=profile")}
-                  className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 overflow-hidden text-slate-600 hover:text-blue-600 transition-all"
-                >
-                  {userProfile?.avatar_url ? (
-                    <img
-                      src={
-                        userProfile.avatar_url.startsWith("http")
-                          ? userProfile.avatar_url
-                          : `${import.meta.env.VITE_API_URL || "http://localhost:5001"}${userProfile.avatar_url}`
-                      }
-                      alt="Avatar"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <User size={18} />
-                  )}
-                </button>
-              )}
-            </div>
+            <TopRightActions
+              userRole={userRole || "user"}
+              userProfile={userProfile}
+              unreadCount={unreadCount}
+              showNotificationModal={showNotificationModal}
+              setShowNotificationModal={setShowNotificationModal}
+              navigate={navigate}
+              floodZones={floodZones}
+              trafficAlerts={trafficAlerts}
+              events={events}
+              setMapControls={setMapControls}
+              mapRef={mapRef}
+              setSelectedFloodZone={setSelectedFloodZone}
+              setSelectedTrafficAlert={setSelectedTrafficAlert}
+              setSelectedPOI={setSelectedPOI}
+              setSelectedEvent={setSelectedEvent}
+              setSelectedRoadPopup={setSelectedRoadPopup}
+              setViewMode={setViewMode}
+              setShowEventsSidebar={setShowEventsSidebar}
+              handleEventClick={handleEventClick}
+            />
           )}
         </div>
 
         {/* Filter chips — mobile only: hàng riêng bênn dưới search */}
         {!isNavigating && viewMode === "pois" && (
-          <div className="flex md:hidden items-center gap-2 overflow-x-auto pb-1 scrollbar-none pointer-events-auto w-full">
-            {filterCategories.map((cat) => {
-              const Icon = cat.icon;
-              const isSelected = selectedFilter === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => handleFilterClick(cat.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[11px] font-bold shadow-md border transition-all shrink-0 ${isSelected
-                    ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
-                    : "bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50 hover:text-blue-600"
-                    }`}
-                >
-                  <Icon
-                    size={13}
-                    className={isSelected ? "text-white" : "text-slate-500"}
-                  />
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <FilterChips
+            selectedFilter={selectedFilter}
+            onFilterClick={handleFilterClick}
+            isMobile
+          />
         )}
       </div>
 
       {/* TRAFFIC LEGEND */}
-      {mapControls.traffic && !isNavigating && (
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm px-4 py-2.5 rounded-full shadow-lg border border-slate-200 z-10 pointer-events-auto flex items-center gap-3 text-[11px] md:text-xs font-medium text-slate-600 hidden md:flex">
-          <span className="font-bold text-slate-800">Giao thông thời gian thực</span>
-          <div className="w-px h-4 bg-slate-300"></div>
-          <span className="italic">Nhanh</span>
-          <div className="flex items-center gap-0.5">
-            <div className="w-5 h-2 bg-[#22c55e] rounded-sm"></div>
-            <div className="w-5 h-2 bg-[#f59e0b] rounded-sm"></div>
-            <div className="w-5 h-2 bg-[#ef4444] rounded-sm"></div>
-            <div className="w-5 h-2 bg-[#7f1d1d] rounded-sm"></div>
-          </div>
-          <span className="italic">Chậm</span>
-        </div>
-      )}
+      <TrafficLegend show={mapControls.traffic && !isNavigating} />
 
       {/* MAP TOOLBAR DƯỚI GÓC PHẢI */}
       {!isNavigating && (
@@ -3009,18 +1966,7 @@ export default function Home() {
         />
       )}
 
-      {/* MODAL THÊM POI */}
-      {showAddPOIModal && pendingPOILocation && (
-        <AddPOIModal
-          location={pendingPOILocation}
-          onClose={() => setShowAddPOIModal(false)}
-          onSubmitSuccess={() => {
-            setShowAddPOIModal(false);
-            setIsAddingPOI(false);
-            setPendingPOILocation(null);
-          }}
-        />
-      )}
+
 
       {/* EVENT DETAIL SIDEBAR */}
       {!isNavigating && selectedEvent && (
@@ -3196,38 +2142,27 @@ export default function Home() {
         alerts={mockAlerts}
         onClose={() => setShowAlertPopup(false)}
       />
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        onConfirm={confirmModal.onConfirm}
-        onCancel={confirmModal.onCancel}
-      />
-
-      <ReportTrafficModal
-        isOpen={showReportModal}
-        onClose={() => setShowReportModal(false)}
-        title={reportFormData.title}
-        onChangeTitle={(val) => setReportFormData({ ...reportFormData, title: val })}
-        description={reportFormData.description}
-        onChangeDescription={(val) => setReportFormData({ ...reportFormData, description: val })}
-        location={reportFormData.location}
-        onChangeLocation={(val) => setReportFormData({ ...reportFormData, location: val })}
-        onSubmit={handleSubmitTrafficReport}
-      />
-
-      <SaveRouteModal
-        isOpen={showSaveRouteModal}
-        onClose={() => setShowSaveRouteModal(false)}
-        routeName={saveRouteName}
-        onChangeRouteName={setSaveRouteName}
-        onSubmit={handleSaveRoute}
-        isLoading={isSavingRoute}
-      />
-      <ShareRouteModal
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
+      <ModalsOrchestrator
+        confirmModal={confirmModal}
+        showReportModal={showReportModal}
+        setShowReportModal={setShowReportModal}
+        reportFormData={reportFormData}
+        setReportFormData={setReportFormData}
+        handleSubmitTrafficReport={handleSubmitTrafficReport}
+        showSaveRouteModal={showSaveRouteModal}
+        setShowSaveRouteModal={setShowSaveRouteModal}
+        saveRouteName={saveRouteName}
+        setSaveRouteName={setSaveRouteName}
+        handleSaveRoute={handleSaveRoute}
+        isSavingRoute={isSavingRoute}
+        showShareModal={showShareModal}
+        setShowShareModal={setShowShareModal}
         shareUrl={shareUrl}
+        showAddPOIModal={showAddPOIModal}
+        setShowAddPOIModal={setShowAddPOIModal}
+        pendingPOILocation={pendingPOILocation}
+        setPendingPOILocation={setPendingPOILocation}
+        setIsAddingPOI={setIsAddingPOI}
       />
       {/* WEATHER WIDGET */}
       <WeatherWidget

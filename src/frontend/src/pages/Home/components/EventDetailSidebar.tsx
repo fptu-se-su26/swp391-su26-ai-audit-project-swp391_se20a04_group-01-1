@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Heart, Calendar, Clock, MapPin, Globe, Ticket, Navigation, Compass, Share2, Camera, Upload } from 'lucide-react';
+import { X, Heart, Clock, MapPin, Ticket, Navigation, Share2, Camera, Trash2 } from 'lucide-react';
 import { EventData, getEventStatus } from './EventsLayer';
 import { eventAPI } from '../../../services/api';
 import toast from 'react-hot-toast';
@@ -22,7 +22,14 @@ export default function EventDetailSidebar({
     const [loadingFav, setLoadingFav] = useState(false);
     const [images, setImages] = useState<any[]>([]);
     const [isUploading, setIsUploading] = useState(false);
+    const [deletingImageId, setDeletingImageId] = useState<number | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Kiểm tra quyền admin từ localStorage
+    const userRole = localStorage.getItem('userRole') || (() => { try { return JSON.parse(localStorage.getItem('user') || '{}')?.role; } catch { return null; } })();
+    const isAdmin = userRole === 'admin';
+    const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+    const isLoggedIn = !!token;
 
     const status = getEventStatus(event.start_time, event.end_time);
 
@@ -42,8 +49,7 @@ export default function EventDetailSidebar({
         const file = e.target.files?.[0];
         if (!file) return;
 
-        const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
-        if (!token) {
+        if (!isLoggedIn) {
             toast.error('Vui lòng đăng nhập để tải ảnh lên!');
             return;
         }
@@ -62,6 +68,21 @@ export default function EventDetailSidebar({
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleDeleteImage = async (imageId: number) => {
+        if (!isAdmin) return;
+        if (!window.confirm('Xóa ảnh này khỏi thư viện sự kiện?')) return;
+        setDeletingImageId(imageId);
+        try {
+            await eventAPI.deleteEventImage(imageId);
+            setImages(prev => prev.filter(img => img.image_id !== imageId));
+            toast.success('Đã xóa ảnh thành công!');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Lỗi khi xóa ảnh');
+        } finally {
+            setDeletingImageId(null);
         }
     };
 
@@ -112,13 +133,24 @@ export default function EventDetailSidebar({
             year: 'numeric'
         });
     };
+    // Resolve image URL: thêm domain backend nếu là path tương đối
+    const BASE_API = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+    const resolveImageUrl = (url: string | null | undefined): string | null => {
+        if (!url) return null;
+        if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
+        return `${BASE_API}${url}`;
+    };
 
     return (
         <div className="w-80 max-md:w-full max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[50vh] max-md:max-h-[50vh] max-md:rounded-t-3xl max-md:rounded-b-none max-md:z-40 max-md:border-t max-md:border-slate-200/80 max-md:shadow-[0_-8px_30px_rgba(0,0,0,0.12)] max-md:animate-none bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col h-[calc(100vh-140px)] animate-fade-left pointer-events-auto">
             {/* Header: Banner Image */}
             <div className="relative h-40 shrink-0 bg-slate-100 border-b border-slate-100">
                 <img
-                    src={event.banner_url || event.thumbnail_url || 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=600'}
+                    src={
+                        resolveImageUrl(event.banner_url) ||
+                        resolveImageUrl(event.thumbnail_url) ||
+                        'https://images.unsplash.com/photo-1511578314322-379afb476865?w=600'
+                    }
                     alt={event.title}
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -163,11 +195,11 @@ export default function EventDetailSidebar({
             </div>
 
             {/* Thư viện ảnh (Gallery Slider) */}
-            {(images.length > 0 || localStorage.getItem('token') || localStorage.getItem('auth_token')) && (
+            {(images.length > 0 || isLoggedIn) && (
                 <div className="bg-slate-50 border-b border-slate-100 p-3 shrink-0 flex flex-col gap-2">
                     <div className="flex justify-between items-center">
                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Thư viện ảnh ({images.length})</span>
-                        {(localStorage.getItem('token') || localStorage.getItem('auth_token')) && (
+                        {isLoggedIn && (
                             <button
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploading}
@@ -196,6 +228,19 @@ export default function EventDetailSidebar({
                                             alt={img.caption || 'Event image'} 
                                             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" 
                                         />
+                                        {/* Nút xóa cho admin */}
+                                        {isAdmin && (
+                                            <button
+                                                onClick={() => handleDeleteImage(img.image_id)}
+                                                disabled={deletingImageId === img.image_id}
+                                                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md disabled:opacity-50"
+                                                title="Xóa ảnh (Admin)"
+                                            >
+                                                {deletingImageId === img.image_id 
+                                                    ? <span className="text-[8px] animate-spin">↻</span>
+                                                    : <Trash2 size={9} />}
+                                            </button>
+                                        )}
                                     </div>
                                 );
                             })}
