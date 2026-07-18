@@ -113,7 +113,11 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
                 {poi.image_url && (
                     <div className="relative h-[120px] overflow-hidden">
                         <img
-                            src={poi.image_url}
+                            src={(() => {
+                                const base = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+                                const url = poi.image_url!;
+                                return url.startsWith('http') || url.startsWith('blob:') ? url : `${base}${url}`;
+                            })()}
                             alt={poi.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {

@@ -42,11 +42,11 @@ const formatDateTimeLocal = (dateStr: any) => {
     return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 };
 
-const BASE_URL = 'http://localhost:5001';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const resolveImageUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
     return `${BASE_URL}${url}`;
 };
 

@@ -30,7 +30,12 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
     description: initialData?.description || "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(initialData?.image_url ? `http://localhost:5001${initialData.image_url}` : null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(() => {
+    if (!initialData?.image_url) return null;
+    const base = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+    const url = initialData.image_url;
+    return url.startsWith('http') || url.startsWith('blob:') ? url : `${base}${url}`;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
 
