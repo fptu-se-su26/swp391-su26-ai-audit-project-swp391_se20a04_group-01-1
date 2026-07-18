@@ -13,6 +13,8 @@ const FILTER_TO_CATEGORY: Record<string, string> = {
     'cafe': 'Quán cà phê',
     'gas_station': 'Trạm xăng',
     'hospital': 'Bệnh viện',
+    'pharmacy': 'Nhà thuốc',
+    'shopping': 'Khu mua sắm',
 };
 
 // Mapping filter ID → icon emoji
@@ -21,11 +23,13 @@ const FILTER_EMOJI: Record<string, string> = {
     'restaurants': '🍜',
     'hotels': '🏨',
     'entertainment': '🎡',
-    'museums': '🏛️',
+    'museums': '🏙️',
     'atm': '💳',
     'cafe': '☕',
     'gas_station': '⛽',
     'hospital': '🏥',
+    'pharmacy': '💊',
+    'shopping': '🛍️',
 };
 
 interface POIFeaturedSidebarProps {

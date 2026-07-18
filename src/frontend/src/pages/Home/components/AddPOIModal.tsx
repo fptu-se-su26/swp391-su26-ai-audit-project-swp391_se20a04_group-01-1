@@ -15,11 +15,13 @@ const CATEGORIES = [
   { id: 2, name: "Nhà hàng" },
   { id: 3, name: "Khách sạn" },
   { id: 4, name: "Giải trí" },
-  { id: 5, name: "Khu mua sắm" },
-  { id: 6, name: "Khác" },
+  { id: 5, name: "Bảo tàng" },
+  { id: 6, name: "ATM" },
   { id: 7, name: "Trạm xăng" },
   { id: 8, name: "Quán cà phê" },
   { id: 9, name: "Bệnh viện" },
+  { id: 10, name: "Nhà thuốc" },
+  { id: 11, name: "Khu mua sắm" },
 ];
 
 const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, location, initialData }) => {

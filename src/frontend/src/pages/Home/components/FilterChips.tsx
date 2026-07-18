@@ -9,6 +9,8 @@ import {
   Gamepad2,
   Landmark,
   DollarSign,
+  Pill,
+  ShoppingBag,
 } from "lucide-react";
 
 interface FilterChipsProps {
@@ -27,6 +29,8 @@ const filterCategories = [
   { id: "entertainment", label: "Giải trí", icon: Gamepad2 },
   { id: "museums", label: "Bảo tàng", icon: Landmark },
   { id: "atm", label: "ATM", icon: DollarSign },
+  { id: "pharmacy", label: "Nhà thuốc", icon: Pill },
+  { id: "shopping", label: "Khu mua sắm", icon: ShoppingBag },
 ];
 
 export const FilterChips: React.FC<FilterChipsProps> = ({
@@ -36,7 +40,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
 }) => {
   const containerClass = isMobile
     ? "flex md:hidden items-center gap-2 overflow-x-auto pb-1 scrollbar-none pointer-events-auto w-full"
-    : "hidden md:flex items-center justify-start gap-2 overflow-x-auto flex-nowrap flex-1 self-start pointer-events-auto scrollbar-none pb-2";
+    : "hidden md:flex items-center gap-2 overflow-x-auto flex-nowrap flex-1 self-start pointer-events-auto scrollbar-none pb-2";
 
   return (
     <div className={containerClass}>
