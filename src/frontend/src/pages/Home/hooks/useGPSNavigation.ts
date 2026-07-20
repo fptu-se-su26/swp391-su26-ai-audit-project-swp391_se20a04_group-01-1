@@ -8,6 +8,7 @@ interface UseGPSNavigationProps {
   setUserLocation: (loc: { lng: number; lat: number } | null) => void;
   setOrigin: (point: { lng: number; lat: number; label: string } | null) => void;
   setOriginQuery: (query: string) => void;
+  onNavigationCompleted?: () => void;
 }
 
 export const useGPSNavigation = ({
@@ -17,6 +18,7 @@ export const useGPSNavigation = ({
   setUserLocation,
   setOrigin,
   setOriginQuery,
+  onNavigationCompleted,
 }: UseGPSNavigationProps) => {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
@@ -33,6 +35,12 @@ export const useGPSNavigation = ({
   const simulationIndexRef = useRef<number>(0);
   const lastSpokenStepIndexRef = useRef<number>(-1);
   const approachSpokenRef = useRef<number>(-1);
+  const hasTriggeredCompletionRef = useRef<boolean>(false);
+
+  const onNavigationCompletedRef = useRef(onNavigationCompleted);
+  useEffect(() => {
+    onNavigationCompletedRef.current = onNavigationCompleted;
+  });
 
   // Helper tính khoảng cách Haversine (mét)
   const getDistanceMeters = (lat1: number, lng1: number, lat2: number, lng2: number) => {
@@ -106,6 +114,7 @@ export const useGPSNavigation = ({
       setCurrentStepIndex(0);
       lastSpokenStepIndexRef.current = -1;
       approachSpokenRef.current = -1;
+      hasTriggeredCompletionRef.current = false;
     }
 
     const coords = routeData.coordinates;
@@ -119,7 +128,11 @@ export const useGPSNavigation = ({
         }
         setIsSimulating(false);
         speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
-        showPremiumToast("Mô phỏng kết thúc. Bạn đã đến nơi!", "success");
+        showPremiumToast("Bạn đã đến nơi! Chuyến đi đã hoàn thành.", "success");
+        if (!hasTriggeredCompletionRef.current) {
+          hasTriggeredCompletionRef.current = true;
+          onNavigationCompletedRef.current?.();
+        }
         handleStopNavigation();
         return;
       }
@@ -168,7 +181,11 @@ export const useGPSNavigation = ({
             setDistanceToNextStep(distToDest);
             if (distToDest < 15) {
               speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
-              showPremiumToast("Mô phỏng kết thúc. Bạn đã đến nơi!", "success");
+              showPremiumToast("Bạn đã đến nơi! Chuyến đi đã hoàn thành.", "success");
+              if (!hasTriggeredCompletionRef.current) {
+                hasTriggeredCompletionRef.current = true;
+                onNavigationCompletedRef.current?.();
+              }
               handleStopNavigation();
             }
           }
@@ -205,6 +222,7 @@ export const useGPSNavigation = ({
     setCurrentStepIndex(0);
     lastSpokenStepIndexRef.current = -1;
     approachSpokenRef.current = -1;
+    hasTriggeredCompletionRef.current = false;
 
     if (!navigator.geolocation) {
       showPremiumToast("Thiết bị không hỗ trợ GPS.", "error");
@@ -292,7 +310,11 @@ export const useGPSNavigation = ({
               setDistanceToNextStep(distToDest);
               if (distToDest < 15) {
                 speakInstruction("Bạn đã đến nơi. Chuyến đi kết thúc.");
-                showPremiumToast("Bạn đã đến nơi!", "success");
+                showPremiumToast("Bạn đã đến nơi! Chuyến đi đã hoàn thành.", "success");
+                if (!hasTriggeredCompletionRef.current) {
+                  hasTriggeredCompletionRef.current = true;
+                  onNavigationCompletedRef.current?.();
+                }
                 handleStopNavigation();
               }
             }

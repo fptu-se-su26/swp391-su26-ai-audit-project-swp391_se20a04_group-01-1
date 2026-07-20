@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getUser, saveUser, saveToken, removeToken, removeUser } from '../utils/tokenManager';
+import { usePreferenceStore } from './preferenceStore';
 
 interface User {
   id: string;
@@ -66,6 +67,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
   logout: () => {
     removeUser();
     removeToken();
+    usePreferenceStore.getState().resetPreferences();
     set({
       user: null,
       token: null,

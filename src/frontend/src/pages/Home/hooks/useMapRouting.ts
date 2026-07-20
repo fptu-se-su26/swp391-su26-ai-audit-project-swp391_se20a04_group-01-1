@@ -6,6 +6,7 @@ import { findSafeTrafficRoute } from '../../../utils/trafficRouteUtils';
 import { findSafeEventRoute, getBlockedRoadsForRoute } from '../../../utils/eventRouteUtils';
 import { showPremiumToast } from '../../../utils/toastUtils';
 import { decodePolyline } from '../../../utils/polylineHelper';
+import { parseRouteData } from '../../../utils/utlis';
 
 export interface RouteStep {
   maneuver: {
@@ -78,8 +79,10 @@ export function useMapRouting(
 ) {
   const [origin, setOrigin] = useState<LocationPoint | null>(null);
   const [destination, setDestination] = useState<LocationPoint | null>(null);
+  const [waypoints, setWaypoints] = useState<LocationPoint[]>([]);
   const [originQuery, setOriginQuery] = useState("");
   const [destinationQuery, setDestinationQuery] = useState("");
+  const [waypointQueries, setWaypointQueries] = useState<string[]>([]);
   const [travelMode, setTravelMode] = useState<
     "driving" | "walking" | "cycling"
   >("driving");
@@ -114,6 +117,14 @@ export function useMapRouting(
     setAvoidEventRoadsMode(null);
   }, [origin, destination, travelMode]);
 
+  // Clear waypoints when destination is cleared
+  useEffect(() => {
+    if (!destination) {
+      setWaypoints([]);
+      setWaypointQueries([]);
+    }
+  }, [destination]);
+
   // Fetch and process map route
   useEffect(() => {
     if (!origin || !destination) return;
@@ -126,10 +137,16 @@ export function useMapRouting(
       setLoadingRoute(true);
       try {
         const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+        const validWaypoints = waypoints.filter(wp => wp && wp.lat !== undefined && wp.lng !== undefined);
+        const coordsList = [origin, ...validWaypoints, destination];
+        const coordsString = coordsList.map(c => `${c.lng},${c.lat}`).join(';');
 
         // 1. XỬ LÝ NGOẠI TUYẾN (OFFLINE FALLBACK)
         if (options.isOffline) {
-          const distKm = getHaversineDistance(origin, destination);
+          let distKm = 0;
+          for (let i = 0; i < coordsList.length - 1; i++) {
+            distKm += getHaversineDistance(coordsList[i], coordsList[i+1]);
+          }
           const speed = travelMode === 'walking' ? 5 : travelMode === 'cycling' ? 15 : 30; // km/h
           const durationMin = Math.round((distKm / speed) * 60);
 
@@ -137,17 +154,25 @@ export function useMapRouting(
           setRouteData({
             totalDistanceKm: parseFloat(distKm.toFixed(2)),
             totalTimeMin: Math.max(1, durationMin),
-            coordinates: [
-              [origin.lng, origin.lat],
-              [destination.lng, destination.lat]
-            ]
+            coordinates: coordsList.map(c => [c.lng, c.lat] as [number, number])
           });
 
-          // Fit camera
-          mapRef.current?.fitBounds(
-            [[origin.lng, origin.lat], [destination.lng, destination.lat]],
-            { padding: 80, duration: 1200 }
-          );
+          // Fit camera bounds
+          const bounds = coordsList.map(c => [c.lng, c.lat] as [number, number]);
+          if (bounds.length > 0) {
+            let minLng = bounds[0][0], maxLng = bounds[0][0];
+            let minLat = bounds[0][1], maxLat = bounds[0][1];
+            for (const b of bounds) {
+              if (b[0] < minLng) minLng = b[0];
+              if (b[0] > maxLng) maxLng = b[0];
+              if (b[1] < minLat) minLat = b[1];
+              if (b[1] > maxLat) maxLat = b[1];
+            }
+            mapRef.current?.fitBounds(
+              [[minLng, minLat], [maxLng, maxLat]],
+              { padding: 80, duration: 1200 }
+            );
+          }
           setLoadingRoute(false);
           return;
         }
@@ -156,7 +181,7 @@ export function useMapRouting(
         if (options.isLowBandwidth) {
           const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5001';
           const response = await fetch(
-            `${apiUrl}/api/routes/calculate?origin=${origin.lng},${origin.lat}&destination=${destination.lng},${destination.lat}&mode=${travelMode}&access_token=${mapboxToken}`
+            `${apiUrl}/api/routes/calculate?coords=${coordsString}&mode=${travelMode}&access_token=${mapboxToken}`
           );
           const data = await response.json();
 
@@ -190,7 +215,7 @@ export function useMapRouting(
 
         // 3. XỬ LÝ TRỰC TUYẾN BÌNH THƯỜNG
         const response = await fetch(
-          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&steps=true&language=vi&access_token=${mapboxToken}`,
+          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${coordsString}?geometries=geojson&overview=full&alternatives=true&steps=true&language=vi&access_token=${mapboxToken}`,
         );
         const data = await response.json();
 
@@ -318,17 +343,19 @@ export function useMapRouting(
               totalDistanceKm: parseFloat((r.distance / 1000).toFixed(2)),
               totalTimeMin: Math.round(r.duration / 60),
               coordinates: r.geometry.coordinates,
-              steps: r.legs?.[0]?.steps?.map((s: any) => ({
-                maneuver: {
-                  type: s.maneuver?.type || '',
-                  modifier: s.maneuver?.modifier || '',
-                  instruction: s.maneuver?.instruction || '',
-                  location: s.maneuver?.location || [0, 0],
-                },
-                name: s.name || '',
-                distance: s.distance || 0,
-                duration: s.duration || 0,
-              })) || [],
+              steps: (r.legs || []).flatMap((leg: any) =>
+                (leg.steps || []).map((s: any) => ({
+                  maneuver: {
+                    type: s.maneuver?.type || '',
+                    modifier: s.maneuver?.modifier || '',
+                    instruction: s.maneuver?.instruction || '',
+                    location: s.maneuver?.location || [0, 0],
+                  },
+                  name: s.name || '',
+                  distance: s.distance || 0,
+                  duration: s.duration || 0,
+                }))
+              ) || [],
             }));
 
             const activeIndex = data.routes.findIndex((r: any) => 
@@ -342,17 +369,19 @@ export function useMapRouting(
               ),
               totalTimeMin: Math.round(selectedRoute.duration / 60),
               coordinates: selectedRoute.geometry.coordinates,
-              steps: selectedRoute.legs?.[0]?.steps?.map((s: any) => ({
-                maneuver: {
-                  type: s.maneuver?.type || '',
-                  modifier: s.maneuver?.modifier || '',
-                  instruction: s.maneuver?.instruction || '',
-                  location: s.maneuver?.location || [0, 0],
-                },
-                name: s.name || '',
-                distance: s.distance || 0,
-                duration: s.duration || 0,
-              })) || [],
+              steps: (selectedRoute.legs || []).flatMap((leg: any) =>
+                (leg.steps || []).map((s: any) => ({
+                  maneuver: {
+                    type: s.maneuver?.type || '',
+                    modifier: s.maneuver?.modifier || '',
+                    instruction: s.maneuver?.instruction || '',
+                    location: s.maneuver?.location || [0, 0],
+                  },
+                  name: s.name || '',
+                  distance: s.distance || 0,
+                  duration: s.duration || 0,
+                }))
+              ) || [],
               routes: allRoutesParsed
             });
 
@@ -402,6 +431,7 @@ export function useMapRouting(
   }, [
     origin,
     destination,
+    waypoints,
     travelMode,
     options.avoidFlood,
     options.avoidCongestion,
@@ -416,8 +446,8 @@ export function useMapRouting(
 
   const applyRouteToState = (route: any) => {
     if (!route) return;
-    const coords =
-      route.geometry?.coordinates || JSON.parse(route.route_data || "[]");
+    const parsed = parseRouteData(route.route_data);
+    const coords = route.geometry?.coordinates || parsed.coordinates;
     setRouteData({
       totalDistanceKm: route.distance
         ? parseFloat((route.distance / 1000).toFixed(2))
@@ -428,6 +458,12 @@ export function useMapRouting(
       coordinates: coords,
     });
     isLoadedRouteRef.current = true;
+
+    // Restore waypoints if loaded
+    if (parsed.waypoints && parsed.waypoints.length > 0) {
+      setWaypoints(parsed.waypoints);
+      setWaypointQueries(parsed.waypoints.map((w: any) => w.label || ""));
+    }
   };
 
   const selectRoute = (index: number) => {
@@ -452,6 +488,10 @@ export function useMapRouting(
     setDestination,
     destinationQuery,
     setDestinationQuery,
+    waypoints,
+    setWaypoints,
+    waypointQueries,
+    setWaypointQueries,
     travelMode,
     setTravelMode,
     routeData,
