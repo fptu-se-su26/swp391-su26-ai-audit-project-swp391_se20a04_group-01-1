@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { savedRouteService, SavedRoute } from "../../../services/savedRouteService";
 import { showPremiumToast } from "../../../utils/toastUtils";
+import { parseRouteData } from "../../../utils/utlis";
 
 interface UseSavedRoutesStateProps {
   mapRef: React.RefObject<any>;
@@ -25,6 +26,9 @@ interface UseSavedRoutesStateProps {
     onCancel: () => void
   ) => void;
   isLoadedRouteRef: React.MutableRefObject<boolean>;
+  waypoints?: any[];
+  setWaypoints?: (points: any[]) => void;
+  setWaypointQueries?: (queries: string[]) => void;
 }
 
 export const useSavedRoutesState = ({
@@ -45,6 +49,9 @@ export const useSavedRoutesState = ({
   navigate,
   showCustomConfirm,
   isLoadedRouteRef,
+  waypoints,
+  setWaypoints,
+  setWaypointQueries,
 }: UseSavedRoutesStateProps) => {
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [showSavedRoutesSidebar, setShowSavedRoutesSidebar] = useState(false);
@@ -105,7 +112,11 @@ export const useSavedRoutesState = ({
           `Lộ trình từ ${origin.label || "Vị trí hiện tại"} đến ${
             destination.label || "Điểm đến"
           }`,
-        route_data: JSON.stringify(routeData.coordinates),
+        route_data: JSON.stringify(
+          waypoints && waypoints.length > 0
+            ? { coordinates: routeData.coordinates, waypoints }
+            : routeData.coordinates
+        ),
         distance_meters: Math.round(routeData.totalDistanceKm * 1000),
         duration_seconds: routeData.totalTimeMin * 60,
         profile: travelMode,
@@ -152,7 +163,11 @@ export const useSavedRoutesState = ({
         destination_lat: destination.lat,
         destination_lng: destination.lng,
         route_name: `Chia sẻ - ${destination.label || "Điểm đến"}`,
-        route_data: JSON.stringify(routeData.coordinates),
+        route_data: JSON.stringify(
+          waypoints && waypoints.length > 0
+            ? { coordinates: routeData.coordinates, waypoints }
+            : routeData.coordinates
+        ),
         distance_meters: Math.round(routeData.totalDistanceKm * 1000),
         duration_seconds: routeData.totalTimeMin * 60,
         profile: travelMode,
@@ -215,11 +230,15 @@ export const useSavedRoutesState = ({
     setDestinationQuery(route.destination_name || "Vị trí đến");
     setTravelMode(route.profile as any);
 
-    let coords: [number, number][] = [];
-    try {
-      coords = JSON.parse(route.route_data);
-    } catch (e) {
-      console.error("Lỗi parse route_data:", e);
+    const parsed = parseRouteData(route.route_data);
+    const coords = parsed.coordinates;
+    const wps = parsed.waypoints || [];
+
+    if (setWaypoints) {
+      setWaypoints(wps);
+    }
+    if (setWaypointQueries) {
+      setWaypointQueries(wps.map((w: any) => w.label || ""));
     }
 
     setRouteData({
@@ -281,11 +300,15 @@ export const useSavedRoutesState = ({
             setDestinationQuery(route.destination_name || "Điểm đến chia sẻ");
             setTravelMode(route.profile as any);
 
-            let coords: [number, number][] = [];
-            try {
-              coords = JSON.parse(route.route_data);
-            } catch (e) {
-              console.error("Lỗi parse route_data:", e);
+            const parsed = parseRouteData(route.route_data);
+            const coords = parsed.coordinates;
+            const wps = parsed.waypoints || [];
+
+            if (setWaypoints) {
+              setWaypoints(wps);
+            }
+            if (setWaypointQueries) {
+              setWaypointQueries(wps.map((w: any) => w.label || ""));
             }
 
             setRouteData({
@@ -353,11 +376,15 @@ export const useSavedRoutesState = ({
             setDestinationQuery(route.destination_name || "Điểm đến");
             setTravelMode(route.profile as any);
 
-            let coords: [number, number][] = [];
-            try {
-              coords = JSON.parse(route.route_data);
-            } catch (e) {
-              console.error("Lỗi parse route_data:", e);
+            const parsed = parseRouteData(route.route_data);
+            const coords = parsed.coordinates;
+            const wps = parsed.waypoints || [];
+
+            if (setWaypoints) {
+              setWaypoints(wps);
+            }
+            if (setWaypointQueries) {
+              setWaypointQueries(wps.map((w: any) => w.label || ""));
             }
 
             setRouteData({

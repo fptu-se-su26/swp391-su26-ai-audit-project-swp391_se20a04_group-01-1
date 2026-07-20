@@ -3,6 +3,7 @@ import { Popup } from 'react-map-gl/mapbox';
 import { Star, MapPin, Phone, Navigation, X, Globe, Heart } from 'lucide-react';
 import { useFavoritePoiStore } from '../../../store/favoritePoiStore';
 import { showPremiumToast } from '../../../utils/toastUtils';
+import { getDistanceInKm } from '../../../utils/utlis';
 
 export interface POIData {
     poi_id: number;
@@ -25,6 +26,7 @@ interface POIPopupProps {
     poi: POIData;
     onClose: () => void;
     onDirectionsClick: (poi: POIData) => void;
+    userLocation?: { lat: number; lng: number } | null;
 }
 
 // Component render sao đánh giá
@@ -57,7 +59,7 @@ const StarRating = ({ rating }: { rating: number | null }) => {
     );
 };
 
-export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupProps) {
+export default function POIPopup({ poi, onClose, onDirectionsClick, userLocation }: POIPopupProps) {
     const { favoriteIds, toggleFavorite } = useFavoritePoiStore();
     const isFav = favoriteIds.has(poi.poi_id);
 
@@ -163,6 +165,17 @@ export default function POIPopup({ poi, onClose, onDirectionsClick }: POIPopupPr
 
                     {/* Thông tin chi tiết */}
                     <div className="mt-2 space-y-1">
+                        {userLocation && (
+                            <div className="flex items-center gap-1.5 text-blue-600 font-bold text-[10px] bg-blue-50/60 px-2 py-1 rounded-lg">
+                                <Navigation size={11} className="rotate-45 text-blue-500 shrink-0" />
+                                <span>
+                                    Cách bạn {(() => {
+                                        const dist = getDistanceInKm(userLocation.lat, userLocation.lng, poi.latitude, poi.longitude);
+                                        return dist < 1 ? `${Math.round(dist * 1000)}m` : `${dist.toFixed(1)} km`;
+                                    })()}
+                                </span>
+                            </div>
+                        )}
                         {poi.address && (
                             <div className="flex items-start gap-1.5">
                                 <MapPin size={11} className="text-slate-400 mt-0.5 shrink-0" />

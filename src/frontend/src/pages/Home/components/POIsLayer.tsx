@@ -23,6 +23,7 @@ interface POIsLayerProps {
     onDirectionsClick: (poi: POIData) => void;
     selectedPOI: POIData | null;
     onSelectPOI: (poi: POIData | null) => void;
+    userLocation?: { lat: number; lng: number } | null;
 }
 
 export default function POIsLayer({
@@ -30,7 +31,8 @@ export default function POIsLayer({
     selectedFilter,
     onDirectionsClick,
     selectedPOI,
-    onSelectPOI
+    onSelectPOI,
+    userLocation
 }: POIsLayerProps) {
     const { current: map } = useMap();
 
@@ -256,6 +258,7 @@ export default function POIsLayer({
                     poi={selectedPOI}
                     onClose={() => onSelectPOI(null)}
                     onDirectionsClick={onDirectionsClick}
+                    userLocation={userLocation}
                 />
             )}
         </>

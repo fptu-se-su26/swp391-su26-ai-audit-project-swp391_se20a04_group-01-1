@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 // CHỈ THÊM IMPORT NÀY:
 import { GoogleLogin } from "@react-oauth/google";
 import { showPremiumToast } from "../../utils/toastUtils";
+import { usePreferenceStore } from "../../store/preferenceStore";
 
 const slides = [
   {
@@ -53,6 +54,11 @@ export default function Login() {
       5000,
     );
     return () => clearInterval(id);
+  }, []);
+
+  // Reset preferences khi vào màn hình đăng nhập
+  useEffect(() => {
+    usePreferenceStore.getState().resetPreferences();
   }, []);
 
   const current = slides[slide];

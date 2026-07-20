@@ -15,7 +15,7 @@ interface PreferenceState {
 const defaultPreferences: UserPreferences = {
   avoid_floods: false,
   avoid_congestion: false,
-  show_traffic_layer: true,
+  show_traffic_layer: false,
   show_restricted_roads: true,
   enable_buffer_alerts: true,
   default_travel_mode: 'driving'

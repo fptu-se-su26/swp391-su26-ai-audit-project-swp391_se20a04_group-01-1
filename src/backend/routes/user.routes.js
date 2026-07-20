@@ -193,7 +193,7 @@ router.get('/preferences', authenticateToken, async (req, res) => {
                 .input("user_id", sql.Int, req.user.id)
                 .query(`
                     INSERT INTO UsersPreferences (user_id, avoid_floods, avoid_congestion, show_traffic_layer, show_restricted_roads, enable_buffer_alerts, default_travel_mode)
-                    VALUES (@user_id, 0, 0, 1, 1, 1, 'driving')
+                    VALUES (@user_id, 0, 0, 0, 1, 1, 'driving')
                 `);
             
             result = await pool.request()
@@ -262,7 +262,7 @@ router.put('/preferences', authenticateToken, async (req, res) => {
                         @user_id, 
                         COALESCE(@avoid_floods, 0), 
                         COALESCE(@avoid_congestion, 0), 
-                        COALESCE(@show_traffic_layer, 1), 
+                        COALESCE(@show_traffic_layer, 0), 
                         COALESCE(@show_restricted_roads, 1), 
                         COALESCE(@enable_buffer_alerts, 1), 
                         COALESCE(@default_travel_mode, 'driving'),

@@ -319,7 +319,7 @@ export default function Home() {
 
   const [mapControls, setMapControls] = useState({
     layers: true,
-    traffic: true,
+    traffic: false,
     flood: false,
   });
 
@@ -338,7 +338,7 @@ export default function Home() {
 
   // Map routing states
   const [activeInputField, setActiveInputField] = useState<
-    "origin" | "destination" | null
+    "origin" | "destination" | string | null
   >(null);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -388,6 +388,10 @@ export default function Home() {
     setDestination,
     destinationQuery,
     setDestinationQuery,
+    waypoints,
+    setWaypoints,
+    waypointQueries,
+    setWaypointQueries,
     travelMode,
     setTravelMode,
     routeData,
@@ -429,6 +433,35 @@ export default function Home() {
       return;
     }
     setShowNavModeSelector(true);
+  };
+
+  const handleNavigationCompleted = async () => {
+    const token =
+      localStorage.getItem("token") || localStorage.getItem("auth_token");
+    if (!token) return; // Không đăng nhập thì không lưu lịch sử
+
+    try {
+      await savedRouteService.saveRoute({
+        origin_name: originQuery || origin?.label || "Vị trí hiện tại",
+        origin_lat: origin?.lat || 0,
+        origin_lng: origin?.lng || 0,
+        destination_name: destinationQuery || destination?.label || "Điểm đến",
+        destination_lat: destination?.lat || 0,
+        destination_lng: destination?.lng || 0,
+        route_name: `Lịch sử: ${originQuery || "Điểm đi"} ➔ ${destinationQuery || "Điểm đến"}`,
+        route_data: JSON.stringify(
+          waypoints && waypoints.length > 0
+            ? { coordinates: routeData?.coordinates || [], waypoints }
+            : routeData?.coordinates || []
+        ),
+        distance_meters: Math.round((routeData?.totalDistanceKm || 0) * 1000),
+        duration_seconds: (routeData?.totalTimeMin || 0) * 60,
+        profile: travelMode,
+      });
+      showPremiumToast("Đã lưu lộ trình vào lịch sử di chuyển!", "success");
+    } catch (error) {
+      console.error("Lỗi khi tự động lưu lịch sử lộ trình:", error);
+    }
   };
 
 
@@ -538,7 +571,7 @@ export default function Home() {
     lng: number,
     lat: number,
     label: string,
-    type: "origin" | "destination",
+    type: "origin" | "destination" | string,
     onApproved: () => void,
     onRejected: () => void,
   ) => {
@@ -613,6 +646,7 @@ export default function Home() {
     setUserLocation,
     setOrigin,
     setOriginQuery,
+    onNavigationCompleted: handleNavigationCompleted,
   });
 
   const {
@@ -656,6 +690,9 @@ export default function Home() {
     navigate,
     showCustomConfirm,
     isLoadedRouteRef,
+    waypoints,
+    setWaypoints,
+    setWaypointQueries,
   });
 
   const selectedRoadPopupRef = useRef(selectedRoadPopup);
@@ -768,8 +805,15 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const query =
-      activeInputField === "origin" ? originQuery : destinationQuery;
+    let query = "";
+    if (activeInputField === "origin") {
+      query = originQuery;
+    } else if (activeInputField === "destination") {
+      query = destinationQuery;
+    } else if (activeInputField && activeInputField.startsWith("waypoint-")) {
+      const idx = parseInt(activeInputField.split("-")[1], 10);
+      query = waypointQueries[idx] || "";
+    }
 
     if (!query.trim() || query === "Vị trí của bạn") {
       setSuggestions([]);
@@ -803,7 +847,7 @@ export default function Home() {
       }
     }, 300);
     return () => clearTimeout(delayDebounceFn);
-  }, [originQuery, destinationQuery, activeInputField]);
+  }, [originQuery, destinationQuery, waypointQueries, activeInputField]);
 
   const handleSelectSuggestion = (item: any) => {
     const [lng, lat] = item.center;
@@ -818,6 +862,18 @@ export default function Home() {
         if (activeInputField === "origin") {
           setOrigin({ lng, lat, label: fullName });
           setOriginQuery(fullName);
+        } else if (activeInputField && activeInputField.startsWith("waypoint-")) {
+          const idx = parseInt(activeInputField.split("-")[1], 10);
+          setWaypoints(prev => {
+            const next = [...prev];
+            next[idx] = { lng, lat, label: fullName };
+            return next;
+          });
+          setWaypointQueries(prev => {
+            const next = [...prev];
+            next[idx] = fullName;
+            return next;
+          });
         } else {
           setDestination({ lng, lat, label: fullName });
           setDestinationQuery(fullName);
@@ -834,6 +890,10 @@ export default function Home() {
         if (activeInputField === "origin") {
           setOrigin(null);
           setOriginQuery("");
+        } else if (activeInputField && activeInputField.startsWith("waypoint-")) {
+          const idx = parseInt(activeInputField.split("-")[1], 10);
+          setWaypoints(prev => prev.filter((_, i) => i !== idx));
+          setWaypointQueries(prev => prev.filter((_, i) => i !== idx));
         } else {
           setDestination(null);
           setDestinationQuery("");
@@ -895,6 +955,7 @@ export default function Home() {
   }, [showAlertPopup]);
 
   const handleFilterClick = (filterId: string) => {
+    setSelectedPOI(null);
     if (selectedFilter === filterId) {
       setSelectedFilter(null);
     } else {
@@ -1282,9 +1343,26 @@ export default function Home() {
                 latitude={origin.lat}
                 anchor="center"
               >
-                <div className="w-4.5 h-4.5 bg-emerald-600 border-2 border-white rounded-full shadow-lg" />
+                <div className="w-5.5 h-5.5 bg-emerald-600 border-2 border-white rounded-full shadow-lg flex items-center justify-center text-[10px] font-black text-white">
+                  A
+                </div>
               </Marker>
             )}
+
+          {waypoints && waypoints.map((wp, idx) => (
+            wp && wp.lng !== undefined && wp.lat !== undefined && (
+              <Marker
+                key={`wp-marker-${idx}`}
+                longitude={wp.lng}
+                latitude={wp.lat}
+                anchor="center"
+              >
+                <div className="w-5.5 h-5.5 bg-white border-2 border-slate-700 rounded-full shadow-lg flex items-center justify-center text-[10px] font-black text-slate-700">
+                  {String.fromCharCode(66 + idx)}
+                </div>
+              </Marker>
+            )
+          ))}
 
           {destination && (
             <Marker
@@ -1736,7 +1814,7 @@ export default function Home() {
 
           {viewMode === "pois" ? (
             <>
-              <POIsLayer
+               <POIsLayer
                 pois={pois}
                 selectedFilter={selectedFilter}
                 onDirectionsClick={(poi) => {
@@ -1758,6 +1836,7 @@ export default function Home() {
                 }}
                 selectedPOI={selectedPOI}
                 onSelectPOI={setSelectedPOI}
+                userLocation={userLocation}
               />
               <EventsLayer
                 events={events.filter(
@@ -1776,7 +1855,7 @@ export default function Home() {
       {/* HEADER TRÊN CÙNG & PANEL TÌM ĐƯỜNG */}
       <div className="absolute top-4 left-4 right-4 md:top-6 md:left-6 md:right-6 z-10 flex flex-col pointer-events-none gap-2">
         {/* Hàng trên: Search + Bell + Avatar */}
-        <div className="flex items-center justify-between gap-2 w-full">
+        <div className="flex items-start justify-between gap-2 w-full">
           {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
           <div className="relative pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:max-h-[calc(100vh-80px)] max-md:overflow-y-auto scrollbar-none">
             {!isNavigating && (
@@ -1824,6 +1903,10 @@ export default function Home() {
                     }
                     return false;
                   }}
+                  waypoints={waypoints}
+                  setWaypoints={setWaypoints}
+                  waypointQueries={waypointQueries}
+                  setWaypointQueries={setWaypointQueries}
                 />
                 {viewMode === "pois" ? (
                   <>
@@ -1860,6 +1943,7 @@ export default function Home() {
                           setDestinationQuery("");
                           setRouteAlertMessage(null);
                         }}
+                        userLocation={userLocation}
                       />
                     )}
                   </>
@@ -2048,6 +2132,7 @@ export default function Home() {
                 setDestinationQuery("");
                 setRouteAlertMessage(null);
               }}
+              userLocation={userLocation}
             />
           </div>
         </div>
@@ -2113,13 +2198,19 @@ export default function Home() {
             </p>
             <div className="flex flex-col gap-3">
               <button
-                onClick={handleStartRealNavigation}
+                onClick={() => {
+                  handleStartRealNavigation();
+                  setShowNavModeSelector(false);
+                }}
                 className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-blue-900/30 transition-all"
               >
                 📡 BẮT ĐẦU VỚI GPS THỰC TẾ
               </button>
               <button
-                onClick={handleStartSimulationNavigation}
+                onClick={() => {
+                  handleStartSimulationNavigation();
+                  setShowNavModeSelector(false);
+                }}
                 className="w-full py-3.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 rounded-2xl font-bold text-xs tracking-wider flex items-center justify-center gap-2 transition-all"
               >
                 🚗 CHẠY MÔ PHỎNG LỘ TRÌNH

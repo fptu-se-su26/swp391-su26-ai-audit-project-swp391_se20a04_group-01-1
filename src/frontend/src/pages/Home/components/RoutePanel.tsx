@@ -47,7 +47,7 @@ interface RoutePanelProps {
 
   setDestinationQuery: (val: string) => void;
   setOriginQuery: (val: string) => void;
-  setActiveInputField: (field: "origin" | "destination" | null) => void;
+  setActiveInputField: (field: any) => void;
   setShowSuggestions: (val: boolean) => void;
   handleSwapLocations: () => void;
   handleSelectSuggestion: (item: any) => void;
@@ -63,6 +63,10 @@ interface RoutePanelProps {
   setConfirmedFloodZoneIds: (val: string[]) => void;
   favoriteEventIds: Set<number>;
   onToggleEventFavorite: (eventId: number) => Promise<boolean>;
+  waypoints?: LocationPoint[];
+  setWaypoints?: React.Dispatch<React.SetStateAction<LocationPoint[]>>;
+  waypointQueries?: string[];
+  setWaypointQueries?: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 export function RoutePanel({
@@ -100,6 +104,10 @@ export function RoutePanel({
   onStartNavigation,
   favoriteEventIds,
   onToggleEventFavorite,
+  waypoints,
+  setWaypoints,
+  waypointQueries,
+  setWaypointQueries,
 }: RoutePanelProps) {
   const [isStarting, setIsStarting] = useState(false);
   const { favoriteIds, toggleFavorite } = useFavoritePoiStore();
@@ -157,44 +165,10 @@ export function RoutePanel({
     }
   };
 
-  const handleStartTrip = async () => {
+  const handleStartTrip = () => {
     if (!origin || !destination || !routeData) return;
-
-    setIsStarting(true);
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    try {
-      if (token) {
-        await savedRouteService.saveRoute({
-          origin_name: originQuery || origin.label || "Vị trí hiện tại",
-          origin_lat: origin.lat,
-          origin_lng: origin.lng,
-          destination_name: destinationQuery || destination.label || "Điểm đến",
-          destination_lat: destination.lat,
-          destination_lng: destination.lng,
-          route_name: `Lịch sử: ${originQuery || "Điểm đi"} ➔ ${destinationQuery || "Điểm đến"}`,
-          route_data: JSON.stringify(routeData.coordinates),
-          distance_meters: routeData.totalDistanceKm * 1000,
-          duration_seconds: routeData.totalTimeMin * 60,
-          profile: travelMode,
-        });
-      }
-      onStartNavigation();
-      showPremiumToast(
-        token
-          ? "Đã bắt đầu chuyến đi và lưu vào lịch sử!"
-          : "Đã bắt đầu chuyến đi!",
-        "success",
-      );
-    } catch (error) {
-      console.error("Lỗi khi lưu lịch sử lộ trình:", error);
-      showPremiumToast(
-        "Đã bắt đầu chuyến đi nhưng không thể lưu lịch sử do lỗi mạng.",
-        "warning",
-      );
-    } finally {
-      setIsStarting(false);
-    }
+    onStartNavigation();
+    showPremiumToast("Dẫn đường đã bắt đầu!", "success");
   };
 
   // ✅ Sửa điều kiện chặn hiển thị: Cho phép cả pois VÀ events
@@ -243,6 +217,51 @@ export function RoutePanel({
               className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
             />
           </div>
+
+          {/* Chặng đi giữa (Waypoints) */}
+          {waypoints && waypoints.map((wp, idx) => (
+            <div key={`waypoint-input-${idx}`} className="flex items-center gap-3 relative">
+              <span className="w-4 h-4 rounded-full border-2 border-slate-400 bg-white z-10 flex items-center justify-center shrink-0 text-[9px] font-black text-slate-500">
+                {String.fromCharCode(66 + idx)}
+              </span>
+              <div className="relative w-full flex items-center">
+                <input
+                  type="text"
+                  placeholder={`Chọn điểm dừng ${idx + 1}...`}
+                  value={waypointQueries?.[idx] || ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (setWaypointQueries) {
+                      setWaypointQueries(prev => {
+                        const next = [...prev];
+                        next[idx] = val;
+                        return next;
+                      });
+                    }
+                    setActiveInputField(`waypoint-${idx}`);
+                  }}
+                  onFocus={() => {
+                    setActiveInputField(`waypoint-${idx}`);
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                />
+                <button
+                  onClick={() => {
+                    if (setWaypoints && setWaypointQueries) {
+                      setWaypoints(prev => prev.filter((_, i) => i !== idx));
+                      setWaypointQueries(prev => prev.filter((_, i) => i !== idx));
+                    }
+                  }}
+                  className="absolute right-3 text-slate-400 hover:text-slate-600 font-bold text-sm"
+                  title="Xóa điểm dừng"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+
           <div className="flex items-center gap-3 relative">
             <span className="text-red-500 z-10 text-sm font-bold shrink-0">
               📍
@@ -262,13 +281,31 @@ export function RoutePanel({
               className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
             />
           </div>
-          <button
-            onClick={handleSwapLocations}
-            className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
-            title="Đảo ngược vị trí"
-          >
-            <ArrowUpDown size={14} />
-          </button>
+
+          {/* Nút Thêm điểm dừng */}
+          {(!waypoints || waypoints.length < 3) && (
+            <button
+              onClick={() => {
+                if (setWaypoints && setWaypointQueries) {
+                  setWaypoints(prev => [...prev, { lat: undefined, lng: undefined, label: "" } as any]);
+                  setWaypointQueries(prev => [...prev, ""]);
+                }
+              }}
+              className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-700 font-semibold self-start ml-7 mt-0.5 hover:underline"
+            >
+              <span className="text-sm font-bold">+</span> Thêm điểm dừng
+            </button>
+          )}
+
+          {(!waypoints || waypoints.length === 0) && (
+            <button
+              onClick={handleSwapLocations}
+              className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
+              title="Đảo ngược vị trí"
+            >
+              <ArrowUpDown size={14} />
+            </button>
+          )}
         </div>
       )}
 
