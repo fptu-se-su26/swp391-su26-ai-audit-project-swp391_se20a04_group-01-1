@@ -180,12 +180,35 @@ export default function MapIntroducePage() {
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    const handleFormSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setFormSubmitted(true);
-        setTimeout(() => setFormSubmitted(false), 4000);
-        setContactForm({ name: '', email: '', message: '' });
-    };
+    const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+        const response = await fetch("https://api.web3forms.com/submit", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+            },
+            body: JSON.stringify({
+                access_key: "dc3a528e-2bdd-4245-94b8-470e93ab22b7", // Access Key của bạn
+                name: contactForm.name,
+                email: contactForm.email,
+                message: contactForm.message,
+            }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            setFormSubmitted(true); // Kích hoạt giao diện "Gửi thành công!" có sẵn của bạn
+        } else {
+            alert(data.message || "Có lỗi xảy ra, vui lòng thử lại.");
+        }
+    } catch (error) {
+        alert("Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại mạng.");
+    }
+};
 
     return (
         <div className="relative min-h-screen w-full bg-[#080d1a] text-white font-sans overflow-x-hidden selection:bg-blue-500 selection:text-white">
