@@ -1,5 +1,26 @@
 import { PASSWORD_REQUIREMENTS, OTP_LENGTH, TOTP_CODE_LENGTH } from '../config/auth';
 
+// Thêm hàm validate username vào file validators.ts
+export const validateUsername = (username: string): { valid: boolean; error?: string } => {
+  if (!username) {
+    return { valid: false, error: 'Tên đăng nhập là bắt buộc' };
+  }
+  if (username.length < 4 || username.length > 20) {
+    return { valid: false, error: 'Tên đăng nhập phải từ 4 đến 20 ký tự' };
+  }
+  if (!/^[a-zA-Z]/.test(username)) {
+    return { valid: false, error: 'Tên đăng nhập phải bắt đầu bằng chữ cái' };
+  }
+  if (/\s/.test(username)) {
+    return { valid: false, error: 'Tên đăng nhập không được chứa khoảng trắng' };
+  }
+  // Chỉ cho phép chữ cái không dấu, số và dấu gạch dưới
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    return { valid: false, error: 'Tên đăng nhập chỉ được chứa chữ cái, số và dấu gạch dưới (_)' };
+  }
+  return { valid: true };
+};
+
 /**
  * Validate email
  */
