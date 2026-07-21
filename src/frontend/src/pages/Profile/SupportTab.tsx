@@ -624,7 +624,7 @@ export default function SupportTab() {
                 <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
                   <Compass size={36} className="text-blue-600" />
                 </div>
-                <h2 className="text-2xl md:text-3xl font-extrabold text-slate-800 tracking-tight mb-2.5">
+                <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-2">
                   Chào mừng đến với DN-Pulse
                 </h2>
                 <p className="text-sm md:text-base text-slate-500 max-w-md mx-auto leading-relaxed">
