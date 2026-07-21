@@ -76,7 +76,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
 
   const wrapperClass = isMobile
     ? "relative flex md:hidden items-center w-full pointer-events-auto"
-    : "relative hidden md:flex items-center max-w-[750px] lg:max-w-[950px] xl:max-w-[1150px] w-full pointer-events-auto shrink-0 self-start mt-0.5";
+    : "relative hidden md:flex items-center max-w-[750px] lg:max-w-[950px] xl:max-w-[1050px] w-full pointer-events-auto shrink-0 self-start mt-0.5";
 
   return (
     <div className={wrapperClass}>
