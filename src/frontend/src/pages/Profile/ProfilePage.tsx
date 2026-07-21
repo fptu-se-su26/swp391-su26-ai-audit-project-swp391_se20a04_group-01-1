@@ -28,7 +28,7 @@ import {
   Copy,
   ExternalLink,
   Share2,
-  CloudSun
+  CloudSun,
 } from "lucide-react";
 import {
   savedRouteService,
@@ -82,7 +82,13 @@ export default function ProfilePage({
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState("");
   const [activeMenu, setActiveMenu] = useState<
-    "profile" | "saved_routes" | "events" | "favorites" | "my_pois" | "settings" | "help"
+    | "profile"
+    | "saved_routes"
+    | "events"
+    | "favorites"
+    | "my_pois"
+    | "settings"
+    | "help"
   >("profile");
 
   // Zustand stores hooks
@@ -142,80 +148,91 @@ export default function ProfilePage({
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
   // State cho Bản đồ Offline
-  const [offlineStatus, setOfflineStatus] = useState<'idle' | 'downloading' | 'downloaded' | 'failed'>('idle');
+  const [offlineStatus, setOfflineStatus] = useState<
+    "idle" | "downloading" | "downloaded" | "failed"
+  >("idle");
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadedCount, setDownloadedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  const [offlineDate, setOfflineDate] = useState('');
+  const [offlineDate, setOfflineDate] = useState("");
 
   useEffect(() => {
-      // Kiểm tra xem đã có dữ liệu bản đồ trong cache chưa
-      const checkOfflineCache = async () => {
-          try {
-              const cache = await caches.open('mapbox-tiles-cache-v1');
-              const keys = await cache.keys();
-              // Nếu có từ 100 tiles trở lên thì coi như đã tải bản đồ
-              if (keys.length > 100) {
-                  setOfflineStatus('downloaded');
-                  const savedDate = localStorage.getItem('offline_map_date') || 'Gần đây';
-                  setOfflineDate(savedDate);
-              }
-          } catch (e) {
-              console.error('Error checking offline cache:', e);
-          }
-      };
-      checkOfflineCache();
+    // Kiểm tra xem đã có dữ liệu bản đồ trong cache chưa
+    const checkOfflineCache = async () => {
+      try {
+        const cache = await caches.open("mapbox-tiles-cache-v1");
+        const keys = await cache.keys();
+        // Nếu có từ 100 tiles trở lên thì coi như đã tải bản đồ
+        if (keys.length > 100) {
+          setOfflineStatus("downloaded");
+          const savedDate =
+            localStorage.getItem("offline_map_date") || "Gần đây";
+          setOfflineDate(savedDate);
+        }
+      } catch (e) {
+        console.error("Error checking offline cache:", e);
+      }
+    };
+    checkOfflineCache();
   }, []);
 
   const handleDownloadOfflineMap = async () => {
-      setOfflineStatus('downloading');
-      setDownloadProgress(0);
-      setDownloadedCount(0);
-      
-      try {
-          const tiles = getDaNangOfflineTiles();
-          setTotalCount(tiles.length + 5);
-          
-          await downloadOfflineTiles(tiles, (downloaded, total) => {
-              setDownloadedCount(downloaded);
-              const progress = Math.round((downloaded / total) * 100);
-              setDownloadProgress(progress);
-          });
-          
-          setOfflineStatus('downloaded');
-          const dateStr = new Date().toLocaleDateString('vi-VN', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-          });
-          setOfflineDate(dateStr);
-          localStorage.setItem('offline_map_date', dateStr);
-          showPremiumToast('Đã tải thành công bản đồ ngoại tuyến Đà Nẵng!', 'success');
-      } catch (error) {
-          console.error('Error downloading offline map:', error);
-          setOfflineStatus('failed');
-          showPremiumToast('Tải bản đồ ngoại tuyến thất bại. Vui lòng thử lại.', 'error');
-      }
+    setOfflineStatus("downloading");
+    setDownloadProgress(0);
+    setDownloadedCount(0);
+
+    try {
+      const tiles = getDaNangOfflineTiles();
+      setTotalCount(tiles.length + 5);
+
+      await downloadOfflineTiles(tiles, (downloaded, total) => {
+        setDownloadedCount(downloaded);
+        const progress = Math.round((downloaded / total) * 100);
+        setDownloadProgress(progress);
+      });
+
+      setOfflineStatus("downloaded");
+      const dateStr = new Date().toLocaleDateString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      setOfflineDate(dateStr);
+      localStorage.setItem("offline_map_date", dateStr);
+      showPremiumToast(
+        "Đã tải thành công bản đồ ngoại tuyến Đà Nẵng!",
+        "success",
+      );
+    } catch (error) {
+      console.error("Error downloading offline map:", error);
+      setOfflineStatus("failed");
+      showPremiumToast(
+        "Tải bản đồ ngoại tuyến thất bại. Vui lòng thử lại.",
+        "error",
+      );
+    }
   };
 
   const handleDeleteOfflineMap = async () => {
-      if (window.confirm('Bạn có chắc chắn muốn xóa bản đồ ngoại tuyến đã tải?')) {
-          try {
-              const success = await caches.delete('mapbox-tiles-cache-v1');
-              if (success) {
-                  setOfflineStatus('idle');
-                  localStorage.removeItem('offline_map_date');
-                  showPremiumToast('Đã xóa dữ liệu bản đồ ngoại tuyến.', 'success');
-              } else {
-                  showPremiumToast('Xóa bản đồ ngoại tuyến thất bại.', 'error');
-              }
-          } catch (error) {
-              console.error('Error deleting offline map:', error);
-              showPremiumToast('Có lỗi xảy ra khi xóa dữ liệu.', 'error');
-          }
+    if (
+      window.confirm("Bạn có chắc chắn muốn xóa bản đồ ngoại tuyến đã tải?")
+    ) {
+      try {
+        const success = await caches.delete("mapbox-tiles-cache-v1");
+        if (success) {
+          setOfflineStatus("idle");
+          localStorage.removeItem("offline_map_date");
+          showPremiumToast("Đã xóa dữ liệu bản đồ ngoại tuyến.", "success");
+        } else {
+          showPremiumToast("Xóa bản đồ ngoại tuyến thất bại.", "error");
+        }
+      } catch (error) {
+        console.error("Error deleting offline map:", error);
+        showPremiumToast("Có lỗi xảy ra khi xóa dữ liệu.", "error");
       }
+    }
   };
 
   const fetchSavedRoutes = async () => {
@@ -473,11 +490,12 @@ export default function ProfilePage({
       </nav>
 
       {/* ============ MAIN CONTENT ============ */}
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
+      <div
+        className="flex flex-col md:flex-row flex-1 overflow-hidden"
+        style={{ height: "calc(100vh - 64px)" }}
+      >
         {/* ============ SIDEBAR ============ */}
-        <div
-          className="w-full md:w-[260px] bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:py-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] shrink-0 flex md:block flex-row overflow-x-auto md:overflow-y-auto scrollbar-none"
-        >
+        <div className="w-full md:w-[260px] bg-white border-b md:border-b-0 md:border-r border-slate-200 px-3 py-3 md:py-4 shadow-[0_1px_3px_rgba(0,0,0,0.05)] shrink-0 flex md:block flex-row overflow-x-auto md:overflow-y-auto scrollbar-none">
           {menuItems.map((item) => {
             const IconComponent = item.icon;
             const isActive = activeMenu === item.id;
@@ -489,9 +507,10 @@ export default function ProfilePage({
                   shrink-0 flex items-center justify-center md:justify-start gap-[10px] px-[14px] py-[10px] mb-0 md:mb-1
                   w-auto md:w-full whitespace-nowrap cursor-pointer transition-all duration-200 ease-in-out text-[13px]
                   border-b-[3px] md:border-b-0 md:border-l-[3px] outline-none
-                  ${isActive 
-                    ? "bg-blue-50 text-blue-600 font-semibold border-b-blue-600 md:border-l-blue-600 md:border-b-transparent" 
-                    : "bg-transparent text-slate-500 font-medium border-b-transparent md:border-l-transparent hover:bg-slate-100"
+                  ${
+                    isActive
+                      ? "bg-blue-50 text-blue-600 font-semibold border-b-blue-600 md:border-l-blue-600 md:border-b-transparent"
+                      : "bg-transparent text-slate-500 font-medium border-b-transparent md:border-l-transparent hover:bg-slate-100"
                   }
                 `}
               >
@@ -2034,175 +2053,483 @@ export default function ProfilePage({
                 </div>
               )}
 
-                {/* Card Bản đồ Ngoại tuyến */}
-                <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)', border: '1px solid #f3f4f6', marginTop: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                        <CloudSun style={{ color: '#2563eb' }} size={20} />
-                        <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>Bản đồ Ngoại tuyến (Offline Map)</h2>
+              {/* Card Bản đồ Ngoại tuyến */}
+              <div
+                style={{
+                  backgroundColor: "white",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  boxShadow:
+                    "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  border: "1px solid #f3f4f6",
+                  marginTop: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <CloudSun style={{ color: "#2563eb" }} size={20} />
+                  <h2
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "bold",
+                      color: "#1f2937",
+                      margin: 0,
+                    }}
+                  >
+                    Bản đồ Ngoại tuyến (Offline Map)
+                  </h2>
+                </div>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#6b7280",
+                    marginBottom: "16px",
+                    lineHeight: "18px",
+                  }}
+                >
+                  Tải trước dữ liệu bản đồ Đà Nẵng ở mức độ chi tiết cao (Zoom
+                  11 - 16) bao gồm cả các ngõ cụt nhỏ (~120MB). Bản đồ này sẽ tự
+                  động được sử dụng để hiển thị đường sá khi thiết bị của bạn bị
+                  mất kết nối internet hoặc sóng di động yếu trong bão lũ.
+                </p>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: "16px",
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "bold",
+                        color: "#374151",
+                      }}
+                    >
+                      Trạng thái:{" "}
+                      {offlineStatus === "downloaded" && (
+                        <span style={{ color: "#10b981" }}>
+                          ✅ Đã tải về ({offlineDate})
+                        </span>
+                      )}
+                      {offlineStatus === "downloading" && (
+                        <span style={{ color: "#2563eb" }}>
+                          ⚡ Đang tải ({downloadProgress}%)
+                        </span>
+                      )}
+                      {offlineStatus === "failed" && (
+                        <span style={{ color: "#ef4444" }}>❌ Lỗi tải về</span>
+                      )}
+                      {offlineStatus === "idle" && (
+                        <span style={{ color: "#6b7280" }}>Chưa tải về</span>
+                      )}
                     </div>
-                    <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '16px', lineHeight: '18px' }}>
-                        Tải trước dữ liệu bản đồ Đà Nẵng ở mức độ chi tiết cao (Zoom 11 - 16) bao gồm cả các ngõ cụt nhỏ (~120MB). Bản đồ này sẽ tự động được sử dụng để hiển thị đường sá khi thiết bị của bạn bị mất kết nối internet hoặc sóng di động yếu trong bão lũ.
-                    </p>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-                        <div>
-                            <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
-                                Trạng thái: {' '}
-                                {offlineStatus === 'downloaded' && <span style={{ color: '#10b981' }}>✅ Đã tải về ({offlineDate})</span>}
-                                {offlineStatus === 'downloading' && <span style={{ color: '#2563eb' }}>⚡ Đang tải ({downloadProgress}%)</span>}
-                                {offlineStatus === 'failed' && <span style={{ color: '#ef4444' }}>❌ Lỗi tải về</span>}
-                                {offlineStatus === 'idle' && <span style={{ color: '#6b7280' }}>Chưa tải về</span>}
-                            </div>
-                            {offlineStatus === 'downloading' && (
-                                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                                    Đã tải: <b>{downloadedCount}</b> / {totalCount} tiles
-                                </div>
-                            )}
-                        </div>
-                        
-                        <div style={{ display: 'flex', gap: '10px' }}>
-                            {offlineStatus === 'downloaded' ? (
-                                <button
-                                    onClick={handleDeleteOfflineMap}
-                                    style={{ padding: '8px 16px', backgroundColor: '#fef2f2', color: '#ef4444', border: '1px solid #fee2e2', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                >
-                                    <Trash2 size={14} /> Xóa bản đồ
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={handleDownloadOfflineMap}
-                                    disabled={offlineStatus === 'downloading'}
-                                    style={{ padding: '8px 16px', backgroundColor: offlineStatus === 'downloading' ? '#93c5fd' : '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '600', cursor: offlineStatus === 'downloading' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-                                >
-                                    <Navigation size={14} /> {offlineStatus === 'downloading' ? 'Đang tải...' : 'Tải bản đồ Đà Nẵng (~120MB)'}
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                    
-                    {offlineStatus === 'downloading' && (
-                        <div style={{ width: '100%', height: '6px', backgroundColor: '#e5e7eb', borderRadius: '3px', marginTop: '16px', overflow: 'hidden' }}>
-                            <div style={{ width: `${downloadProgress}%`, height: '100%', backgroundColor: '#2563eb', transition: 'width 0.2s ease-in-out' }} />
-                        </div>
+                    {offlineStatus === "downloading" && (
+                      <div
+                        style={{
+                          fontSize: "11px",
+                          color: "#6b7280",
+                          marginTop: "4px",
+                        }}
+                      >
+                        Đã tải: <b>{downloadedCount}</b> / {totalCount} tiles
+                      </div>
                     )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    {offlineStatus === "downloaded" ? (
+                      <button
+                        onClick={handleDeleteOfflineMap}
+                        style={{
+                          padding: "8px 16px",
+                          backgroundColor: "#fef2f2",
+                          color: "#ef4444",
+                          border: "1px solid #fee2e2",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <Trash2 size={14} /> Xóa bản đồ
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleDownloadOfflineMap}
+                        disabled={offlineStatus === "downloading"}
+                        style={{
+                          padding: "8px 16px",
+                          backgroundColor:
+                            offlineStatus === "downloading"
+                              ? "#93c5fd"
+                              : "#2563eb",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor:
+                            offlineStatus === "downloading"
+                              ? "not-allowed"
+                              : "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        <Navigation size={14} />{" "}
+                        {offlineStatus === "downloading"
+                          ? "Đang tải..."
+                          : "Tải bản đồ Đà Nẵng (~120MB)"}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {/* Card Chia sẻ vị trí trực tiếp (Live Location Sharing) */}
-                <div style={{ backgroundColor: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)', border: '1px solid #f3f4f6', marginTop: '20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                        <Radio style={{ color: '#059669' }} size={20} className={isSharingLocation ? 'animate-pulse' : ''} />
-                        <h2 style={{ fontSize: '16px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>Chia sẻ Vị trí Trực tiếp (Live Location Sharing)</h2>
+                {offlineStatus === "downloading" && (
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "6px",
+                      backgroundColor: "#e5e7eb",
+                      borderRadius: "3px",
+                      marginTop: "16px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${downloadProgress}%`,
+                        height: "100%",
+                        backgroundColor: "#2563eb",
+                        transition: "width 0.2s ease-in-out",
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Card Chia sẻ vị trí trực tiếp (Live Location Sharing) */}
+              <div
+                style={{
+                  backgroundColor: "white",
+                  borderRadius: "16px",
+                  padding: "24px",
+                  boxShadow:
+                    "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+                  border: "1px solid #f3f4f6",
+                  marginTop: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <Radio
+                    style={{ color: "#059669" }}
+                    size={20}
+                    className={isSharingLocation ? "animate-pulse" : ""}
+                  />
+                  <h2
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: "bold",
+                      color: "#1f2937",
+                      margin: 0,
+                    }}
+                  >
+                    Chia sẻ Vị trí Trực tiếp (Live Location Sharing)
+                  </h2>
+                </div>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#6b7280",
+                    marginBottom: "16px",
+                    lineHeight: "18px",
+                  }}
+                >
+                  Chia sẻ vị trí định vị GPS của bạn theo thời gian thực để
+                  người thân hoặc đội ngũ cứu hộ cứu nạn có thể theo dõi bạn di
+                  chuyển trực tiếp trên bản đồ và dẫn đường đến bạn khi khẩn
+                  cấp.
+                </p>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "16px",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: "bold",
+                          color: "#374151",
+                        }}
+                      >
+                        Trạng thái:{" "}
+                        {isSharingLocation ? (
+                          <span
+                            style={{
+                              color: "#10b981",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: "8px",
+                                height: "8px",
+                                backgroundColor: "#10b981",
+                                borderRadius: "50%",
+                                animation: "pulse 1.5s infinite",
+                              }}
+                            />
+                            Đang phát sóng vị trí trực tuyến
+                          </span>
+                        ) : (
+                          <span style={{ color: "#6b7280" }}>
+                            Chưa kích hoạt
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '16px', lineHeight: '18px' }}>
-                        Chia sẻ vị trí định vị GPS của bạn theo thời gian thực để người thân hoặc đội ngũ cứu hộ cứu nạn có thể theo dõi bạn di chuyển trực tiếp trên bản đồ và dẫn đường đến bạn khi khẩn cấp.
-                    </p>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between' }}>
-                            <div>
-                                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>
-                                    Trạng thái: {' '}
-                                    {isSharingLocation ? (
-                                        <span style={{ color: '#10b981', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ display: 'inline-block', width: '8px', height: '8px', backgroundColor: '#10b981', borderRadius: '50%', animation: 'pulse 1.5s infinite' }} />
-                                            Đang phát sóng vị trí trực tuyến
-                                        </span>
-                                    ) : (
-                                        <span style={{ color: '#6b7280' }}>Chưa kích hoạt</span>
-                                    )}
-                                </div>
+
+                    <div>
+                      <button
+                        onClick={() => {
+                          if (isSharingLocation) {
+                            setShowStopConfirm(true);
+                          } else {
+                            if (onToggleShareLocation) onToggleShareLocation();
+                          }
+                        }}
+                        style={{
+                          padding: "8px 16px",
+                          backgroundColor: isSharingLocation
+                            ? "#fef2f2"
+                            : "#059669",
+                          color: isSharingLocation ? "#ef4444" : "white",
+                          border: isSharingLocation
+                            ? "1px solid #fee2e2"
+                            : "none",
+                          borderRadius: "8px",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        <Radio size={14} />
+                        {isSharingLocation
+                          ? "Dừng chia sẻ"
+                          : "Bật chia sẻ vị trí trực tiếp"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isSharingLocation &&
+                    liveShareToken &&
+                    (() => {
+                      const shareLink = `${window.location.origin}/track/${liveShareToken}`;
+                      return (
+                        <div
+                          style={{
+                            backgroundColor: "#f9fafb",
+                            borderRadius: "12px",
+                            padding: "16px",
+                            border: "1px solid #e5e7eb",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "12px",
+                          }}
+                        >
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <input
+                              readOnly
+                              type="text"
+                              value={shareLink}
+                              style={{
+                                flex: 1,
+                                padding: "8px 12px",
+                                fontSize: "11px",
+                                border: "1px solid #d1d5db",
+                                borderRadius: "8px",
+                                backgroundColor: "#fff",
+                                outline: "none",
+                                color: "#4b5563",
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(shareLink);
+                                showPremiumToast(
+                                  "Đã sao chép liên kết!",
+                                  "success",
+                                );
+                              }}
+                              style={
+                                {
+                                  padding: "8px 12px",
+                                  backgroundColor: "#e5e7eb",
+                                  border: "none",
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifycontent: "center",
+                                } as any
+                              }
+                              title="Sao chép liên kết"
+                            >
+                              <Copy size={14} />
+                            </button>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "6px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: "bold",
+                                color: "#4b5563",
+                                textAlign: "left",
+                              }}
+                            >
+                              Chia sẻ nhanh qua mạng xã hội:
+                            </span>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "8px",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <a
+                                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareLink)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  textDecoration: "none",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  padding: "6px 12px",
+                                  backgroundColor: "#1877f2",
+                                  color: "white",
+                                  fontSize: "11px",
+                                  fontWeight: "bold",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Facebook
+                              </a>
+                              <a
+                                href={`https://zalo.me/share?url=${encodeURIComponent(shareLink)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  textDecoration: "none",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  padding: "6px 12px",
+                                  backgroundColor: "#0068ff",
+                                  color: "white",
+                                  fontSize: "11px",
+                                  fontWeight: "bold",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Zalo
+                              </a>
+                              <a
+                                href={`https://t.me/share/url?url=${encodeURIComponent(shareLink)}&text=${encodeURIComponent("Theo dõi vị trí trực tiếp của tôi:")}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  textDecoration: "none",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  padding: "6px 12px",
+                                  backgroundColor: "#229ed9",
+                                  color: "white",
+                                  fontSize: "11px",
+                                  fontWeight: "bold",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Telegram
+                              </a>
+                              <a
+                                href={`mailto:?subject=Theo dõi vị trí trực tuyến&body=Xem vị trí trực tiếp của tôi tại đây: ${encodeURIComponent(shareLink)}`}
+                                style={{
+                                  textDecoration: "none",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  padding: "6px 12px",
+                                  backgroundColor: "#4b5563",
+                                  color: "white",
+                                  fontSize: "11px",
+                                  fontWeight: "bold",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Email
+                              </a>
                             </div>
-                            
-                            <div>
-                                <button
-                                    onClick={() => {
-                                        if (isSharingLocation) {
-                                            setShowStopConfirm(true);
-                                        } else {
-                                            if (onToggleShareLocation) onToggleShareLocation();
-                                        }
-                                    }}
-                                    style={{ 
-                                        padding: '8px 16px', 
-                                        backgroundColor: isSharingLocation ? '#fef2f2' : '#059669', 
-                                        color: isSharingLocation ? '#ef4444' : 'white', 
-                                        border: isSharingLocation ? '1px solid #fee2e2' : 'none', 
-                                        borderRadius: '8px', 
-                                        fontSize: '12px', 
-                                        fontWeight: '600', 
-                                        cursor: 'pointer', 
-                                        display: 'flex', 
-                                        alignItems: 'center', 
-                                        gap: '6px',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <Radio size={14} /> 
-                                    {isSharingLocation ? 'Dừng chia sẻ' : 'Bật chia sẻ vị trí trực tiếp'}
-                                </button>
-                            </div>
+                          </div>
                         </div>
-
-                        {isSharingLocation && liveShareToken && (() => {
-                            const shareLink = `${window.location.origin}/track/${liveShareToken}`;
-                            return (
-                                <div style={{ backgroundColor: '#f9fafb', borderRadius: '12px', padding: '16px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                    <div style={{ display: 'flex', gap: '8px' }}>
-                                        <input 
-                                            readOnly 
-                                            type="text" 
-                                            value={shareLink} 
-                                            style={{ flex: 1, padding: '8px 12px', fontSize: '11px', border: '1px solid #d1d5db', borderRadius: '8px', backgroundColor: '#fff', outline: 'none', color: '#4b5563' }} 
-                                        />
-                                        <button 
-                                            onClick={() => { navigator.clipboard.writeText(shareLink); showPremiumToast('Đã sao chép liên kết!', 'success'); }} 
-                                            style={{ padding: '8px 12px', backgroundColor: '#e5e7eb', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifycontent: 'center' } as any}
-                                            title="Sao chép liên kết"
-                                        >
-                                            <Copy size={14} />
-                                        </button>
-                                    </div>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#4b5563', textAlign: 'left' }}>Chia sẻ nhanh qua mạng xã hội:</span>
-                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                            <a 
-                                                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareLink)}`} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: '#1877f2', color: 'white', fontSize: '11px', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer' }}
-                                            >
-                                                Facebook
-                                            </a>
-                                            <a 
-                                                href={`https://zalo.me/share?url=${encodeURIComponent(shareLink)}`} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: '#0068ff', color: 'white', fontSize: '11px', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer' }}
-                                            >
-                                                Zalo
-                                            </a>
-                                            <a 
-                                                href={`https://t.me/share/url?url=${encodeURIComponent(shareLink)}&text=${encodeURIComponent('Theo dõi vị trí trực tiếp của tôi:')}`} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: '#229ed9', color: 'white', fontSize: '11px', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer' }}
-                                            >
-                                                Telegram
-                                            </a>
-                                            <a 
-                                                href={`mailto:?subject=Theo dõi vị trí trực tuyến&body=Xem vị trí trực tiếp của tôi tại đây: ${encodeURIComponent(shareLink)}`} 
-                                                style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', backgroundColor: '#4b5563', color: 'white', fontSize: '11px', fontWeight: 'bold', borderRadius: '6px', cursor: 'pointer' }}
-                                            >
-                                                Email
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
+                      );
+                    })()}
                 </div>
+              </div>
             </div>
           )}
 
@@ -2488,7 +2815,8 @@ export default function ProfilePage({
                 lineHeight: "1.6",
               }}
             >
-              Bạn có chắc chắn muốn dừng phát sóng vị trí trực tiếp? Người thân và cứu hộ sẽ không thể theo dõi đường đi của bạn nữa.
+              Bạn có chắc chắn muốn dừng phát sóng vị trí trực tiếp? Người thân
+              và cứu hộ sẽ không thể theo dõi đường đi của bạn nữa.
             </p>
             <div style={{ display: "flex", gap: "12px" }}>
               <button
@@ -2541,103 +2869,129 @@ export default function ProfilePage({
 // ============ HELPER FUNCTIONS FOR OFFLINE MAP DOWNLOAD ============
 
 function lngLatToTile(lng: number, lat: number, zoom: number) {
-    const latRad = (lat * Math.PI) / 180;
-    const n = Math.pow(2, zoom);
-    const x = Math.floor(((lng + 180) / 360) * n);
-    const y = Math.floor(
-        ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n
-    );
-    return { x, y };
+  const latRad = (lat * Math.PI) / 180;
+  const n = Math.pow(2, zoom);
+  const x = Math.floor(((lng + 180) / 360) * n);
+  const y = Math.floor(
+    ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n,
+  );
+  return { x, y };
 }
 
-function getTilesInBBox(minLng: number, minLat: number, maxLng: number, maxLat: number, zoom: number) {
-    const minTile = lngLatToTile(minLng, maxLat, zoom);
-    const maxTile = lngLatToTile(maxLng, minLat, zoom);
-    
-    const minX = Math.min(minTile.x, maxTile.x);
-    const maxX = Math.max(minTile.x, maxTile.x);
-    const minY = Math.min(minTile.y, maxTile.y);
-    const maxY = Math.max(minTile.y, maxTile.y);
-    
-    const list = [];
-    for (let x = minX; x <= maxX; x++) {
-        for (let y = minY; y <= maxY; y++) {
-            list.push({ x, y, z: zoom });
-        }
+function getTilesInBBox(
+  minLng: number,
+  minLat: number,
+  maxLng: number,
+  maxLat: number,
+  zoom: number,
+) {
+  const minTile = lngLatToTile(minLng, maxLat, zoom);
+  const maxTile = lngLatToTile(maxLng, minLat, zoom);
+
+  const minX = Math.min(minTile.x, maxTile.x);
+  const maxX = Math.max(minTile.x, maxTile.x);
+  const minY = Math.min(minTile.y, maxTile.y);
+  const maxY = Math.max(minTile.y, maxTile.y);
+
+  const list = [];
+  for (let x = minX; x <= maxX; x++) {
+    for (let y = minY; y <= maxY; y++) {
+      list.push({ x, y, z: zoom });
     }
-    return list;
+  }
+  return list;
 }
 
 function getDaNangOfflineTiles() {
-    const list: {x: number, y: number, z: number}[] = [];
-    
-    // 1. Zoom 11 - 14: Toàn cảnh Đà Nẵng
-    const bboxWide = { minLng: 108.0, minLat: 15.9, maxLng: 108.4, maxLat: 16.2 };
-    for (let z = 11; z <= 14; z++) {
-        const tiles = getTilesInBBox(bboxWide.minLng, bboxWide.minLat, bboxWide.maxLng, bboxWide.maxLat, z);
-        list.push(...tiles);
-    }
-    
-    // 2. Zoom 15 - 16: Chi tiết khu vực đô thị trung tâm Đà Nẵng
-    const bboxCore = { minLng: 108.15, minLat: 16.0, maxLng: 108.28, maxLat: 16.1 };
-    for (let z = 15; z <= 16; z++) {
-        const tiles = getTilesInBBox(bboxCore.minLng, bboxCore.minLat, bboxCore.maxLng, bboxCore.maxLat, z);
-        list.push(...tiles);
-    }
-    
-    return list;
+  const list: { x: number; y: number; z: number }[] = [];
+
+  // 1. Zoom 11 - 14: Toàn cảnh Đà Nẵng
+  const bboxWide = { minLng: 108.0, minLat: 15.9, maxLng: 108.4, maxLat: 16.2 };
+  for (let z = 11; z <= 14; z++) {
+    const tiles = getTilesInBBox(
+      bboxWide.minLng,
+      bboxWide.minLat,
+      bboxWide.maxLng,
+      bboxWide.maxLat,
+      z,
+    );
+    list.push(...tiles);
+  }
+
+  // 2. Zoom 15 - 16: Chi tiết khu vực đô thị trung tâm Đà Nẵng
+  const bboxCore = {
+    minLng: 108.15,
+    minLat: 16.0,
+    maxLng: 108.28,
+    maxLat: 16.1,
+  };
+  for (let z = 15; z <= 16; z++) {
+    const tiles = getTilesInBBox(
+      bboxCore.minLng,
+      bboxCore.minLat,
+      bboxCore.maxLng,
+      bboxCore.maxLat,
+      z,
+    );
+    list.push(...tiles);
+  }
+
+  return list;
 }
 
 async function downloadOfflineTiles(
-    tiles: {x: number, y: number, z: number}[],
-    onProgress: (downloaded: number, total: number) => void
+  tiles: { x: number; y: number; z: number }[],
+  onProgress: (downloaded: number, total: number) => void,
 ) {
-    const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
-    const total = tiles.length + 5;
-    let downloaded = 0;
+  const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
+  const total = tiles.length + 5;
+  let downloaded = 0;
 
-    const increment = () => {
-        downloaded++;
-        onProgress(downloaded, total);
-    };
+  const increment = () => {
+    downloaded++;
+    onProgress(downloaded, total);
+  };
 
-    // 1. Tải Style, Sprites và Glyphs trước
-    const assets = [
-        `https://api.mapbox.com/styles/v1/mapbox/light-v11?access_token=${MAPBOX_TOKEN}`,
-        `https://api.mapbox.com/styles/v1/mapbox/light-v11/sprite.json?access_token=${MAPBOX_TOKEN}`,
-        `https://api.mapbox.com/styles/v1/mapbox/light-v11/sprite.png?access_token=${MAPBOX_TOKEN}`,
-        `https://api.mapbox.com/fonts/v1/mapbox/Arial%20Regular,Arial%20Bold/0-255.pbf?access_token=${MAPBOX_TOKEN}`,
-        `https://api.mapbox.com/fonts/v1/mapbox/Open%20Sans%20Regular,Open%20Sans%20Semibold/0-255.pbf?access_token=${MAPBOX_TOKEN}`
-    ];
+  // 1. Tải Style, Sprites và Glyphs trước
+  const assets = [
+    `https://api.mapbox.com/styles/v1/mapbox/light-v11?access_token=${MAPBOX_TOKEN}`,
+    `https://api.mapbox.com/styles/v1/mapbox/light-v11/sprite.json?access_token=${MAPBOX_TOKEN}`,
+    `https://api.mapbox.com/styles/v1/mapbox/light-v11/sprite.png?access_token=${MAPBOX_TOKEN}`,
+    `https://api.mapbox.com/fonts/v1/mapbox/Arial%20Regular,Arial%20Bold/0-255.pbf?access_token=${MAPBOX_TOKEN}`,
+    `https://api.mapbox.com/fonts/v1/mapbox/Open%20Sans%20Regular,Open%20Sans%20Semibold/0-255.pbf?access_token=${MAPBOX_TOKEN}`,
+  ];
 
-    for (const url of assets) {
-        try {
-            await fetch(url);
-        } catch (e) {
-            console.error('Failed to pre-fetch asset:', url, e);
-        }
-        increment();
+  for (const url of assets) {
+    try {
+      await fetch(url);
+    } catch (e) {
+      console.error("Failed to pre-fetch asset:", url, e);
     }
+    increment();
+  }
 
-    // 2. Tải vector tiles (Streets-v8) song song với giới hạn concurrency = 15
-    const concurrencyLimit = 15;
-    const queue = [...tiles];
-    
-    const worker = async () => {
-        while (queue.length > 0) {
-            const tile = queue.shift();
-            if (!tile) break;
-            
-            const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${tile.z}/${tile.x}/${tile.y}.vector.pbf?access_token=${MAPBOX_TOKEN}`;
-            try {
-                await fetch(url);
-            } catch (e) {
-                console.error(`Failed to download tile ${tile.z}/${tile.x}/${tile.y}:`, e);
-            }
-            increment();
-        }
-    };
+  // 2. Tải vector tiles (Streets-v8) song song với giới hạn concurrency = 15
+  const concurrencyLimit = 15;
+  const queue = [...tiles];
 
-    const workers = Array.from({ length: concurrencyLimit }).map(() => worker());
-    await Promise.all(workers);
+  const worker = async () => {
+    while (queue.length > 0) {
+      const tile = queue.shift();
+      if (!tile) break;
+
+      const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/${tile.z}/${tile.x}/${tile.y}.vector.pbf?access_token=${MAPBOX_TOKEN}`;
+      try {
+        await fetch(url);
+      } catch (e) {
+        console.error(
+          `Failed to download tile ${tile.z}/${tile.x}/${tile.y}:`,
+          e,
+        );
+      }
+      increment();
+    }
+  };
+
+  const workers = Array.from({ length: concurrencyLimit }).map(() => worker());
+  await Promise.all(workers);
 }

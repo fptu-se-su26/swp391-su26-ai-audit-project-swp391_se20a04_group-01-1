@@ -1059,7 +1059,74 @@ export default function Home() {
       }
     }
   }, [pois, location.search]);
+  // Lắng nghe URL params để tự động vẽ lộ trình khi click từ trang Profile
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const routeIdStr = queryParams.get("routeId");
 
+    // Nếu có routeId trên URL và danh sách savedRoutes đã được load xong
+    if (routeIdStr && savedRoutes && savedRoutes.length > 0) {
+      const routeId = parseInt(routeIdStr, 10);
+
+      // Tìm lộ trình tương ứng trong danh sách
+      const routeToLoad = savedRoutes.find((r) => r.route_id === routeId);
+
+      if (routeToLoad) {
+        // 1. Gán Điểm đi
+        setOrigin({
+          lat: routeToLoad.origin_lat,
+          lng: routeToLoad.origin_lng,
+          label: routeToLoad.origin_name || "Vị trí xuất phát",
+        });
+        setOriginQuery(routeToLoad.origin_name || "Vị trí xuất phát");
+
+        // 2. Gán Điểm đến
+        setDestination({
+          lat: routeToLoad.destination_lat,
+          lng: routeToLoad.destination_lng,
+          label: routeToLoad.destination_name || "Điểm đến",
+        });
+        setDestinationQuery(routeToLoad.destination_name || "Điểm đến");
+
+        // 3. Gán Phương tiện
+        setTravelMode(routeToLoad.profile as "driving" | "walking" | "cycling");
+
+        // 4. Áp dụng data vào bản đồ (chặn gọi API mới)
+        applyRouteToState(routeToLoad);
+
+        // 5. Tự động zoom bản đồ ôm trọn tuyến đường
+        if (routeToLoad.route_data) {
+          const parsed = parseRouteData(routeToLoad.route_data);
+          const coords = parsed.coordinates;
+
+          if (coords && coords.length > 0 && mapRef.current) {
+            let minLng = coords[0][0],
+              maxLng = coords[0][0];
+            let minLat = coords[0][1],
+              maxLat = coords[0][1];
+
+            for (const c of coords) {
+              if (c[0] < minLng) minLng = c[0];
+              if (c[0] > maxLng) maxLng = c[0];
+              if (c[1] < minLat) minLat = c[1];
+              if (c[1] > maxLat) maxLat = c[1];
+            }
+
+            mapRef.current.fitBounds(
+              [
+                [minLng, minLat],
+                [maxLng, maxLat],
+              ],
+              { padding: 80, duration: 1200 },
+            );
+          }
+        }
+
+        // 6. Xóa param routeId khỏi URL để tránh bị load lại nếu người dùng F5 hoặc làm thao tác khác
+        navigate(location.pathname, { replace: true });
+      }
+    }
+  }, [location.search, savedRoutes, navigate]);
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
