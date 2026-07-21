@@ -26,7 +26,6 @@ import { showPremiumToast } from "../../../utils/toastUtils";
 import { useFavoritePoiStore } from "../../../store/favoritePoiStore";
 import { LocationPoint, RouteData, RouteStep } from "../hooks/useMapRouting";
 
-
 interface RoutePanelProps {
   viewMode: "pois" | "events";
   destination: LocationPoint | null;
@@ -55,6 +54,7 @@ interface RoutePanelProps {
   setAvoidCongestion: (val: boolean) => void;
   setTravelMode: (mode: "driving" | "walking" | "cycling") => void;
   setShowSaveRouteModal: (val: boolean) => void;
+  onOpenSaveRouteModal: () => void;
   handleShareRoute: () => void;
   setRouteData: (val: RouteData | null) => void;
   setDestination: (val: LocationPoint | null) => void;
@@ -95,6 +95,7 @@ export function RoutePanel({
   setAvoidCongestion,
   setTravelMode,
   setShowSaveRouteModal,
+  onOpenSaveRouteModal,
   handleShareRoute,
   setRouteData,
   setDestination,
@@ -177,98 +178,12 @@ export function RoutePanel({
   return (
     <>
       <div ref={searchContainerRef} className="relative z-50">
-      {!destination ? (
-        <div className="w-full h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
-          <Search className="text-blue-500 mr-2 shrink-0" size={18} />
-          <input
-            type="text"
-            placeholder="Tìm kiếm địa điểm tại Đà Nẵng..."
-            value={destinationQuery}
-            onChange={(e) => {
-              setDestinationQuery(e.target.value);
-              setActiveInputField("destination");
-            }}
-            onFocus={() => {
-              setActiveInputField("destination");
-              if (suggestions.length > 0) setShowSuggestions(true);
-            }}
-            className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
-          />
-        </div>
-      ) : (
-        <div className="w-full max-md:max-h-[35vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
-          <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
-          <div className="flex items-center gap-3 relative">
-            <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-            </span>
+        {!destination ? (
+          <div className="w-full h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
+            <Search className="text-blue-500 mr-2 shrink-0" size={18} />
             <input
               type="text"
-              placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
-              value={originQuery}
-              onChange={(e) => {
-                setOriginQuery(e.target.value);
-                setActiveInputField("origin");
-              }}
-              onFocus={() => {
-                setActiveInputField("origin");
-                if (suggestions.length > 0) setShowSuggestions(true);
-              }}
-              className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-            />
-          </div>
-
-          {/* Chặng đi giữa (Waypoints) */}
-          {waypoints && waypoints.map((wp, idx) => (
-            <div key={`waypoint-input-${idx}`} className="flex items-center gap-3 relative">
-              <span className="w-4 h-4 rounded-full border-2 border-slate-400 bg-white z-10 flex items-center justify-center shrink-0 text-[9px] font-black text-slate-500">
-                {String.fromCharCode(66 + idx)}
-              </span>
-              <div className="relative w-full flex items-center">
-                <input
-                  type="text"
-                  placeholder={`Chọn điểm dừng ${idx + 1}...`}
-                  value={waypointQueries?.[idx] || ""}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (setWaypointQueries) {
-                      setWaypointQueries(prev => {
-                        const next = [...prev];
-                        next[idx] = val;
-                        return next;
-                      });
-                    }
-                    setActiveInputField(`waypoint-${idx}`);
-                  }}
-                  onFocus={() => {
-                    setActiveInputField(`waypoint-${idx}`);
-                    if (suggestions.length > 0) setShowSuggestions(true);
-                  }}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-                />
-                <button
-                  onClick={() => {
-                    if (setWaypoints && setWaypointQueries) {
-                      setWaypoints(prev => prev.filter((_, i) => i !== idx));
-                      setWaypointQueries(prev => prev.filter((_, i) => i !== idx));
-                    }
-                  }}
-                  className="absolute right-3 text-slate-400 hover:text-slate-600 font-bold text-sm"
-                  title="Xóa điểm dừng"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          ))}
-
-          <div className="flex items-center gap-3 relative">
-            <span className="text-red-500 z-10 text-sm font-bold shrink-0">
-              📍
-            </span>
-            <input
-              type="text"
-              placeholder="Chọn điểm đến..."
+              placeholder="Tìm kiếm địa điểm tại Đà Nẵng..."
               value={destinationQuery}
               onChange={(e) => {
                 setDestinationQuery(e.target.value);
@@ -278,58 +193,155 @@ export function RoutePanel({
                 setActiveInputField("destination");
                 if (suggestions.length > 0) setShowSuggestions(true);
               }}
-              className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+              className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
             />
           </div>
+        ) : (
+          <div className="w-full max-md:max-h-[35vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
+            <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
+            <div className="flex items-center gap-3 relative">
+              <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              </span>
+              <input
+                type="text"
+                placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
+                value={originQuery}
+                onChange={(e) => {
+                  setOriginQuery(e.target.value);
+                  setActiveInputField("origin");
+                }}
+                onFocus={() => {
+                  setActiveInputField("origin");
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
+                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+              />
+            </div>
 
-          {/* Nút Thêm điểm dừng */}
-          {(!waypoints || waypoints.length < 3) && (
-            <button
-              onClick={() => {
-                if (setWaypoints && setWaypointQueries) {
-                  setWaypoints(prev => [...prev, { lat: undefined, lng: undefined, label: "" } as any]);
-                  setWaypointQueries(prev => [...prev, ""]);
-                }
-              }}
-              className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-700 font-semibold self-start ml-7 mt-0.5 hover:underline"
-            >
-              <span className="text-sm font-bold">+</span> Thêm điểm dừng
-            </button>
-          )}
-
-          {(!waypoints || waypoints.length === 0) && (
-            <button
-              onClick={handleSwapLocations}
-              className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
-              title="Đảo ngược vị trí"
-            >
-              <ArrowUpDown size={14} />
-            </button>
-          )}
-        </div>
-      )}
-
-      {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
-          {suggestions.map((item: any) => (
-            <button
-              key={item.id}
-              onClick={() => handleSelectSuggestion(item)}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-start gap-2 text-[11px] font-medium text-slate-700 border-b border-slate-50 last:border-b-0"
-            >
-              <span className="text-slate-400 mt-0.5">📍</span>
-              <div>
-                <div className="font-bold text-slate-800 line-clamp-1">
-                  {item.text_vi || item.text}
+            {/* Chặng đi giữa (Waypoints) */}
+            {waypoints &&
+              waypoints.map((wp, idx) => (
+                <div
+                  key={`waypoint-input-${idx}`}
+                  className="flex items-center gap-3 relative"
+                >
+                  <span className="w-4 h-4 rounded-full border-2 border-slate-400 bg-white z-10 flex items-center justify-center shrink-0 text-[9px] font-black text-slate-500">
+                    {String.fromCharCode(66 + idx)}
+                  </span>
+                  <div className="relative w-full flex items-center">
+                    <input
+                      type="text"
+                      placeholder={`Chọn điểm dừng ${idx + 1}...`}
+                      value={waypointQueries?.[idx] || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (setWaypointQueries) {
+                          setWaypointQueries((prev) => {
+                            const next = [...prev];
+                            next[idx] = val;
+                            return next;
+                          });
+                        }
+                        setActiveInputField(`waypoint-${idx}`);
+                      }}
+                      onFocus={() => {
+                        setActiveInputField(`waypoint-${idx}`);
+                        if (suggestions.length > 0) setShowSuggestions(true);
+                      }}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                    />
+                    <button
+                      onClick={() => {
+                        if (setWaypoints && setWaypointQueries) {
+                          setWaypoints((prev) =>
+                            prev.filter((_, i) => i !== idx),
+                          );
+                          setWaypointQueries((prev) =>
+                            prev.filter((_, i) => i !== idx),
+                          );
+                        }
+                      }}
+                      className="absolute right-3 text-slate-400 hover:text-slate-600 font-bold text-sm"
+                      title="Xóa điểm dừng"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <div className="text-slate-400 text-[10px] line-clamp-1 mt-0.5">
-                  {item.place_name_vi || item.place_name}
+              ))}
+
+            <div className="flex items-center gap-3 relative">
+              <span className="text-red-500 z-10 text-sm font-bold shrink-0">
+                📍
+              </span>
+              <input
+                type="text"
+                placeholder="Chọn điểm đến..."
+                value={destinationQuery}
+                onChange={(e) => {
+                  setDestinationQuery(e.target.value);
+                  setActiveInputField("destination");
+                }}
+                onFocus={() => {
+                  setActiveInputField("destination");
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
+                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+              />
+            </div>
+
+            {/* Nút Thêm điểm dừng */}
+            {(!waypoints || waypoints.length < 3) && (
+              <button
+                onClick={() => {
+                  if (setWaypoints && setWaypointQueries) {
+                    setWaypoints((prev) => [
+                      ...prev,
+                      { lat: undefined, lng: undefined, label: "" } as any,
+                    ]);
+                    setWaypointQueries((prev) => [...prev, ""]);
+                  }
+                }}
+                className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-700 font-semibold self-start ml-7 mt-0.5 hover:underline"
+              >
+                <span className="text-sm font-bold">+</span> Thêm điểm dừng
+              </button>
+            )}
+
+            {(!waypoints || waypoints.length === 0) && (
+              <button
+                onClick={handleSwapLocations}
+                className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
+                title="Đảo ngược vị trí"
+              >
+                <ArrowUpDown size={14} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
+            {suggestions.map((item: any) => (
+              <button
+                key={item.id}
+                onClick={() => handleSelectSuggestion(item)}
+                className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-start gap-2 text-[11px] font-medium text-slate-700 border-b border-slate-50 last:border-b-0"
+              >
+                <span className="text-slate-400 mt-0.5">📍</span>
+                <div>
+                  <div className="font-bold text-slate-800 line-clamp-1">
+                    {item.text_vi || item.text}
+                  </div>
+                  <div className="text-slate-400 text-[10px] line-clamp-1 mt-0.5">
+                    {item.place_name_vi || item.place_name}
+                  </div>
                 </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {routeData && (
@@ -455,7 +467,7 @@ export function RoutePanel({
             {/* Hàng: Lưu lộ trình + Chia sẻ */}
             <div className="flex gap-2">
               <button
-                onClick={() => setShowSaveRouteModal(true)}
+                onClick={onOpenSaveRouteModal}
                 className="flex-1 bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Bookmark size={13} className="fill-current" /> Lưu lộ trình
@@ -515,7 +527,7 @@ export function TurnByTurnSteps({ steps }: { steps: RouteStep[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const filteredSteps = steps.filter(
-    (s) => s.maneuver.type !== "depart" && s.maneuver.type !== "arrive"
+    (s) => s.maneuver.type !== "depart" && s.maneuver.type !== "arrive",
   );
   const displaySteps = isExpanded ? steps : steps.slice(0, 3);
 
@@ -528,8 +540,7 @@ export function TurnByTurnSteps({ steps }: { steps: RouteStep[] }) {
     }
     if (type === "depart")
       return <Navigation size={14} className="text-emerald-600" />;
-    if (type === "arrive")
-      return <Flag size={14} className="text-red-500" />;
+    if (type === "arrive") return <Flag size={14} className="text-red-500" />;
     if (type === "rotary" || type === "roundabout")
       return <RotateCcw size={14} className="text-violet-600" />;
     if (type === "merge" || type === "on ramp" || type === "off ramp")
