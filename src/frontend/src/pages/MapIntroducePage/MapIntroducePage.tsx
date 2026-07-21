@@ -191,7 +191,7 @@ export default function MapIntroducePage() {
                 Accept: "application/json",
             },
             body: JSON.stringify({
-                access_key: "dc3a528e-2bdd-4245-94b8-470e93ab22b7", // Access Key của bạn
+                access_key: import.meta.env.VITE_WEB3FORMS_ACCESS_KEY,
                 name: contactForm.name,
                 email: contactForm.email,
                 message: contactForm.message,
