@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { savedRouteService, SavedRoute } from "../../../services/savedRouteService";
+import {
+  savedRouteService,
+  SavedRoute,
+} from "../../../services/savedRouteService";
 import { showPremiumToast } from "../../../utils/toastUtils";
 import { parseRouteData } from "../../../utils/utlis";
 
@@ -23,7 +26,7 @@ interface UseSavedRoutesStateProps {
     title: string,
     message: string,
     onConfirm: () => void,
-    onCancel: () => void
+    onCancel: () => void,
   ) => void;
   isLoadedRouteRef: React.MutableRefObject<boolean>;
   waypoints?: any[];
@@ -61,6 +64,9 @@ export const useSavedRoutesState = ({
   const [shareUrl, setShareUrl] = useState("");
   const [isSavingRoute, setIsSavingRoute] = useState(false);
   const [isSharingRoute, setIsSharingRoute] = useState(false);
+  // route_id của lộ trình đã lưu trùng (nếu có) — khi lưu sẽ update đè lên bản ghi này thay vì tạo mới
+  const [duplicateRouteId, setDuplicateRouteId] = useState<number | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
 
   const fetchSavedRoutes = async () => {
     const token =
@@ -82,6 +88,34 @@ export const useSavedRoutesState = ({
     }
   }, [showSavedRoutesSidebar]);
 
+  // Gọi trước khi mở modal "Lưu lộ trình": kiểm tra đã có lộ trình thủ công nào trùng chưa để prefill tên cũ.
+  const openSaveRouteModal = async () => {
+    setDuplicateRouteId(null);
+    setSaveRouteName("");
+    setShowSaveRouteModal(true);
+
+    if (!origin || !destination) return;
+
+    setIsCheckingDuplicate(true);
+    try {
+      const { duplicate, route } = await savedRouteService.checkDuplicateRoute({
+        origin_lat: origin.lat,
+        origin_lng: origin.lng,
+        destination_lat: destination.lat,
+        destination_lng: destination.lng,
+        profile: travelMode,
+      });
+      if (duplicate && route) {
+        setDuplicateRouteId(route.route_id);
+        setSaveRouteName(route.route_name || "");
+      }
+    } catch (error) {
+      console.error("Lỗi khi kiểm tra lộ trình trùng lặp:", error);
+    } finally {
+      setIsCheckingDuplicate(false);
+    }
+  };
+
   const handleSaveRoute = async () => {
     const token =
       localStorage.getItem("token") || localStorage.getItem("auth_token");
@@ -100,7 +134,7 @@ export const useSavedRoutesState = ({
 
     setIsSavingRoute(true);
     try {
-      await savedRouteService.saveRoute({
+      const response = await savedRouteService.saveRoute({
         origin_name: origin.label || originQuery,
         origin_lat: origin.lat,
         origin_lng: origin.lng,
@@ -115,22 +149,29 @@ export const useSavedRoutesState = ({
         route_data: JSON.stringify(
           waypoints && waypoints.length > 0
             ? { coordinates: routeData.coordinates, waypoints }
-            : routeData.coordinates
+            : routeData.coordinates,
         ),
         distance_meters: Math.round(routeData.totalDistanceKm * 1000),
         duration_seconds: routeData.totalTimeMin * 60,
         profile: travelMode,
         is_emergency: isEmergency,
+        save_type: "manual",
       });
-      showPremiumToast("Lưu lộ trình thành công!", "success");
+      showPremiumToast(
+        response.updated
+          ? "Đã cập nhật lộ trình đã lưu trước đó!"
+          : "Lưu lộ trình thành công!",
+        "success",
+      );
       setShowSaveRouteModal(false);
       setSaveRouteName("");
+      setDuplicateRouteId(null);
       fetchSavedRoutes();
     } catch (error: any) {
       console.error("Lỗi khi lưu lộ trình:", error);
       showPremiumToast(
         error.response?.data?.message || "Không thể lưu lộ trình.",
-        "error"
+        "error",
       );
     } finally {
       setIsSavingRoute(false);
@@ -166,7 +207,7 @@ export const useSavedRoutesState = ({
         route_data: JSON.stringify(
           waypoints && waypoints.length > 0
             ? { coordinates: routeData.coordinates, waypoints }
-            : routeData.coordinates
+            : routeData.coordinates,
         ),
         distance_meters: Math.round(routeData.totalDistanceKm * 1000),
         duration_seconds: routeData.totalTimeMin * 60,
@@ -188,7 +229,7 @@ export const useSavedRoutesState = ({
       console.error("Lỗi khi chia sẻ lộ trình:", error);
       showPremiumToast(
         error.response?.data?.message || "Không thể tạo liên kết chia sẻ.",
-        "error"
+        "error",
       );
     } finally {
       setIsSharingRoute(false);
@@ -210,7 +251,7 @@ export const useSavedRoutesState = ({
           showPremiumToast("Không thể xóa lộ trình.", "error");
         }
       },
-      () => {}
+      () => {},
     );
   };
 
@@ -264,7 +305,7 @@ export const useSavedRoutesState = ({
           [minLng, minLat],
           [maxLng, maxLat],
         ],
-        { padding: 80, duration: 1500 }
+        { padding: 80, duration: 1500 },
       );
     }
 
@@ -313,7 +354,7 @@ export const useSavedRoutesState = ({
 
             setRouteData({
               totalDistanceKm: parseFloat(
-                (route.distance_meters / 1000).toFixed(2)
+                (route.distance_meters / 1000).toFixed(2),
               ),
               totalTimeMin: Math.round(route.duration_seconds / 60),
               coordinates: coords,
@@ -337,7 +378,7 @@ export const useSavedRoutesState = ({
                     [minLng, minLat],
                     [maxLng, maxLat],
                   ],
-                  { padding: 80, duration: 1500 }
+                  { padding: 80, duration: 1500 },
                 );
               }, 1000);
             }
@@ -389,7 +430,7 @@ export const useSavedRoutesState = ({
 
             setRouteData({
               totalDistanceKm: parseFloat(
-                (route.distance_meters / 1000).toFixed(2)
+                (route.distance_meters / 1000).toFixed(2),
               ),
               totalTimeMin: Math.round(route.duration_seconds / 60),
               coordinates: coords,
@@ -413,7 +454,7 @@ export const useSavedRoutesState = ({
                     [minLng, minLat],
                     [maxLng, maxLat],
                   ],
-                  { padding: 80, duration: 1500 }
+                  { padding: 80, duration: 1500 },
                 );
               }, 1000);
             }
@@ -446,6 +487,9 @@ export const useSavedRoutesState = ({
     shareUrl,
     isSavingRoute,
     isSharingRoute,
+    duplicateRouteId,
+    isCheckingDuplicate,
+    openSaveRouteModal,
     handleSaveRoute,
     handleShareRoute,
     handleDeleteSavedRoute,

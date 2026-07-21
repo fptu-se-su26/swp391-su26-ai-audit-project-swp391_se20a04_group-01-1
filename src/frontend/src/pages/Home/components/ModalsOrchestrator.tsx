@@ -26,15 +26,17 @@ interface ModalsOrchestratorProps {
     longitude: number;
     severity: string;
   };
-  setReportFormData: React.Dispatch<React.SetStateAction<{
-    type: string;
-    title: string;
-    description: string;
-    location: string;
-    latitude: number;
-    longitude: number;
-    severity: string;
-  }>>;
+  setReportFormData: React.Dispatch<
+    React.SetStateAction<{
+      type: string;
+      title: string;
+      description: string;
+      location: string;
+      latitude: number;
+      longitude: number;
+      severity: string;
+    }>
+  >;
   handleSubmitTrafficReport: (e: React.FormEvent) => Promise<void>;
 
   // SaveRouteModal props
@@ -44,6 +46,7 @@ interface ModalsOrchestratorProps {
   setSaveRouteName: (val: string) => void;
   handleSaveRoute: () => Promise<void>;
   isSavingRoute: boolean;
+  isDuplicateSavedRoute?: boolean;
 
   // ShareRouteModal props
   showShareModal: boolean;
@@ -71,6 +74,7 @@ export const ModalsOrchestrator: React.FC<ModalsOrchestratorProps> = ({
   setSaveRouteName,
   handleSaveRoute,
   isSavingRoute,
+  isDuplicateSavedRoute,
   showShareModal,
   setShowShareModal,
   shareUrl,
@@ -94,11 +98,17 @@ export const ModalsOrchestrator: React.FC<ModalsOrchestratorProps> = ({
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
         title={reportFormData.title}
-        onChangeTitle={(val) => setReportFormData({ ...reportFormData, title: val })}
+        onChangeTitle={(val) =>
+          setReportFormData({ ...reportFormData, title: val })
+        }
         description={reportFormData.description}
-        onChangeDescription={(val) => setReportFormData({ ...reportFormData, description: val })}
+        onChangeDescription={(val) =>
+          setReportFormData({ ...reportFormData, description: val })
+        }
         location={reportFormData.location}
-        onChangeLocation={(val) => setReportFormData({ ...reportFormData, location: val })}
+        onChangeLocation={(val) =>
+          setReportFormData({ ...reportFormData, location: val })
+        }
         onSubmit={handleSubmitTrafficReport}
       />
 
@@ -109,6 +119,7 @@ export const ModalsOrchestrator: React.FC<ModalsOrchestratorProps> = ({
         onChangeRouteName={setSaveRouteName}
         onSubmit={handleSaveRoute}
         isLoading={isSavingRoute}
+        isDuplicate={isDuplicateSavedRoute}
       />
 
       <ShareRouteModal

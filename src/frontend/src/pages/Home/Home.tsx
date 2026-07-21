@@ -10,7 +10,7 @@ import Map, {
   Popup,
 } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { io } from 'socket.io-client';
+import { io } from "socket.io-client";
 
 import { eventRoadService, EventRoad } from "../../services/eventRoadService";
 import { findSafeEventRoute } from "../../utils/eventRouteUtils";
@@ -86,7 +86,10 @@ import POIsLayer from "./components/POIsLayer";
 import { poiAPI, eventAPI, trafficAlertAPI } from "../../services/api";
 import { POIData } from "./components/POIPopup";
 import POIFeaturedSidebar from "./components/POIFeaturedSidebar";
-import EventsLayer, { EventData, getEventStatus } from "./components/EventsLayer";
+import EventsLayer, {
+  EventData,
+  getEventStatus,
+} from "./components/EventsLayer";
 import EventsSidebar from "./components/EventsSidebar";
 import EventDetailSidebar from "./components/EventDetailSidebar";
 import {
@@ -104,8 +107,8 @@ import { useSavedRoutesState } from "./hooks/useSavedRoutesState";
 import { FilterChips } from "./components/FilterChips";
 import { TrafficLegend } from "./components/TrafficLegend";
 import { TopRightActions } from "./components/TopRightActions";
-
-
+import { decodePolyline } from "../../utils/polylineHelper";
+import { parseRouteData } from "../../utils/utlis";
 
 const mockAlerts = [
   {
@@ -154,7 +157,7 @@ function getCirclePolygon(
 
     const newLatRad = Math.asin(
       Math.sin(latRad) * Math.cos(dByR) +
-      Math.cos(latRad) * Math.sin(dByR) * Math.cos(angle),
+        Math.cos(latRad) * Math.sin(dByR) * Math.cos(angle),
     );
 
     const newLngRad =
@@ -203,45 +206,53 @@ export default function Home() {
 
   // Quản lý trạng thái mở rộng/thu nhỏ của WeatherWidget
   const [isWeatherExpanded, setIsWeatherExpanded] = useState<boolean>(() => {
-    return localStorage.getItem('weather_widget_collapsed') !== 'true';
+    return localStorage.getItem("weather_widget_collapsed") !== "true";
   });
 
   const handleToggleWeather = () => {
     const nextState = !isWeatherExpanded;
     setIsWeatherExpanded(nextState);
-    localStorage.setItem('weather_widget_collapsed', (!nextState).toString());
+    localStorage.setItem("weather_widget_collapsed", (!nextState).toString());
   };
 
   // States cho Chế độ Tiết kiệm băng thông & Ngoại tuyến
   const [isLowBandwidth, setIsLowBandwidth] = useState<boolean>(() => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return true;
-    return typeof localStorage !== 'undefined' && localStorage.getItem('low_bandwidth_mode') === 'true';
+    if (typeof navigator !== "undefined" && !navigator.onLine) return true;
+    return (
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem("low_bandwidth_mode") === "true"
+    );
   });
-  const [isOffline, setIsOffline] = useState<boolean>(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [isOffline, setIsOffline] = useState<boolean>(() =>
+    typeof navigator !== "undefined" ? !navigator.onLine : false,
+  );
 
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      const savedMode = typeof localStorage !== 'undefined' && localStorage.getItem('low_bandwidth_mode') === 'true';
+      const savedMode =
+        typeof localStorage !== "undefined" &&
+        localStorage.getItem("low_bandwidth_mode") === "true";
       setIsLowBandwidth(savedMode);
-      showPremiumToast('Đã khôi phục kết nối mạng internet.', 'success');
+      showPremiumToast("Đã khôi phục kết nối mạng internet.", "success");
     };
     const handleOffline = () => {
       setIsOffline(true);
       setIsLowBandwidth(true);
-      showPremiumToast('Mất kết nối mạng. Đã tự động kích hoạt chế độ Ngoại tuyến & Tiết kiệm băng thông.', 'warning');
+      showPremiumToast(
+        "Mất kết nối mạng. Đã tự động kích hoạt chế độ Ngoại tuyến & Tiết kiệm băng thông.",
+        "warning",
+      );
     };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
 
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
-
-
 
   const [countdown, setCountdown] = useState(1);
 
@@ -354,8 +365,8 @@ export default function Home() {
     isOpen: false,
     title: "",
     message: "",
-    onConfirm: () => { },
-    onCancel: () => { },
+    onConfirm: () => {},
+    onCancel: () => {},
   });
 
   const showCustomConfirm = (
@@ -420,13 +431,12 @@ export default function Home() {
           .map((r) => r.road_name)
           .join(", ")}. Bạn có muốn đổi tuyến đường khác để né tránh không?`,
         onAvoid,
-        onCancel
+        onCancel,
       );
     },
   });
 
   // CÁC HÀM XỬ LÝ DẪN ĐƯỜNG (NAVIGATION)
-
   const handleStartNavigation = () => {
     if (!routeData) {
       showPremiumToast("Chưa có thông tin lộ trình.", "error");
@@ -452,21 +462,18 @@ export default function Home() {
         route_data: JSON.stringify(
           waypoints && waypoints.length > 0
             ? { coordinates: routeData?.coordinates || [], waypoints }
-            : routeData?.coordinates || []
+            : routeData?.coordinates || [],
         ),
         distance_meters: Math.round((routeData?.totalDistanceKm || 0) * 1000),
         duration_seconds: (routeData?.totalTimeMin || 0) * 60,
         profile: travelMode,
+        save_type: "history",
       });
       showPremiumToast("Đã lưu lộ trình vào lịch sử di chuyển!", "success");
     } catch (error) {
       console.error("Lỗi khi tự động lưu lịch sử lộ trình:", error);
     }
   };
-
-
-
-
 
   const handleOpenReportModal = (lat: number, lng: number) => {
     const token =
@@ -492,8 +499,6 @@ export default function Home() {
     setPendingDestination(null);
   };
 
-
-
   const handleEventClick = (evt: EventData) => {
     setSelectedEvent(evt);
     setShowSavedRoutesSidebar(false);
@@ -513,10 +518,6 @@ export default function Home() {
       duration: 1200,
     });
   };
-
-
-
-
 
   const fetchUserProfile = async () => {
     const token =
@@ -649,11 +650,8 @@ export default function Home() {
     onNavigationCompleted: handleNavigationCompleted,
   });
 
-  const {
-    isSharingLocation,
-    liveShareToken,
-    handleToggleShareLocation,
-  } = useLiveLocationSharing();
+  const { isSharingLocation, liveShareToken, handleToggleShareLocation } =
+    useLiveLocationSharing();
 
   const {
     savedRoutes,
@@ -668,6 +666,8 @@ export default function Home() {
     shareUrl,
     isSavingRoute,
     isSharingRoute,
+    duplicateRouteId,
+    openSaveRouteModal,
     handleSaveRoute,
     handleShareRoute,
     handleDeleteSavedRoute,
@@ -834,7 +834,8 @@ export default function Home() {
             text: f.properties?.name || "",
             text_vi: f.properties?.name || "",
             place_name: f.properties?.full_address || f.properties?.name || "",
-            place_name_vi: f.properties?.full_address || f.properties?.name || "",
+            place_name_vi:
+              f.properties?.full_address || f.properties?.name || "",
             center: f.geometry?.coordinates || [0, 0],
           }));
           setSuggestions(normalizedFeatures);
@@ -862,14 +863,17 @@ export default function Home() {
         if (activeInputField === "origin") {
           setOrigin({ lng, lat, label: fullName });
           setOriginQuery(fullName);
-        } else if (activeInputField && activeInputField.startsWith("waypoint-")) {
+        } else if (
+          activeInputField &&
+          activeInputField.startsWith("waypoint-")
+        ) {
           const idx = parseInt(activeInputField.split("-")[1], 10);
-          setWaypoints(prev => {
+          setWaypoints((prev) => {
             const next = [...prev];
             next[idx] = { lng, lat, label: fullName };
             return next;
           });
-          setWaypointQueries(prev => {
+          setWaypointQueries((prev) => {
             const next = [...prev];
             next[idx] = fullName;
             return next;
@@ -890,10 +894,13 @@ export default function Home() {
         if (activeInputField === "origin") {
           setOrigin(null);
           setOriginQuery("");
-        } else if (activeInputField && activeInputField.startsWith("waypoint-")) {
+        } else if (
+          activeInputField &&
+          activeInputField.startsWith("waypoint-")
+        ) {
           const idx = parseInt(activeInputField.split("-")[1], 10);
-          setWaypoints(prev => prev.filter((_, i) => i !== idx));
-          setWaypointQueries(prev => prev.filter((_, i) => i !== idx));
+          setWaypoints((prev) => prev.filter((_, i) => i !== idx));
+          setWaypointQueries((prev) => prev.filter((_, i) => i !== idx));
         } else {
           setDestination(null);
           setDestinationQuery("");
@@ -915,13 +922,13 @@ export default function Home() {
 
   const geojsonData: any = routeData
     ? {
-      type: "Feature",
-      properties: {},
-      geometry: {
-        type: "LineString",
-        coordinates: routeData.coordinates,
-      },
-    }
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: routeData.coordinates,
+        },
+      }
     : null;
 
   const routeLayerStyle: any = {
@@ -1261,7 +1268,11 @@ export default function Home() {
           }}
           interactiveLayerIds={["flood-zones-fill"]}
           style={{ width: "100%", height: "100%" }}
-          mapStyle={isLowBandwidth ? "mapbox://styles/mapbox/light-v11" : "mapbox://styles/mapbox/streets-v12"}
+          mapStyle={
+            isLowBandwidth
+              ? "mapbox://styles/mapbox/light-v11"
+              : "mapbox://styles/mapbox/streets-v12"
+          }
           mapboxAccessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
         >
           <NavigationControl position="bottom-right" showCompass={true} />
@@ -1272,7 +1283,9 @@ export default function Home() {
               longitude={pendingPOILocation.lng}
               latitude={pendingPOILocation.lat}
               draggable
-              onDragEnd={(e) => setPendingPOILocation({ lng: e.lngLat.lng, lat: e.lngLat.lat })}
+              onDragEnd={(e) =>
+                setPendingPOILocation({ lng: e.lngLat.lng, lat: e.lngLat.lat })
+              }
               anchor="bottom"
             >
               <div className="relative group cursor-pointer flex flex-col items-center z-50">
@@ -1281,7 +1294,9 @@ export default function Home() {
                 </div>
                 <div className="w-2 h-2 bg-orange-600 rounded-full mt-1 shadow-sm" />
                 <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-white px-3 py-1.5 rounded-lg shadow-xl border border-slate-200 whitespace-nowrap opacity-100 transition-opacity">
-                  <span className="text-xs font-semibold text-slate-700">Kéo để chọn vị trí</span>
+                  <span className="text-xs font-semibold text-slate-700">
+                    Kéo để chọn vị trí
+                  </span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1303,7 +1318,7 @@ export default function Home() {
               latitude={simulatedCoords[1]}
               anchor="center"
             >
-              <div 
+              <div
                 className="w-10 h-10 flex items-center justify-center -mt-2 transition-transform duration-100"
                 style={{ transform: `rotate(${simulatedHeading}deg)` }}
               >
@@ -1349,20 +1364,24 @@ export default function Home() {
               </Marker>
             )}
 
-          {waypoints && waypoints.map((wp, idx) => (
-            wp && wp.lng !== undefined && wp.lat !== undefined && (
-              <Marker
-                key={`wp-marker-${idx}`}
-                longitude={wp.lng}
-                latitude={wp.lat}
-                anchor="center"
-              >
-                <div className="w-5.5 h-5.5 bg-white border-2 border-slate-700 rounded-full shadow-lg flex items-center justify-center text-[10px] font-black text-slate-700">
-                  {String.fromCharCode(66 + idx)}
-                </div>
-              </Marker>
-            )
-          ))}
+          {waypoints &&
+            waypoints.map(
+              (wp, idx) =>
+                wp &&
+                wp.lng !== undefined &&
+                wp.lat !== undefined && (
+                  <Marker
+                    key={`wp-marker-${idx}`}
+                    longitude={wp.lng}
+                    latitude={wp.lat}
+                    anchor="center"
+                  >
+                    <div className="w-5.5 h-5.5 bg-white border-2 border-slate-700 rounded-full shadow-lg flex items-center justify-center text-[10px] font-black text-slate-700">
+                      {String.fromCharCode(66 + idx)}
+                    </div>
+                  </Marker>
+                ),
+            )}
 
           {destination && (
             <Marker
@@ -1453,38 +1472,45 @@ export default function Home() {
           )}
 
           {/* VẼ CÁC TUYẾN ĐƯỜNG THAY THẾ (ALTERNATIVE ROUTES) */}
-          {!isNavigating && routeData?.routes && routeData.routes.map((route) => {
-            if (route.id === selectedRouteIndex) return null;
-            
-            const routeGeoJSON: any = {
-              type: "Feature",
-              properties: {},
-              geometry: {
-                type: "LineString",
-                coordinates: route.coordinates,
-              },
-            };
+          {!isNavigating &&
+            routeData?.routes &&
+            routeData.routes.map((route) => {
+              if (route.id === selectedRouteIndex) return null;
 
-            const alternativeStyle: any = {
-              id: `route-alternative-${route.id}`,
-              type: "line",
-              layout: {
-                "line-join": "round",
-                "line-cap": "round",
-              },
-              paint: {
-                "line-color": "#60a5fa", // Màu xanh nhạt cho tuyến đường phụ
-                "line-width": 5,
-                "line-opacity": 0.6,
-              },
-            };
+              const routeGeoJSON: any = {
+                type: "Feature",
+                properties: {},
+                geometry: {
+                  type: "LineString",
+                  coordinates: route.coordinates,
+                },
+              };
 
-            return (
-              <Source key={`route-alt-source-${route.id}`} id={`route-alt-source-${route.id}`} type="geojson" data={routeGeoJSON}>
-                <Layer {...alternativeStyle} />
-              </Source>
-            );
-          })}
+              const alternativeStyle: any = {
+                id: `route-alternative-${route.id}`,
+                type: "line",
+                layout: {
+                  "line-join": "round",
+                  "line-cap": "round",
+                },
+                paint: {
+                  "line-color": "#60a5fa", // Màu xanh nhạt cho tuyến đường phụ
+                  "line-width": 5,
+                  "line-opacity": 0.6,
+                },
+              };
+
+              return (
+                <Source
+                  key={`route-alt-source-${route.id}`}
+                  id={`route-alt-source-${route.id}`}
+                  type="geojson"
+                  data={routeGeoJSON}
+                >
+                  <Layer {...alternativeStyle} />
+                </Source>
+              );
+            })}
 
           {/* VẼ TUYẾN ĐƯỜNG ĐƯỢC CHỌN (MAIN ROUTE) */}
           {geojsonData && (
@@ -1494,31 +1520,33 @@ export default function Home() {
           )}
 
           {/* HIỂN THỊ BONG BÓNG THỜI GIAN TRÊN CÁC TUYẾN ĐƯỜNG */}
-          {!isNavigating && routeData?.routes && routeData.routes.map((route) => {
-            const isSelected = route.id === selectedRouteIndex;
-            const midIndex = Math.floor(route.coordinates.length / 2);
-            const [lng, lat] = route.coordinates[midIndex];
+          {!isNavigating &&
+            routeData?.routes &&
+            routeData.routes.map((route) => {
+              const isSelected = route.id === selectedRouteIndex;
+              const midIndex = Math.floor(route.coordinates.length / 2);
+              const [lng, lat] = route.coordinates[midIndex];
 
-            return (
-              <Marker
-                key={`route-duration-marker-${route.id}`}
-                longitude={lng}
-                latitude={lat}
-                anchor="center"
-              >
-                <button
-                  onClick={() => selectRoute(route.id)}
-                  className={`px-3 py-1.5 rounded-full shadow-lg border-2 text-xs font-black transition-all transform hover:scale-105 pointer-events-auto ${
-                    isSelected
-                      ? "bg-blue-600 border-white text-white z-30"
-                      : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 z-20 opacity-90"
-                  }`}
+              return (
+                <Marker
+                  key={`route-duration-marker-${route.id}`}
+                  longitude={lng}
+                  latitude={lat}
+                  anchor="center"
                 >
-                  {route.totalTimeMin} phút
-                </button>
-              </Marker>
-            );
-          })}
+                  <button
+                    onClick={() => selectRoute(route.id)}
+                    className={`px-3 py-1.5 rounded-full shadow-lg border-2 text-xs font-black transition-all transform hover:scale-105 pointer-events-auto ${
+                      isSelected
+                        ? "bg-blue-600 border-white text-white z-30"
+                        : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 z-20 opacity-90"
+                    }`}
+                  >
+                    {route.totalTimeMin} phút
+                  </button>
+                </Marker>
+              );
+            })}
 
           {mapControls.traffic && trafficCongestionGeoJSON && (
             <Source
@@ -1582,10 +1610,30 @@ export default function Home() {
                 paint={{
                   "line-color": "#ffffff",
                   "line-width": [
-                    "interpolate", ["linear"], ["zoom"],
-                    10, ["case", ["get", "isSelected"], 14, ["case", ["get", "isActive"], 10, 8]],
-                    14, ["case", ["get", "isSelected"], 24, ["case", ["get", "isActive"], 20, 14]],
-                    18, ["case", ["get", "isSelected"], 40, ["case", ["get", "isActive"], 32, 24]]
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    10,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      14,
+                      ["case", ["get", "isActive"], 10, 8],
+                    ],
+                    14,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      24,
+                      ["case", ["get", "isActive"], 20, 14],
+                    ],
+                    18,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      40,
+                      ["case", ["get", "isActive"], 32, 24],
+                    ],
                   ],
                   "line-opacity": 1.0,
                 }}
@@ -1598,10 +1646,30 @@ export default function Home() {
                 paint={{
                   "line-color": "#dc2626",
                   "line-width": [
-                    "interpolate", ["linear"], ["zoom"],
-                    10, ["case", ["get", "isSelected"], 10, ["case", ["get", "isActive"], 7, 5]],
-                    14, ["case", ["get", "isSelected"], 18, ["case", ["get", "isActive"], 14, 10]],
-                    18, ["case", ["get", "isSelected"], 32, ["case", ["get", "isActive"], 26, 20]]
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    10,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      10,
+                      ["case", ["get", "isActive"], 7, 5],
+                    ],
+                    14,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      18,
+                      ["case", ["get", "isActive"], 14, 10],
+                    ],
+                    18,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      32,
+                      ["case", ["get", "isActive"], 26, 20],
+                    ],
                   ],
                   "line-opacity": 1.0,
                   "line-dasharray": [4, 4],
@@ -1622,10 +1690,30 @@ export default function Home() {
                     "#EF4444",
                   ],
                   "line-width": [
-                    "interpolate", ["linear"], ["zoom"],
-                    10, ["case", ["get", "isSelected"], 8, ["case", ["get", "isActive"], 6, 4]],
-                    14, ["case", ["get", "isSelected"], 14, ["case", ["get", "isActive"], 10, 8]],
-                    18, ["case", ["get", "isSelected"], 26, ["case", ["get", "isActive"], 20, 14]]
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    10,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      8,
+                      ["case", ["get", "isActive"], 6, 4],
+                    ],
+                    14,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      14,
+                      ["case", ["get", "isActive"], 10, 8],
+                    ],
+                    18,
+                    [
+                      "case",
+                      ["get", "isSelected"],
+                      26,
+                      ["case", ["get", "isActive"], 20, 14],
+                    ],
                   ],
                   "line-opacity": [
                     "case",
@@ -1684,10 +1772,8 @@ export default function Home() {
           {mapControls.traffic &&
             trafficAlerts.map((alert) => {
               const getAlertColor = () => {
-                if (alert.severity === "HIGH")
-                  return "bg-red-600";
-                if (alert.severity === "MEDIUM")
-                  return "bg-orange-500";
+                if (alert.severity === "HIGH") return "bg-red-600";
+                if (alert.severity === "MEDIUM") return "bg-orange-500";
                 return "bg-blue-500";
               };
 
@@ -1725,7 +1811,11 @@ export default function Home() {
 
           {/* MAPBOX REAL-TIME TRAFFIC LAYER */}
           {mapControls.traffic && (
-            <Source id="mapbox-traffic" type="vector" url="mapbox://mapbox.mapbox-traffic-v1">
+            <Source
+              id="mapbox-traffic"
+              type="vector"
+              url="mapbox://mapbox.mapbox-traffic-v1"
+            >
               <Layer
                 id="traffic"
                 type="line"
@@ -1733,63 +1823,81 @@ export default function Home() {
                 source-layer="traffic"
                 beforeId="road-label"
                 paint={{
-                  "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2, 16, 5],
+                  "line-width": [
+                    "interpolate",
+                    ["linear"],
+                    ["zoom"],
+                    10,
+                    2,
+                    16,
+                    5,
+                  ],
                   "line-color": [
                     "case",
                     ["==", "low", ["get", "congestion"]],
-                    "#22c55e",      // Nhanh (Xanh lá)
+                    "#22c55e", // Nhanh (Xanh lá)
                     ["==", "moderate", ["get", "congestion"]],
-                    "#f59e0b",      // Vừa (Cam)
+                    "#f59e0b", // Vừa (Cam)
                     ["==", "heavy", ["get", "congestion"]],
-                    "#ef4444",      // Chậm (Đỏ)
+                    "#ef4444", // Chậm (Đỏ)
                     ["==", "severe", ["get", "congestion"]],
-                    "#7f1d1d",      // Rất chậm (Đỏ sẫm)
-                    "transparent"
-                  ]
+                    "#7f1d1d", // Rất chậm (Đỏ sẫm)
+                    "transparent",
+                  ],
                 }}
               />
             </Source>
           )}
 
-          {mapControls.traffic && trafficAlerts.map(alert => {
-            if (!alert.affected_area_polygon) return null;
+          {mapControls.traffic &&
+            trafficAlerts.map((alert) => {
+              if (!alert.affected_area_polygon) return null;
 
-            let geojsonData = null;
-            try {
-              geojsonData = typeof alert.affected_area_polygon === 'string'
-                ? JSON.parse(alert.affected_area_polygon)
-                : alert.affected_area_polygon;
-            } catch (e) {
-              return null;
-            }
+              let geojsonData = null;
+              try {
+                geojsonData =
+                  typeof alert.affected_area_polygon === "string"
+                    ? JSON.parse(alert.affected_area_polygon)
+                    : alert.affected_area_polygon;
+              } catch (e) {
+                return null;
+              }
 
-            if (!geojsonData || !geojsonData.type) return null;
+              if (!geojsonData || !geojsonData.type) return null;
 
-            const fillColor = alert.severity === "HIGH" ? "#dc2626"
-              : alert.severity === "MEDIUM" ? "#f97316"
-                : "#3b82f6";
+              const fillColor =
+                alert.severity === "HIGH"
+                  ? "#dc2626"
+                  : alert.severity === "MEDIUM"
+                    ? "#f97316"
+                    : "#3b82f6";
 
-            return (
-              <Source key={`alert-poly-source-${alert.id}`} id={`alert-poly-source-${alert.id}`} type="geojson" data={geojsonData}>
-                <Layer
-                  id={`alert-poly-layer-${alert.id}`}
-                  type="fill"
-                  paint={{
-                    'fill-color': fillColor,
-                    'fill-opacity': 0.3
-                  }}
-                />
-                <Layer
-                  id={`alert-poly-line-${alert.id}`}
-                  type="line"
-                  paint={{
-                    'line-color': fillColor,
-                    'line-width': 2
-                  }}
-                />
-              </Source>
-            );
-          })}
+              return (
+                <Source
+                  key={`alert-poly-source-${alert.id}`}
+                  id={`alert-poly-source-${alert.id}`}
+                  type="geojson"
+                  data={geojsonData}
+                >
+                  <Layer
+                    id={`alert-poly-layer-${alert.id}`}
+                    type="fill"
+                    paint={{
+                      "fill-color": fillColor,
+                      "fill-opacity": 0.3,
+                    }}
+                  />
+                  <Layer
+                    id={`alert-poly-line-${alert.id}`}
+                    type="line"
+                    paint={{
+                      "line-color": fillColor,
+                      "line-width": 2,
+                    }}
+                  />
+                </Source>
+              );
+            })}
 
           <MapPopupsOrchestrator
             pendingDestination={pendingDestination}
@@ -1814,7 +1922,7 @@ export default function Home() {
 
           {viewMode === "pois" ? (
             <>
-               <POIsLayer
+              <POIsLayer
                 pois={pois}
                 selectedFilter={selectedFilter}
                 onDirectionsClick={(poi) => {
@@ -1841,7 +1949,7 @@ export default function Home() {
               <EventsLayer
                 events={events.filter(
                   (evt) =>
-                    getEventStatus(evt.start_time, evt.end_time) === "ongoing"
+                    getEventStatus(evt.start_time, evt.end_time) === "ongoing",
                 )}
                 onSelectEvent={handleEventClick}
               />
@@ -1886,6 +1994,7 @@ export default function Home() {
                   setAvoidCongestion={setAvoidCongestion}
                   setTravelMode={setTravelMode}
                   setShowSaveRouteModal={setShowSaveRouteModal}
+                  onOpenSaveRouteModal={openSaveRouteModal}
                   handleShareRoute={handleShareRoute}
                   setRouteData={setRouteData}
                   setDestination={setDestination}
@@ -2037,7 +2146,7 @@ export default function Home() {
           onToggleLowBandwidth={() => {
             const val = !isLowBandwidth;
             setIsLowBandwidth(val);
-            localStorage.setItem('low_bandwidth_mode', val.toString());
+            localStorage.setItem("low_bandwidth_mode", val.toString());
           }}
           isAddingPOI={isAddingPOI}
           setIsAddingPOI={(v: boolean) => {
@@ -2049,8 +2158,6 @@ export default function Home() {
           }}
         />
       )}
-
-
 
       {/* EVENT DETAIL SIDEBAR */}
       {!isNavigating && selectedEvent && (
@@ -2097,56 +2204,122 @@ export default function Home() {
       )}
 
       {/* POI FEATURED SIDEBAR (RIGHT SIDE WHEN ROUTE IS ACTIVE) */}
-      {routeData && !isNavigating && viewMode === "pois" && selectedFilter !== null && (
-        <div className="absolute right-20 top-24 z-20 pointer-events-none hidden md:block">
-          <div className="pointer-events-auto">
-            <POIFeaturedSidebar
-              pois={pois}
-              selectedFilter={selectedFilter}
-              onPOIClick={handlePOIClick}
-              onDirectionsClick={(poi) => {
-                setDestination({
-                  lng: poi.longitude,
-                  lat: poi.latitude,
-                  label: poi.name,
-                  poi_id: poi.poi_id,
-                });
-                setDestinationQuery(poi.name);
-                if (userLocation) {
-                  setOrigin({
-                    lng: userLocation.lng,
-                    lat: userLocation.lat,
-                    label: "Vị trí của bạn",
+      {routeData &&
+        !isNavigating &&
+        viewMode === "pois" &&
+        selectedFilter !== null && (
+          <div className="absolute right-20 top-24 z-20 pointer-events-none hidden md:block">
+            <div className="pointer-events-auto">
+              <POIFeaturedSidebar
+                pois={pois}
+                selectedFilter={selectedFilter}
+                onPOIClick={handlePOIClick}
+                onDirectionsClick={(poi) => {
+                  setDestination({
+                    lng: poi.longitude,
+                    lat: poi.latitude,
+                    label: poi.name,
+                    poi_id: poi.poi_id,
                   });
-                  setOriginQuery("Vị trí của bạn");
-                }
-              }}
-              hasRoute={!!routeData}
-              onClose={() => {
-                setSelectedFilter(null);
-                setSelectedPOI(null);
-                setRouteData(null);
-                setDestination(null);
-                setOrigin(null);
-                setOriginQuery("");
-                setDestinationQuery("");
-                setRouteAlertMessage(null);
-              }}
-              userLocation={userLocation}
-            />
+                  setDestinationQuery(poi.name);
+                  if (userLocation) {
+                    setOrigin({
+                      lng: userLocation.lng,
+                      lat: userLocation.lat,
+                      label: "Vị trí của bạn",
+                    });
+                    setOriginQuery("Vị trí của bạn");
+                  }
+                }}
+                hasRoute={!!routeData}
+                onClose={() => {
+                  setSelectedFilter(null);
+                  setSelectedPOI(null);
+                  setRouteData(null);
+                  setDestination(null);
+                  setOrigin(null);
+                  setOriginQuery("");
+                  setDestinationQuery("");
+                  setRouteAlertMessage(null);
+                }}
+                userLocation={userLocation}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* SAVED ROUTES SIDEBAR */}
       <SavedRoutesSidebar
-        isOpen={!isNavigating && showSavedRoutesSidebar}
+        isOpen={showSavedRoutesSidebar}
         onClose={() => setShowSavedRoutesSidebar(false)}
         savedRoutes={savedRoutes}
-        onSelectRoute={handleSelectSavedRoute}
         onDeleteRoute={handleDeleteSavedRoute}
-      />
+        onSelectRoute={(route) => {
+          // 1. Set điểm đi, điểm đến
+          setOrigin({
+            lat: route.origin_lat,
+            lng: route.origin_lng,
+            label: route.origin_name || "Vị trí xuất phát",
+          });
+          setOriginQuery(route.origin_name || "Vị trí xuất phát");
 
+          setDestination({
+            lat: route.destination_lat,
+            lng: route.destination_lng,
+            label: route.destination_name || "Điểm đến",
+          });
+          setDestinationQuery(route.destination_name || "Điểm đến");
+
+          setTravelMode(route.profile as "driving" | "walking" | "cycling");
+
+          // 2. PARSE VÀ NẠP DỮ LIỆU ĐƯỜNG ĐI VÀO STATE
+          const parsedData = parseRouteData(route.route_data);
+
+          if (parsedData.coordinates && parsedData.coordinates.length > 0) {
+            setRouteData({
+              totalDistanceKm: route.distance_meters
+                ? parseFloat((route.distance_meters / 1000).toFixed(2))
+                : 0,
+              totalTimeMin: route.duration_seconds
+                ? Math.round(route.duration_seconds / 60)
+                : 0,
+              coordinates: parsedData.coordinates,
+            });
+
+            // 3. TỰ ĐỘNG ZOOM BẢN ĐỒ ÔM TRỌN TUYẾN ĐƯỜNG
+            const coords = parsedData.coordinates;
+            if (mapRef.current) {
+              let minLng = coords[0][0],
+                maxLng = coords[0][0];
+              let minLat = coords[0][1],
+                maxLat = coords[0][1];
+
+              for (const c of coords) {
+                if (c[0] < minLng) minLng = c[0];
+                if (c[0] > maxLng) maxLng = c[0];
+                if (c[1] < minLat) minLat = c[1];
+                if (c[1] > maxLat) maxLat = c[1];
+              }
+
+              mapRef.current.fitBounds(
+                [
+                  [minLng, minLat],
+                  [maxLng, maxLat],
+                ],
+                { padding: 80, duration: 1200 },
+              );
+            }
+          } else {
+            showPremiumToast(
+              "Lộ trình này không có dữ liệu đường đi!",
+              "error",
+            );
+          }
+
+          // 4. Đóng sidebar lịch sử lại
+          setShowSavedRoutesSidebar(false);
+        }}
+      />
       {/* NAVIGATION PANEL */}
       {isNavigating && routeData && (
         <div className="absolute top-6 left-6 md:left-6 md:top-6 z-40 w-[calc(100%-48px)] md:w-80 pointer-events-auto max-md:top-auto max-md:bottom-4 max-md:left-4 max-md:w-[calc(100%-32px)]">
@@ -2175,7 +2348,10 @@ export default function Home() {
             onChangeSimulationSpeed={(speed) => setSimulationSpeed(speed)}
             onStopNavigation={handleStopNavigation}
             onNextStep={() => {
-              if (routeData.steps && currentStepIndex < routeData.steps.length - 1) {
+              if (
+                routeData.steps &&
+                currentStepIndex < routeData.steps.length - 1
+              ) {
                 setCurrentStepIndex((prev) => prev + 1);
               }
             }}
@@ -2192,9 +2368,12 @@ export default function Home() {
       {showNavModeSelector && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl shadow-2xl w-full max-w-sm p-6 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-black text-center mb-2 text-blue-400">CHỌN CHẾ ĐỘ DẪN ĐƯỜNG</h3>
+            <h3 className="text-lg font-black text-center mb-2 text-blue-400">
+              CHỌN CHẾ ĐỘ DẪN ĐƯỜNG
+            </h3>
             <p className="text-xs text-slate-400 text-center mb-6 leading-relaxed">
-              Bạn có thể sử dụng định vị GPS thực tế trên thiết bị hoặc chạy mô phỏng di chuyển dọc theo tuyến đường để trải nghiệm.
+              Bạn có thể sử dụng định vị GPS thực tế trên thiết bị hoặc chạy mô
+              phỏng di chuyển dọc theo tuyến đường để trải nghiệm.
             </p>
             <div className="flex flex-col gap-3">
               <button
@@ -2246,6 +2425,7 @@ export default function Home() {
         setSaveRouteName={setSaveRouteName}
         handleSaveRoute={handleSaveRoute}
         isSavingRoute={isSavingRoute}
+        isDuplicateSavedRoute={!!duplicateRouteId}
         showShareModal={showShareModal}
         setShowShareModal={setShowShareModal}
         shareUrl={shareUrl}
@@ -2260,7 +2440,10 @@ export default function Home() {
         isCollapsed={!isWeatherExpanded}
         onToggleCollapse={(collapsed) => {
           setIsWeatherExpanded(!collapsed);
-          localStorage.setItem('weather_widget_collapsed', collapsed.toString());
+          localStorage.setItem(
+            "weather_widget_collapsed",
+            collapsed.toString(),
+          );
         }}
         isLowBandwidth={isLowBandwidth}
         isOffline={isOffline}
