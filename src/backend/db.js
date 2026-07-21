@@ -8,7 +8,8 @@ const dbConfig = {
     database: process.env.DB_DATABASE || process.env.DB_NAME,
     options: {
         encrypt: false,
-        trustServerCertificate: true
+        trustServerCertificate: true,
+        useUTC: false
     }
 };
 

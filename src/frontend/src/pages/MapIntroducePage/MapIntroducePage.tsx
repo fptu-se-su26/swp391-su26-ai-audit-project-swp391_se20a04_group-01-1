@@ -664,7 +664,7 @@ export default function MapIntroducePage() {
                                         color: 'text-blue-400',
                                         bg: 'bg-blue-500/10 border-blue-500/20',
                                         label: 'Email hỗ trợ',
-                                        value: 'support@danang-eventmap.vn',
+                                        value: 'dnpulse.vn@gmail.com',
                                         sub: 'Phản hồi trong vòng 24h'
                                     },
                                     {
@@ -672,7 +672,7 @@ export default function MapIntroducePage() {
                                         color: 'text-emerald-400',
                                         bg: 'bg-emerald-500/10 border-emerald-500/20',
                                         label: 'Hotline',
-                                        value: '1800 1234',
+                                        value: '1800 1334',
                                         sub: 'Thứ 2 – Thứ 6 | 8:00 – 17:00'
                                     },
                                     {
