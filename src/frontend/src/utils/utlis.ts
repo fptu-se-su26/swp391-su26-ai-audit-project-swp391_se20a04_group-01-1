@@ -68,6 +68,17 @@ export function parseRouteData(routeDataRaw: any): {
           waypoints: parsed.waypoints || [],
         };
       }
+      if (
+        parsed &&
+        parsed.geometry &&
+        parsed.geometry.type === "LineString" &&
+        Array.isArray(parsed.geometry.coordinates)
+      ) {
+        return {
+          coordinates: parsed.geometry.coordinates,
+          waypoints: [],
+        };
+      }
     }
   } catch (e) {
     // Nếu lỗi JSON.parse, không log ra mà âm thầm nhảy xuống bước 2
