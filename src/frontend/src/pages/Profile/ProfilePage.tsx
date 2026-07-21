@@ -38,6 +38,7 @@ import { usePreferenceStore } from "../../store/preferenceStore";
 import { useFavoritePoiStore } from "../../store/favoritePoiStore";
 import { showPremiumToast } from "../../utils/toastUtils";
 import { eventAPI } from "../../services/api";
+import SupportTab from "./SupportTab";
 
 interface UserData {
   user_id: number;
@@ -2206,47 +2207,7 @@ export default function ProfilePage({
           )}
 
           {/* ============ HELP TAB ============ */}
-          {activeMenu === "help" && (
-            <div>
-              <h1
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#1f2937",
-                  marginBottom: "8px",
-                }}
-              >
-                Hỗ Trợ
-              </h1>
-              <p
-                style={{
-                  fontSize: "13px",
-                  color: "#6b7280",
-                  marginBottom: "20px",
-                }}
-              >
-                Câu hỏi thường gặp và hướng dẫn sử dụng
-              </p>
-              <div
-                style={{
-                  backgroundColor: "white",
-                  borderRadius: "12px",
-                  padding: "40px",
-                  textAlign: "center",
-                  border: "2px dashed #d1d5db",
-                  boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
-                }}
-              >
-                <HelpCircle
-                  size={48}
-                  style={{ color: "#9ca3af", margin: "0 auto 12px" }}
-                />
-                <p style={{ color: "#9ca3af", fontSize: "13px" }}>
-                  Trung tâm hỗ trợ sẽ được cập nhật sớm
-                </p>
-              </div>
-            </div>
-          )}
+          {activeMenu === "help" && <SupportTab />}
         </div>
       </div>
 
