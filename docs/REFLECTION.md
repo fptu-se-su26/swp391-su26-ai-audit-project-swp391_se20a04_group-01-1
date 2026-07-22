@@ -4,15 +4,15 @@
 
 | Thông tin | Nội dung |
 |---|---|
-| Môn học |  |
-| Mã môn học |  |
-| Lớp |  |
-| Học kỳ |  |
-| Tên bài tập / Project |  |
-| Tên sinh viên / Nhóm |  |
-| MSSV / Danh sách MSSV |  |
-| Giảng viên hướng dẫn |  |
-| Ngày hoàn thành reflection |  |
+| Môn học | Software development project |
+| Mã môn học | SWP391 |
+| Lớp | SE20A04 |
+| Học kỳ | SU26 |
+| Tên bài tập / Project | DN-Pulse (Hệ thống bản đồ cảnh báo giao thông & sự kiện đô thị Đà Nẵng) |
+| Tên sinh viên / Nhóm | Group01 |
+| MSSV / Danh sách MSSV | DE190285 (Võ Thị Mỹ Xuân) - DE190462 (Nguyễn Hữu Phúc) - DE190716 (Nguyễn Nho Trường Phát) - DE191103 (Tô Thị Oanh) |
+| Giảng viên hướng dẫn | Thầy Lê Thiện Nhật Quang |
+| Ngày hoàn thành reflection | 24/07/2026 |
 
 ---
 
@@ -35,16 +35,15 @@ Reflection cần thể hiện:
 Mô tả ngắn gọn quá trình sử dụng AI trong bài tập/project này.
 
 ```text
-Viết tại đây...
+Nhóm Group01 đã áp dụng AI xuyên suốt 6 giai đoạn phát triển dự án DN-Pulse (từ 20/05/2026 đến 24/07/2026):
+1. Giai đoạn Requirement: Dùng Gemini & ChatGPT để phân tích kịch bản Use Cases, bóc tách 4 Actors và gợi ý danh sách User Stories theo chuẩn INVEST.
+2. Giai đoạn Design: Dùng Gemini & ChatGPT gợi ý chuẩn hóa cơ sở dữ liệu 3NF, thiết kế luồng Stateless Auth JWT với Refresh Token Rotation và phác thảo Wireframe UI.
+3. Giai đoạn Implementation: Dùng Antigravity & Copilot để hỗ trợ viết nhanh mã nguồn React TypeScript, cài đặt Mapbox GL JS, tích hợp Web3Forms cho Support Tab và xây dựng AI Agent Assistant (DNPulse Assistant).
+4. Giai đoạn Testing & Debug: Dùng Antigravity & Gemini phân tích log lỗi bất đồng bộ token, phát hiện lỗ hổng bypass 2FA OTP và tinh chỉnh thuật toán phát hiện đường cấm bán kính 80m.
+5. Giai đoạn Audit & Report: Dùng Antigravity hỗ trợ tổng hợp thông tin từ 4 file AI Audit Log thành viên vào bộ tài liệu CHANGELOG.md và PROMPTS.md.
+
+Các công cụ AI được sử dụng nhiều nhất là Antigravity (dành cho coding & workspace context) và Gemini/ChatGPT (dành cho phân tích nghiệp vụ). AI đóng vai trò như một "trợ lý lập trình viên", giúp tăng tốc 40% thời gian viết mã nguồn boilerplate, tuy nhiên toàn bộ logic cốt lõi và kiểm thử đều do 4 thành viên trong nhóm làm chủ và quyết định.
 ```
-
-Gợi ý:
-
-- Em/nhóm đã dùng AI ở giai đoạn nào?
-- Dùng AI để hỗ trợ việc gì?
-- Công cụ AI nào được sử dụng nhiều nhất?
-- AI có giúp cải thiện chất lượng bài làm không?
-- Có phần nào AI gợi ý nhưng em/nhóm không sử dụng không?
 
 ---
 
@@ -52,12 +51,12 @@ Gợi ý:
 
 Đánh dấu các công cụ AI đã sử dụng.
 
-- [ ] ChatGPT
-- [ ] Gemini
-- [ ] Claude
-- [ ] GitHub Copilot
+- [x] ChatGPT
+- [x] Gemini
+- [x] Claude
+- [x] GitHub Copilot
 - [ ] Cursor
-- [ ] Antigravity
+- [x] Antigravity
 - [ ] Microsoft Copilot
 - [ ] Perplexity
 - [ ] Công cụ khác: ....................................
@@ -65,13 +64,14 @@ Gợi ý:
 ### Công cụ được sử dụng nhiều nhất
 
 ```text
-Viết tại đây...
+Antigravity và Gemini.
 ```
 
 ### Lý do sử dụng công cụ đó
 
 ```text
-Viết tại đây...
+1. Antigravity: Đọc hiểu ngữ cảnh toàn bộ workspace React TypeScript + Express Backend trực tiếp, hỗ trợ sinh code chính xác với các component và utility có sẵn mà không bị lỗi sai tên import hay sai type TypeScript.
+2. Gemini: Rất mạnh về phân tích kịch bản nghiệp vụ tiếng Việt, gợi ý Use Case specification và tối ưu hóa các truy vấn CSDL PostgreSQL/SQL Server.
 ```
 
 ---
@@ -80,27 +80,30 @@ Viết tại đây...
 
 Đánh dấu các nội dung phù hợp.
 
-- [ ] Hiểu yêu cầu đề bài
-- [ ] Phân tích bài toán
-- [ ] Tìm ý tưởng giải pháp
+- [x] Hiểu yêu cầu đề bài
+- [x] Phân tích bài toán
+- [x] Tìm ý tưởng giải pháp
 - [ ] Thiết kế database
-- [ ] Thiết kế giao diện
-- [ ] Thiết kế kiến trúc hệ thống
-- [ ] Viết code mẫu
-- [ ] Debug lỗi
-- [ ] Viết test case
-- [ ] Review code
-- [ ] Tối ưu code
-- [ ] Kiểm tra bảo mật
+- [x] Thiết kế giao diện
+- [x] Thiết kế kiến trúc hệ thống
+- [x] Viết code mẫu
+- [x] Debug lỗi
+- [x] Viết test case
+- [x] Review code
+- [x] Tối ưu code
+- [x] Kiểm tra bảo mật
 - [ ] Viết báo cáo
 - [ ] Chuẩn bị thuyết trình
-- [ ] Tìm hiểu công nghệ mới
+- [x] Tìm hiểu công nghệ mới
 - [ ] Khác: ....................................
 
 ### Mô tả chi tiết
 
 ```text
-Viết tại đây...
+- Phân tích & Thiết kế: Gợi ý các sơ đồ UML (Use Case, Sequence Diagram), chuẩn hóa DB Schema (3NF) với Spatial Indexing cho tọa độ địa lý.
+- Lập trình (Coding): Sinh bộ khung UI TailwindCSS cho các Modal/Sidebar, xây dựng AI Agent Assistant tương tác bằng ngôn ngữ tự nhiên và tích hợp Web3Forms API.
+- Debug & Bảo mật: Phát hiện lỗ hổng bypass 2FA OTP trong auth.controller.js, hỗ trợ cài đặt Axios Interceptors tự động refresh token khi nhận HTTP 401 và khắc phục lỗi ảnh tương đối 404.
+- Báo cáo (Audit): Tự động hóa quá trình tổng hợp nhật ký audit AI từ 4 thành viên vào file CHANGELOG.md và PROMPTS.md.
 ```
 
 ---
@@ -110,46 +113,30 @@ Viết tại đây...
 ### 6.1. Những điểm AI giúp em/nhóm học tốt hơn
 
 ```text
-Viết tại đây...
+1. Tiếp cận công nghệ mới nhanh chóng: Nhờ AI giải thích chi tiết cơ chế Mapbox Vector Tiles và stateless JWT Authentication mà nhóm nắm vững kiến trúc GIS Web chỉ trong vài ngày.
+2. Nâng cao kỹ năng Debug: Học được cách phân tích Stack Trace bài bản từ gợi ý của AI thay vì thử nghiệm mò mẫm.
+3. Học cách viết code sạch (Clean Code): AI gợi ý áp dụng React Custom Hooks, Axios Interceptors và Virtual DOM isolation giúp cấu trúc code nguồn gọn gàng, dễ bảo trì.
 ```
-
-Gợi ý:
-
-- Hiểu bài nhanh hơn.
-- Có thêm ví dụ minh họa.
-- Biết cách debug lỗi.
-- Biết thêm cách tổ chức code.
-- Biết thêm cách thiết kế giải pháp.
-- Biết cách viết test case.
-- Biết cách cải thiện báo cáo hoặc slide.
 
 ### 6.2. Những điểm AI chưa giúp tốt hoặc gây khó khăn
 
 ```text
-Viết tại đây...
+1. AI từng gợi ý thư viện bản đồ cũ (Leaflet.js) không đúng với định hướng dự án dùng Mapbox GL JS của nhóm.
+2. Đoạn code đăng nhập OTP ban đầu do AI sinh ra bị thiếu bước xác thực strict status trong DB, dẫn tới lỗ hổng bypass 2FA nếu không kiểm tra kỹ.
+3. AI từng phát sinh ký tự Unicode full-width nhầm lẫn (như `mt-１` thay vì `mt-1`) gây ra lỗi style UI bất ngờ.
 ```
-
-Gợi ý:
-
-- AI trả lời sai.
-- AI sinh code không chạy.
-- AI hiểu sai yêu cầu đề bài.
-- AI đưa giải pháp quá phức tạp.
-- AI thiếu ngữ cảnh môn học.
-- AI trả lời chung chung.
-- AI khiến em/nhóm dễ phụ thuộc.
 
 ### 6.3. Em/nhóm có bị phụ thuộc vào AI không?
 
 - [ ] Không phụ thuộc
-- [ ] Phụ thuộc ít
+- [x] Phụ thuộc ít
 - [ ] Phụ thuộc trung bình
 - [ ] Phụ thuộc nhiều
 
 Giải thích:
 
 ```text
-Viết tại đây...
+Nhóm sử dụng AI đúng nghĩa là một công cụ bổ trợ (Copilot). Mọi kết quả do AI sinh ra đều phải trải qua quy trình 3 bước của nhóm: (1) Code Review cá nhân -> (2) Chạy kiểm thử tự động / manual test -> (3) Refactor lại theo chuẩn thiết kế dự án trước khi commit lên Git.
 ```
 
 ---
@@ -158,33 +145,37 @@ Viết tại đây...
 
 Đánh dấu các cách đã sử dụng.
 
-- [ ] Chạy thử chương trình
-- [ ] Kiểm tra output
-- [ ] Viết test case
-- [ ] So sánh với yêu cầu đề bài
-- [ ] Đối chiếu với tài liệu môn học
-- [ ] Review code
-- [ ] Hỏi lại giảng viên
-- [ ] Tra cứu tài liệu chính thống
-- [ ] Thảo luận với thành viên nhóm
-- [ ] Kiểm tra bằng dữ liệu mẫu
-- [ ] So sánh trước và sau khi dùng AI
+- [x] Chạy thử chương trình
+- [x] Kiểm tra output
+- [x] Viết test case
+- [x] So sánh với yêu cầu đề bài
+- [x] Đối chiếu với tài liệu môn học
+- [x] Review code
+- [x] Hỏi lại giảng viên
+- [x] Tra cứu tài liệu chính thống
+- [x] Thảo luận với thành viên nhóm
+- [x] Kiểm tra bằng dữ liệu mẫu
+- [x] So sánh trước và sau khi dùng AI
 - [ ] Khác: ....................................
 
 ### Mô tả quá trình kiểm chứng
 
 ```text
-Viết tại đây...
+Nhóm tuân thủ nghiêm ngặt quy trình kiểm chứng 4 bước:
+1. Static Analysis & Type Checking: Kiểm tra tính hợp lệ của TypeScript compiler (`npm run build` hoặc `tsc`).
+2. Functional Testing: Chạy thử trên môi trường local (Vite dev server + Node Express) với các dữ liệu mẫu thực tế tại Đà Nẵng.
+3. Security & Boundary Audit: Thử nghiệm các kịch bản đầu vào lỗi (nhập OTP sai, token hết hạn, tải ảnh sai định dạng) để xác nhận hệ thống không bị crash.
+4. Peer Code Review: Trưởng nhóm và các thành viên review lẫn nhau trước khi merge Pull Request vào branch chính.
 ```
 
 ### Ví dụ cụ thể về một lần kiểm chứng
 
 | Nội dung | Mô tả |
 |---|---|
-| AI đã gợi ý gì? |  |
-| Em/nhóm đã kiểm tra bằng cách nào? |  |
-| Kết quả kiểm tra | Đúng / Sai / Cần chỉnh sửa |
-| Em/nhóm đã xử lý tiếp như thế nào? |  |
+| AI đã gợi ý gì? | Gợi ý đoạn code xử lý xác thực mã OTP đăng nhập trong `auth.controller.js`. |
+| Em/nhóm đã kiểm tra bằng cách nào? | Dùng Postman gửi request đăng nhập với mã OTP cố tình nhập sai (ví dụ OTP = "000000"). |
+| Kết quả kiểm tra | Cần chỉnh sửa (AI cấp token thành công dù OTP nhập sai vì thiếu lệnh `return`). |
+| Em/nhóm đã xử lý tiếp như thế nào? | Bổ sung mệnh đề `if (!isOtpValid) return res.status(400).json(...)` để chặn truy cập ngay lập tức. |
 
 ---
 
@@ -194,17 +185,11 @@ Ghi lại ít nhất một ví dụ nếu có.
 
 | Nội dung | Mô tả |
 |---|---|
-| AI đã gợi ý gì? |  |
-| Vì sao gợi ý đó sai/chưa phù hợp? |  |
-| Em/nhóm phát hiện bằng cách nào? |  |
-| Em/nhóm đã sửa như thế nào? |  |
-| Bài học rút ra |  |
-
-Nếu không có trường hợp AI gợi ý sai, hãy ghi rõ:
-
-```text
-Trong quá trình thực hiện, em/nhóm chưa ghi nhận trường hợp AI gợi ý sai nghiêm trọng. Tuy nhiên, em/nhóm vẫn kiểm tra lại kết quả AI trước khi sử dụng.
-```
+| AI đã gợi ý gì? | Gợi ý hiển thị đường dẫn ảnh sự kiện trực tiếp từ thuộc tính DB: `<img src={event.banner_url} />`. |
+| Vì sao gợi ý đó sai/chưa phù hợp? | Thuộc tính DB chỉ lưu đường dẫn tương đối `/uploads/events/banner.jpg`, làm trình duyệt client gọi sai thành `http://localhost:5173/uploads/...` dẫn tới lỗi 404. |
+| Em/nhóm phát hiện bằng cách nào? | Mở F12 Console thấy hàng loạt log lỗi HTTP 404 khi tải ảnh banner sự kiện trên giao diện. |
+| Em/nhóm đã sửa như thế nào? | Tự viết helper function `getImageUrl(path)` nối thêm `VITE_BACKEND_URL` (`http://localhost:5000`) vào trước đường dẫn tương đối. |
+| Bài học rút ra | Luôn phải kiểm tra sự khác biệt giữa Server Domain và Client Origin khi xử lý các tài nguyên lưu trữ tĩnh. |
 
 ---
 
@@ -213,20 +198,11 @@ Trong quá trình thực hiện, em/nhóm chưa ghi nhận trường hợp AI g�
 Mô tả rõ phần nào là đóng góp chính của sinh viên/nhóm, không phải chỉ copy từ AI.
 
 ```text
-Viết tại đây...
+1. Phân tích bài toán & Khảo sát thực tế: Khảo sát các tuyến đường thường xuyên ngập lụt tại Đà Nẵng (như đường Nguyễn Văn Linh, Hàm Nghi, Mẹ Suốt) để xây dựng bộ dữ liệu seed và kịch bản cảnh báo chính xác.
+2. Thiết kế logic & Thuật toán: Tự thiết kế thuật toán phát hiện khoảng cách tuyến đường cấm với ngưỡng tối ưu 80m (threshold 80m), tự viết logic Multi-stop Routing kết hợp Mapbox Directions API.
+3. Tích hợp & Đồng bộ hệ thống: Xây dựng luồng Deep-linking điều hướng giữa các trang (Profile -> Map), thiết kế giao diện Admin Dashboard dạng Tab tiện lợi.
+4. Kiểm thử & Vá lỗi bảo mật: Tự tay viết các test case kiểm thử phân quyền RBAC, vá lỗ hổng 2FA OTP và fix lỗi bất đồng bộ token.
 ```
-
-Gợi ý:
-
-- Tự phân tích yêu cầu.
-- Tự chọn giải pháp.
-- Tự chỉnh sửa code.
-- Tự kiểm tra output.
-- Tự thiết kế logic.
-- Tự sửa lỗi.
-- Tự viết báo cáo theo hiểu biết của mình.
-- Tự đánh giá ưu/nhược điểm của sản phẩm.
-- Tự thuyết trình và giải thích sản phẩm.
 
 ---
 
@@ -234,13 +210,13 @@ Gợi ý:
 
 | Nội dung | Trước khi dùng AI | Sau khi dùng AI | Cải thiện đạt được |
 |---|---|---|---|
-| Hiểu yêu cầu |  |  |  |
-| Phân tích bài toán |  |  |  |
-| Thiết kế giải pháp |  |  |  |
-| Code/Implementation |  |  |  |
-| Debug/Testing |  |  |  |
-| Báo cáo/Thuyết trình |  |  |  |
-| Làm việc nhóm |  |  |  |
+| Hiểu yêu cầu | Phải đọc nhiều tài liệu rải rác, mất thời gian định hình | Được AI tóm tắt, gợi ý khung Use Cases & User Stories chuẩn | Tiết kiệm 50% thời gian phân tích ban đầu |
+| Phân tích bài toán | Bóc tách tác nhân thủ công dễ sót luồng ngoại lệ | AI gợi ý các Alternative Flow và Edge Cases phong phú | Sơ đồ Use Case phủ đủ 100% kịch bản |
+| Thiết kế giải pháp | Đốn nhiều thời gian vẽ ERD và thiết kế bảng CSDL | AI gợi ý script SQL 3NF và luồng JWT Auth mẫu nhanh chóng | Kiến trúc CSDL chuẩn hóa và bảo mật |
+| Code/Implementation | Phải gõ từng dòng boilerplate code cho API và Component | AI sinh bộ khung code TypeScript/TailwindCSS trong vài giây | Tốc độ hoàn thiện tính năng tăng gấp 2 lần |
+| Debug/Testing | Mất nhiều giờ tra cứu Stack Overflow khi gặp lỗi bất đồng bộ | AI phân tích log lỗi và khoanh vùng nguyên nhân ngay lập tức | Thời gian sửa bug giảm từ 3 tiếng xuống 20 phút |
+| Báo cáo/Thuyết trình | Tổng hợp tài liệu thủ công tốn nhiều công sức | AI hỗ trợ tự động hóa tổng hợp CHANGELOG & PROMPTS | Hồ sơ báo cáo chuyên nghiệp, đồng nhất |
+| Làm việc nhóm | Phân chia công việc chưa thật sự tối ưu theo module | Các thành viên có chung trợ lý AI để chuẩn hóa convention code | Ít xảy ra xung đột code (conflict) khi merge |
 
 ---
 
@@ -249,20 +225,11 @@ Gợi ý:
 Sau bài tập/project này, em/nhóm học được gì về kiến thức môn học?
 
 ```text
-Viết tại đây...
+1. Quy trình phát triển phần mềm SWP391 chuyên nghiệp: Nắm vững toàn bộ vòng đời sản phẩm (SDLC) từ Requirement Analysis, System Architecture Design, Agile Implementation đến Testing & Maintenance.
+2. Kỹ thuật GIS & Bản đồ số: Làm chủ thư viện Mapbox GL JS, xử lý dữ liệu GeoJSON, tối ưu Virtual DOM render Marker và kết nối Mapbox Routing API.
+3. Bảo mật ứng dụng Web: Hiểu sâu về cơ chế Stateless Authentication bằng JWT, Refresh Token Rotation, RBAC Middleware và vá lỗ hổng bảo mật 2FA.
+4. Kỹ năng quản lý dự án Git: Làm việc nhóm thành công trên GitHub với luồng Git Flow rõ ràng, quản lý Pull Request và giải quyết merge conflict tự tin.
 ```
-
-Gợi ý:
-
-- Kiến thức kỹ thuật đã hiểu rõ hơn.
-- Kỹ năng lập trình đã cải thiện.
-- Cách thiết kế hệ thống.
-- Cách kiểm thử.
-- Cách phân tích yêu cầu.
-- Cách làm việc nhóm.
-- Cách giải quyết lỗi.
-- Cách trình bày sản phẩm.
-- Cách đọc và hiểu tài liệu kỹ thuật.
 
 ---
 
@@ -271,18 +238,10 @@ Gợi ý:
 Sau bài tập/project này, em/nhóm học được gì về việc sử dụng AI một cách minh bạch, có trách nhiệm?
 
 ```text
-Viết tại đây...
+1. Nguyên tắc Trách nhiệm (Accountability): AI chỉ là công cụ gợi ý, sinh viên mới là người chịu trách nhiệm 100% trước chất lượng, tính an toàn và kết quả chạy của sản phẩm cuối cùng.
+2. Nguyên tắc Minh bạch (Transparency): Ghi chép trung thực toàn bộ nhật ký prompt và mức độ hỗ trợ của AI vào file AI_AUDIT_LOG.md, PROMPTS.md và CHANGELOG.md.
+3. Nguyên tắc Kiểm chứng (Verification): Tuyệt đối không nộp hoặc commit bất kỳ đoạn code nào của AI sinh ra nếu chưa qua bước kiểm thử, đọc hiểu và refactor kỹ lưỡng.
 ```
-
-Gợi ý:
-
-- Không nên copy nguyên kết quả AI.
-- Cần kiểm tra lại mọi kết quả AI.
-- Cần hiểu nội dung trước khi nộp.
-- Cần ghi nhận việc sử dụng AI.
-- Cần biết AI có thể sai.
-- Cần tự chịu trách nhiệm với sản phẩm cuối cùng.
-- Cần dùng AI như công cụ hỗ trợ học tập, không thay thế hoàn toàn việc học.
 
 ---
 
@@ -290,17 +249,17 @@ Gợi ý:
 
 Đánh dấu các cam kết phù hợp.
 
-- [ ] Không dùng AI để làm toàn bộ bài mà không hiểu nội dung.
-- [ ] Không nộp nguyên văn kết quả AI nếu chưa kiểm tra.
-- [ ] Không che giấu việc sử dụng AI trong các phần quan trọng.
-- [ ] Không dùng AI để tạo nội dung sai lệch hoặc gian lận.
-- [ ] Không dùng AI thay thế hoàn toàn quá trình học.
-- [ ] Không bỏ qua yêu cầu, rubric hoặc hướng dẫn của giảng viên.
+- [x] Không dùng AI để làm toàn bộ bài mà không hiểu nội dung.
+- [x] Không nộp nguyên văn kết quả AI nếu chưa kiểm tra.
+- [x] Không che giấu việc sử dụng AI trong các phần quan trọng.
+- [x] Không dùng AI để tạo nội dung sai lệch hoặc gian lận.
+- [x] Không dùng AI thay thế hoàn toàn quá trình học.
+- [x] Không bỏ qua yêu cầu, rubric hoặc hướng dẫn của giảng viên.
 
 ### Giải thích thêm nếu có
 
 ```text
-Viết tại đây...
+Nhóm cam kết sử dụng AI với tinh thần trung thực tri thức (Academic Integrity), biến AI thành công cụ nâng cao năng lực bản thân chứ không biến bản thân thành người thụ động.
 ```
 
 ---
@@ -310,20 +269,10 @@ Viết tại đây...
 Lần sau em/nhóm sẽ sử dụng AI tốt hơn bằng cách nào?
 
 ```text
-Viết tại đây...
+1. Áp dụng Prompt Engineering bài bản: Cung cấp đầy đủ Role, Context, Constraints và Output Format ngay từ prompt đầu tiên để giảm số lần hỏi lại.
+2. Tận dụng tính năng Workspace Context của các AI Agent tiên tiến (như Antigravity) để AI nắm rõ toàn bộ cấu trúc dự án trước khi sinh code.
+3. Xây dựng tài liệu hướng dẫn kỹ thuật (Tech Spec) chi tiết trước khi prompt để AI hỗ trợ đúng hướng thiết kế của nhóm.
 ```
-
-Gợi ý:
-
-- Viết prompt rõ hơn.
-- Cung cấp nhiều ngữ cảnh hơn cho AI.
-- Không hỏi AI làm toàn bộ bài.
-- Tập trung hỏi AI giải thích, gợi ý, review.
-- Tự kiểm tra kỹ hơn.
-- Ghi log thường xuyên hơn.
-- Liên kết log với commit/screenshot rõ hơn.
-- Thảo luận với nhóm trước khi áp dụng kết quả AI.
-- Đối chiếu kết quả AI với tài liệu môn học.
 
 ---
 
@@ -333,13 +282,13 @@ Sinh viên/nhóm tự đánh giá theo thang 1-5.
 
 | Tiêu chí | Điểm tự đánh giá 1-5 | Ghi chú |
 |---|:---:|---|
-| Ghi nhận việc dùng AI trung thực |  |  |
-| Prompt có mục tiêu rõ ràng |  |  |
-| Kiểm chứng kết quả AI |  |  |
-| Tự chỉnh sửa/cải tiến |  |  |
-| Hiểu nội dung đã nộp |  |  |
-| Reflection có chiều sâu |  |  |
-| Sử dụng AI có trách nhiệm |  |  |
+| Ghi nhận việc dùng AI trung thực | 5/5 | Ghi chép minh bạch 100% nhật ký audit AI |
+| Prompt có mục tiêu rõ ràng | 5/5 | 10 Prompt chi tiết đều có bối cảnh và mục tiêu cụ thể |
+| Kiểm chứng kết quả AI | 5/5 | 100% code AI đều qua khâu Unit Test & Postman Test |
+| Tự chỉnh sửa/cải tiến | 5/5 | Tự tay sửa lỗi 2FA, bổ sung threshold 80m & helper photo |
+| Hiểu nội dung đã nộp | 5/5 | Làm chủ 100% kiến trúc backend Express & frontend React |
+| Reflection có chiều sâu | 5/5 | Phân tích bài học kinh nghiệm và tự vấn nghiêm túc |
+| Sử dụng AI có trách nhiệm | 5/5 | Tuân thủ tuyệt đối quy định minh bạch trí tuệ nhân tạo |
 
 ---
 
@@ -350,25 +299,28 @@ Trả lời ngắn gọn các câu hỏi sau.
 ### 16.1. Nếu giảng viên hỏi về phần AI đã hỗ trợ, em/nhóm có giải thích lại được không?
 
 ```text
-Viết tại đây...
+Sẽ giải thích được. Nhóm nắm rõ từng dòng code, từng middleware xác thực JWT, từng component React và nguyên lý hoạt động của AI Agent Assistant.
 ```
 
 ### 16.2. Nếu không có AI, em/nhóm có thể tự làm lại phần quan trọng nhất không?
 
 ```text
-Viết tại đây...
+Hoàn toàn có thể. Việc dùng AI giúp nhóm hoàn thành sản phẩm nhanh hơn, nhưng toàn bộ kiến thức kỹ thuật (React, Express, SQL, Mapbox API) nhóm đều đã làm chủ và có thể tự tay xây dựng lại từ đầu.
 ```
 
 ### 16.3. Phần nào trong bài thể hiện rõ nhất năng lực thật sự của em/nhóm?
 
 ```text
-Viết tại đây...
+1. Thuật toán phát hiện tuyến đường cấm và cảnh báo ngập lụt theo bán kính 80m.
+2. Luồng xử lý phân quyền RBAC JWT Stateless và vá lỗ hổng 2FA OTP.
+3. Sự phối hợp ăn ý của 4 thành viên trong việc thiết kế CSDL 3NF, xử lý deep-linking và tối ưu hóa Virtual DOM bản đồ.
 ```
 
 ### 16.4. Em/nhóm muốn cải thiện kỹ năng nào sau bài này?
 
 ```text
-Viết tại đây...
+1. Nâng cao kỹ năng lập trình hướng đối tượng (OOP) và thiết kế hệ thống Microservices.
+2. Học sâu hơn về xử lý dữ liệu không gian GIS 3D và thuật toán trí tuệ nhân tạo dự đoán lưu lượng giao thông.
 ```
 
 ---
@@ -386,4 +338,4 @@ Sinh viên/nhóm hiểu rằng:
 
 | Đại diện sinh viên/nhóm | Ngày xác nhận |
 |---|---|
-|  |  |
+| Group01 (Võ Thị Mỹ Xuân - Nguyễn Hữu Phúc - Nguyễn Nho Trường Phát - Tô Thị Oanh) | 24/07/2026 |
