@@ -264,7 +264,7 @@ export default function EventsTab({
                             className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-md disabled:opacity-50"
                         >
                             <Bot size={18} className={isScrapingAi ? 'animate-spin' : ''} />
-                            {isScrapingAi ? 'AI Đang Cào DanangFantastiCity...' : '⚡ AI Cào Tin DanangFantastiCity'}
+                            {isScrapingAi ? 'AI Đang Tổng Hợp Dữ Liệu...' : '🤖 AI Thu Thập Sự Kiện Tự Động'}
                         </button>
                         <button
                             onClick={() => {
