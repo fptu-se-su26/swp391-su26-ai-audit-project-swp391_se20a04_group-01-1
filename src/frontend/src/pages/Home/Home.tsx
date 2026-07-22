@@ -1033,32 +1033,41 @@ export default function Home() {
     handleGetCurrentLocation(false, shouldSetAsOrigin);
   }, []);
 
+  // Lắng nghe URL params để mở lại địa điểm/sự kiện/địa điểm tự do yêu thích từ trang Profile
   useEffect(() => {
-    if (pois && pois.length > 0) {
-      const queryParams = new URLSearchParams(window.location.search);
-      const poiIdStr = queryParams.get("poiId");
-      if (poiIdStr) {
-        const poiId = parseInt(poiIdStr);
-        const foundPoi = pois.find((p) => p.poi_id === poiId);
-        if (foundPoi) {
-          setDestination({
-            lng: foundPoi.longitude,
-            lat: foundPoi.latitude,
-            label: foundPoi.name,
-            poi_id: foundPoi.poi_id,
-          });
-          setDestinationQuery(foundPoi.name);
-          setSelectedPOI(foundPoi);
-          setViewMode("pois");
-          mapRef.current?.flyTo({
-            center: [foundPoi.longitude, foundPoi.latitude],
-            zoom: 15,
-            duration: 1500,
-          });
-        }
-      }
+    const queryParams = new URLSearchParams(location.search);
+    const favLat = queryParams.get("favLat");
+    const favLng = queryParams.get("favLng");
+    const favLabel = queryParams.get("favLabel");
+    const favPoiId = queryParams.get("favPoiId");
+    const favEventId = queryParams.get("favEventId");
+
+    if (favLat && favLng) {
+      const lat = parseFloat(favLat);
+      const lng = parseFloat(favLng);
+      const label = favLabel ? decodeURIComponent(favLabel) : "Địa điểm đã lưu";
+
+      setDestination({
+        lng,
+        lat,
+        label,
+        ...(favPoiId ? { poi_id: parseInt(favPoiId) } : {}),
+        ...(favEventId ? { event_id: parseInt(favEventId) } : {}),
+      });
+      setDestinationQuery(label);
+      setViewMode(favEventId ? "events" : "pois");
+
+      mapRef.current?.flyTo({
+        center: [lng, lat],
+        zoom: 15,
+        duration: 1500,
+      });
+
+      // Xoá query param khỏi URL để F5 không load lại
+      window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [pois, location.search]);
+  }, [location.search]);
+
   // Lắng nghe URL params để tự động vẽ lộ trình khi click từ trang Profile
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
@@ -1123,10 +1132,13 @@ export default function Home() {
         }
 
         // 6. Xóa param routeId khỏi URL để tránh bị load lại nếu người dùng F5 hoặc làm thao tác khác
+        // 6. Xóa param routeId khỏi URL để tránh bị load lại nếu người dùng F5 hoặc làm thao tác khác
         navigate(location.pathname, { replace: true });
       }
     }
   }, [location.search, savedRoutes, navigate]);
+
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (

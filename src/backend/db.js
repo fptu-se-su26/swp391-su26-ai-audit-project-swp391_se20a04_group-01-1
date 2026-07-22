@@ -6,12 +6,14 @@ const dbConfig = {
     password: process.env.DB_PASSWORD,
     server: process.env.DB_SERVER,
     database: process.env.DB_DATABASE || process.env.DB_NAME,
-    options: {
-        encrypt: false,
-        trustServerCertificate: true,
-        useUTC: false
-    }
+    options: { encrypt: false, trustServerCertificate: true, useUTC: false }
 };
+
+console.log('🔎 DB CONFIG ĐANG DÙNG:', {
+    server: dbConfig.server,
+    database: dbConfig.database,
+    user: dbConfig.user
+});
 
 const poolPromise = new sql.ConnectionPool(dbConfig)
     .connect()

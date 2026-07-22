@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { saveFavoriteLocation } from "../../../services/favoriteLocationService";
 import {
   Search,
   ArrowUpDown,
@@ -111,58 +112,82 @@ export function RoutePanel({
   setWaypointQueries,
 }: RoutePanelProps) {
   const [isStarting, setIsStarting] = useState(false);
+  const [isCustomLocationFavorited, setIsCustomLocationFavorited] =
+  useState(false);
   const { favoriteIds, toggleFavorite } = useFavoritePoiStore();
 
   // Lấy ID của POI hoặc Event từ destination
   const destinationPoiId = destination?.poi_id;
   const destinationEventId = (destination as any)?.event_id;
+  useEffect(() => {
+  setIsCustomLocationFavorited(false);
+}, [destination?.lat, destination?.lng]);
 
   // 1. ĐỒNG BỘ LOGIC YÊU THÍCH: Lấy trực tiếp từ favoriteEventIds của Home truyền xuống
   // Không dùng useState cục bộ ở đây nữa!
   const isFavDest = destinationPoiId
-    ? favoriteIds.has(destinationPoiId)
-    : destinationEventId
-      ? favoriteEventIds.has(destinationEventId)
-      : false;
+  ? favoriteIds.has(destinationPoiId)
+  : destinationEventId
+    ? favoriteEventIds.has(destinationEventId)
+    : isCustomLocationFavorited;
 
-  const canBeFavorited = !!(destinationPoiId || destinationEventId);
+  // Luôn cho phép hiển thị nút yêu thích vì giờ đã hỗ trợ cả địa điểm tự do
+  const canBeFavorited = !!destination;
 
   const handleFavDestClick = async () => {
-    if (!canBeFavorited) return;
+    if (!destination) return;
 
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
+    // Kiểm tra trạng thái đăng nhập
+    const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
     if (!token) {
       showPremiumToast(
         "Vui lòng đăng nhập để lưu địa điểm/sự kiện yêu thích.",
-        "error",
+        "error"
       );
       return;
     }
 
     try {
       if (destinationPoiId) {
-        // Lưu POI
+        // 1. Nhánh lưu POI (Hệ thống)
         const res = await toggleFavorite(destinationPoiId);
         showPremiumToast(
           res
             ? "Đã lưu địa điểm vào danh sách yêu thích!"
             : "Đã xóa địa điểm khỏi danh sách yêu thích.",
-          "success",
+          "success"
         );
       } else if (destinationEventId) {
-        // Lưu Event: Gọi hàm được truyền từ Home.tsx xuống để đồng bộ 100%
+        // 2. Nhánh lưu Sự kiện
         const isFav = await onToggleEventFavorite(destinationEventId);
         showPremiumToast(
           isFav
             ? "Đã lưu sự kiện vào danh sách yêu thích!"
             : "Đã xóa sự kiện khỏi danh sách.",
-          "success",
+          "success"
         );
+      } else {
+        // 3. Nhánh lưu Địa điểm tự do (Từ Mapbox search)
+        // Lấy ID của mapbox nếu có để lưu vào source_place_id
+        const sourcePlaceId = (destination as any).id || (destination as any).place_id || undefined;
+        
+        await saveFavoriteLocation(
+  destination.label || destinationQuery,
+  destination.lat,
+  destination.lng,
+  sourcePlaceId
+);
+
+setIsCustomLocationFavorited(true);
+
+showPremiumToast(
+  "Đã lưu địa điểm tự do vào danh sách yêu thích!",
+  "success"
+);
       }
     } catch (error) {
-      console.error("Lỗi yêu thích:", error);
-      showPremiumToast("Không thể cập nhật trạng thái yêu thích.", "error");
+      console.error("Lỗi khi lưu yêu thích:", error);
+      showPremiumToast("Không thể cập nhật trạng thái yêu thích lúc này.", "error");
     }
   };
 

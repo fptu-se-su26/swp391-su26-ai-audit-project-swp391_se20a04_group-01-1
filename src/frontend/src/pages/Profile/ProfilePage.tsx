@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ChangePasswordModal from "./ChangePasswordModal";
 import EditProfileModal from "./EditProfileModal";
 import MyPOIsTab from "./MyPOIsTab";
+import { getFavoriteLocations, deleteFavoriteLocation } from "../../services/favoriteLocationService";
 import {
   Navigation,
   LogOut,
@@ -78,6 +79,7 @@ export default function ProfilePage({
   const [historyRoutes, setHistoryRoutes] = useState<SavedRoute[]>([]);
 
   const [favoriteEvents, setFavoriteEvents] = useState<any[]>([]);
+  const [favoriteCustomLocations, setFavoriteCustomLocations] = useState<any[]>([]);
   const [isChecking, setIsChecking] = useState(true);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState("");
@@ -282,6 +284,17 @@ export default function ProfilePage({
         }
       };
       fetchFavEvents();
+
+      const fetchFavLocations = async () => {
+        try {
+          const locations = await getFavoriteLocations();
+          setFavoriteCustomLocations(locations);
+        } catch (err) {
+          console.error("Lỗi lấy địa điểm tự do yêu thích", err);
+          setFavoriteCustomLocations([]);
+        }
+      };
+      fetchFavLocations();
     } else if (activeMenu === "settings") {
       fetchPreferences();
     }
@@ -1466,31 +1479,35 @@ export default function ProfilePage({
                           }}
                         >
                           <button
-                            onClick={() => {
-                              navigate(`/dashboard?poiId=${poi.poi_id}`);
-                            }}
-                            style={{
-                              flex: 1,
-                              padding: "8px",
-                              backgroundColor: "#2563eb",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "8px",
-                              fontSize: "11px",
-                              fontWeight: "bold",
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: "4px",
-                            }}
-                          >
-                            <Navigation
-                              size={12}
-                              style={{ transform: "rotate(45deg)" }}
-                            />{" "}
-                            Chỉ đường
-                          </button>
+  onClick={() => {
+    navigate(
+      `/dashboard?favLat=${poi.latitude}&favLng=${poi.longitude}&favLabel=${encodeURIComponent(
+        poi.name
+      )}&favPoiId=${poi.poi_id}`
+    );
+  }}
+  style={{
+    flex: 1,
+    padding: "8px",
+    backgroundColor: "#2563eb",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "11px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "4px",
+  }}
+>
+  <Navigation
+    size={12}
+    style={{ transform: "rotate(45deg)" }}
+  />{" "}
+  Chỉ đường
+</button>
                           <button
                             onClick={async () => {
                               try {
@@ -1526,6 +1543,125 @@ export default function ProfilePage({
                   ))}
                 </div>
               )}
+
+              {/* --- ĐỊA ĐIỂM TỰ DO (CUSTOM LOCATIONS) --- */}
+              {favoriteCustomLocations.length > 0 && (
+  <>
+    <h2
+      style={{
+        fontSize: "16px",
+        fontWeight: "bold",
+        color: "#374151",
+        borderBottom: "1px solid #e5e7eb",
+        paddingBottom: "8px",
+        marginBottom: "16px",
+      }}
+    >
+      Địa điểm tự do
+    </h2>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+        gap: "16px",
+        marginBottom: "32px",
+      }}
+    >
+      {favoriteCustomLocations.map((loc) => (
+        <div
+          key={`loc-${loc.favorite_id}`}
+          style={{
+            backgroundColor: "white",
+            borderRadius: "16px",
+            padding: "16px",
+            border: "1px solid #e5e7eb",
+            boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}
+        >
+          <p style={{ fontWeight: 600, fontSize: 14, margin: 0 }}>
+            {loc.name}
+          </p>
+          {loc.address && (
+            <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>
+              {loc.address}
+            </p>
+          )}
+
+          {/* Actions: Xem bản đồ & Xóa */}
+          <div
+            style={{
+              marginTop: "auto",
+              paddingTop: "12px",
+              borderTop: "1px solid #f3f4f6",
+              display: "flex",
+              gap: "8px",
+            }}
+          >
+            <button
+              onClick={() => {
+                navigate(
+                  `/dashboard?favLat=${loc.latitude}&favLng=${loc.longitude}&favLabel=${encodeURIComponent(
+                    loc.name
+                  )}`
+                );
+              }}
+              style={{
+                flex: 1,
+                padding: "8px",
+                backgroundColor: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "11px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "4px",
+              }}
+            >
+              <Navigation
+                size={12}
+                style={{ transform: "rotate(45deg)" }}
+              />{" "}
+              Xem bản đồ
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await deleteFavoriteLocation(loc.favorite_id);
+                  setFavoriteCustomLocations((prev) =>
+                    prev.filter((l) => l.favorite_id !== loc.favorite_id)
+                  );
+                  showPremiumToast("Đã xóa địa điểm tự do!", "success");
+                } catch (err) {
+                  showPremiumToast("Có lỗi xảy ra khi xóa.", "error");
+                }
+              }}
+              style={{
+                padding: "8px 12px",
+                backgroundColor: "#fef2f2",
+                color: "#dc2626",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                fontSize: "11px",
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+              title="Xóa khỏi danh sách"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  </>
+)}
 
               {/* --- SỰ KIỆN (EVENTS) --- */}
               <h2
@@ -1665,31 +1801,36 @@ export default function ProfilePage({
                           }}
                         >
                           <button
-                            onClick={() =>
-                              navigate(`/dashboard?eventId=${event.event_id}`)
-                            }
-                            style={{
-                              flex: 1,
-                              padding: "8px",
-                              backgroundColor: "#2563eb",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "8px",
-                              fontSize: "11px",
-                              fontWeight: "bold",
-                              cursor: "pointer",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: "4px",
-                            }}
-                          >
-                            <Navigation
-                              size={12}
-                              style={{ transform: "rotate(45deg)" }}
-                            />{" "}
-                            Xem bản đồ
-                          </button>
+  onClick={() => {
+    navigate(
+      `/dashboard?favLat=${event.latitude}&favLng=${event.longitude}&favLabel=${encodeURIComponent(
+        event.title
+      )}&favEventId=${event.event_id}`
+    );
+  }}
+  style={{
+    flex: 1,
+    padding: "8px",
+    backgroundColor: "#2563eb",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "11px",
+    fontWeight: "bold",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "4px",
+  }}
+>
+  <Navigation
+    size={12}
+    style={{ transform: "rotate(45deg)" }}
+  />{" "}
+  Xem bản đồ
+</button>
+
                           <button
                             onClick={async () => {
                               try {
