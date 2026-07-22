@@ -71,10 +71,7 @@ export default function EventsTab({
         setAiScrapeMsg(null);
         try {
             const res = await eventAPI.triggerAiScrape();
-            setAiScrapeMsg(res.data.message || 'Cào tin tức DanangFantastiCity thành công!');
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
+            setAiScrapeMsg(res.data.message || 'Cập nhật tin tức DanangFantastiCity thành công!');
         } catch (err: any) {
             setAiScrapeMsg('❌ Lỗi AI cào tin: ' + (err.response?.data?.message || err.message));
         } finally {
@@ -85,7 +82,7 @@ export default function EventsTab({
     const handleQuickStatusUpdate = async (id: number, newStatus: 'approved' | 'rejected' | 'pending') => {
         try {
             await eventAPI.updateEventStatus(id, newStatus);
-            window.location.reload();
+            handleApproveEvent(id, newStatus);
         } catch (err: any) {
             alert('Lỗi cập nhật trạng thái: ' + (err.response?.data?.message || err.message));
         }

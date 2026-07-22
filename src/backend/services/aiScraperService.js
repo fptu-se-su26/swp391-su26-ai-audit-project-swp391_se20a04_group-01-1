@@ -21,6 +21,35 @@ const KNOWN_DANANG_LANDMARKS = [
 ];
 
 /**
+ * Word-Overlap Similarity Checker to catch duplicates with slightly different titles
+ */
+function findDuplicateInList(newTitle, existingEvents) {
+    const normalizeWords = (str) => (str || '')
+        .toLowerCase()
+        .replace(/[^\w\sàáảãạăắằẳẵặâấầẩẫậèéẻẽẹêếềểễệìíỉĩịòóỏõọôốồổỗộơớờởỡợùúủũụưứừửữựỳýỷỹỵđ]/g, ' ')
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !['bài', 'tin', 'báo', 'tại', 'đà', 'nẵng', 'cho', 'với', 'trong', 'của', 'bằng', 'và', 'trở', 'thành'].includes(w));
+
+    const newWords = normalizeWords(newTitle);
+
+    for (const item of existingEvents) {
+        const existingWords = normalizeWords(item.title);
+        const intersection = newWords.filter(w => existingWords.includes(w));
+        
+        // If 3 or more key words overlap (e.g. "sân", "khấu", "thực", "cảnh", "mỹ", "khê") -> DUPLICATE!
+        if (intersection.length >= 3) {
+            return item;
+        }
+
+        // Special check for key phrases like "thực cảnh"
+        if (newTitle.toLowerCase().includes('thực cảnh') && item.title.toLowerCase().includes('thực cảnh')) {
+            return item;
+        }
+    }
+    return null;
+}
+
+/**
  * Helper: Extract OpenGraph image or first article image from detail page
  */
 async function fetchArticleDetailInfo(articleUrl) {
@@ -99,11 +128,6 @@ async function fetchDanangEventsRaw() {
                 source: 'DanangFantastiCity',
                 title: 'Biển Mỹ Khê trở thành sân khấu thực cảnh kể chuyện xứ Quảng bằng ánh sáng và âm nhạc',
                 url: 'https://danangfantasticity.com/vi/kham-pha/bien-my-khe-tro-thanh-san-khau-thuc-canh'
-            },
-            {
-                source: 'DanangFantastiCity',
-                title: 'Hành trình về nguồn tháng Bảy tại Đà Nẵng tại Bảo tàng Đà Nẵng',
-                url: 'https://danangfantasticity.com/vi/kham-pha/hanh-trinh-ve-nguon-thang-bay'
             }
         );
     }
@@ -118,9 +142,9 @@ async function parseEventWithGemini(rawItem) {
     const detailInfo = await fetchArticleDetailInfo(rawItem.url);
     const realImageUrl = detailInfo.imageUrl || 'https://danangfantasticity.com/wp-content/uploads/dfc/public/cate-bg/9.jpg';
     
-    // Quick filter check for general travel articles (Time Out gợi ý, Lonely Planet, Kinh nghiệm...)
+    // Quick title filter for general recommendation articles
     const lowerTitle = rawItem.title.toLowerCase();
-    if (lowerTitle.includes('gợi ý') || lowerTitle.includes('lonely planet') || lowerTitle.includes('cẩm nang') || lowerTitle.includes('kinh nghiệm') || lowerTitle.includes('top ')) {
+    if (lowerTitle.includes('gợi ý') || lowerTitle.includes('lonely planet') || lowerTitle.includes('time out') || lowerTitle.includes('cẩm nang') || lowerTitle.includes('kinh nghiệm') || lowerTitle.includes('top ')) {
         return {
             is_specific_event: false,
             title: rawItem.title,
@@ -158,14 +182,14 @@ Link nguồn: "${rawItem.url}"
 Nội dung chi tiết: "${detailInfo.cleanText.substring(0, 1500)}"
 
 QUY TẮC PHÂN LOẠI QUAN TRỌNG:
-1. Nếu đây chỉ là bài báo gợi ý du lịch chung chung (ví dụ: "Time Out gợi ý...", "Cẩm nang du lịch...", "Top món ăn...", "Danh sách chợ...") KHÔNG CÓ ĐỊA ĐIỂM VÀ THỜI GIAN TỔ CHỨC CỤ THỂ HOẶC CHỈ LÀ BÀI VIẾT NÓI CHUNG VỀ ĐÀ NẴNG -> Đặt "is_specific_event": false.
-2. Nếu đây là SỰ KIỆN/LỄ HỘI CỤ THỂ có địa điểm tổ chức thực tế -> Đặt "is_specific_event": true.
+1. Nếu đây chỉ là bài báo gợi ý du lịch chung chung (ví dụ: "Time Out gợi ý...", "Cẩm nang du lịch...", "Top món ăn...", "Danh sách chợ...", "Hành trình về nguồn...") KHÔNG CÓ ĐỊA ĐIỂM VÀ THỜI GIAN TỔ CHỨC CỤ THỂ HOẶC CHỈ LÀ BÀI VIẾT NÓI CHUNG VỀ ĐÀ NẴNG -> Đặt "is_specific_event": false.
+2. Nếu đây là SỰ KIỆN/LỄ HỘI CỤ THỂ có địa điểm tổ chức thực tế (VD: Bãi biển Mỹ Khê, Bảo tàng Đà Nẵng, Cung Thể thao Tuyên Sơn...) -> Đặt "is_specific_event": true.
 
 Trả về ĐÚNG MỘT CHUỖI JSON thuần (không codeblock, không markdown):
 {
   "is_specific_event": true/false,
   "title": "Tên sự kiện rõ ràng",
-  "location_name": "Tên địa điểm cụ thể (VD: Bãi biển Mỹ Khê, Bảo tàng Đà Nẵng, Cung Thể thao Tuyên Sơn...). Nếu không có địa điểm cụ thể ghi 'Đà Nẵng'",
+  "location_name": "Tên địa điểm cụ thể. Nếu không có địa điểm cụ thể ghi 'Đà Nẵng'",
   "address": "Địa chỉ đường phố đầy đủ",
   "district": "Tên quận ở Đà Nẵng (Sơn Trà / Hải Châu / Ngũ Hành Sơn / Thanh Khê / Liên Chiểu / Cẩm Lệ)",
   "category_name": "Sự kiện văn hóa | Lễ hội | Thể thao | Giao thông | Triển lãm",
@@ -192,19 +216,9 @@ Trả về ĐÚNG MỘT CHUỖI JSON thuần (không codeblock, không markdown)
     } catch (err) {
         console.error("Lỗi phân tích Gemini AI:", err.message);
         return {
-            is_specific_event: true,
+            is_specific_event: false, // Default to false on parse error to avoid corrupt data
             title: rawItem.title,
-            location_name: "Bãi biển Mỹ Khê",
-            address: "Đường Võ Nguyên Giáp, Sơn Trà, Đà Nẵng",
-            district: "Sơn Trà",
-            category_name: "Sự kiện văn hóa",
-            start_time: new Date().toISOString(),
-            end_time: new Date(Date.now() + 86400000 * 2).toISOString(),
-            short_description: rawItem.title,
-            description: `Thông tin cào từ DanangFantastiCity: ${rawItem.url}`,
-            banner_url: realImageUrl,
-            thumbnail_url: realImageUrl,
-            closed_roads: []
+            location_name: "Đà Nẵng"
         };
     }
 }
@@ -285,6 +299,10 @@ async function runAiEventScraper() {
     let skippedDuplicatesCount = 0;
     let skippedNonEventsCount = 0;
 
+    // Load existing events from DB into memory for smart deduplication
+    const existingEventsResult = await pool.request().query("SELECT event_id, title, location_name FROM Events");
+    const existingEvents = existingEventsResult.recordset;
+
     const categoriesResult = await pool.request().query("SELECT category_id, name FROM EventCategories");
     const categoriesMap = categoriesResult.recordset;
     const defaultCategoryId = categoriesMap.length > 0 ? categoriesMap[0].category_id : 1;
@@ -295,31 +313,20 @@ async function runAiEventScraper() {
             if (!parsedEvent || !parsedEvent.title) continue;
 
             // RULE 1: Skip general travel/recommendation articles without specific locations
-            const genericLocations = ['đà nẵng', 'thành phố đà nẵng', 'việt nam', ''];
-            const isGenericLoc = genericLocations.includes((parsedEvent.location_name || '').trim().toLowerCase());
+            const genericLocations = ['đà nẵng', 'thành phố đà nẵng', 'việt nam', 'quảng nam', ''];
+            const cleanLoc = (parsedEvent.location_name || '').trim().toLowerCase();
+            const isGenericLoc = genericLocations.includes(cleanLoc);
             
             if (parsedEvent.is_specific_event === false || isGenericLoc) {
-                console.log(`⏩ [Skip Non-Specific Event] Bỏ qua bài báo gợi ý/không có địa điểm tổ chức cụ thể: "${parsedEvent.title}" (Địa điểm: ${parsedEvent.location_name})`);
+                console.log(`⏩ [Skip Non-Specific Event] Bỏ qua bài viết không có địa điểm cụ thể: "${parsedEvent.title}" (Vị trí: "${parsedEvent.location_name}")`);
                 skippedNonEventsCount++;
                 continue;
             }
 
-            // RULE 2: Enhanced Smart Deduplication (Title similarity or Location + Key phrase match)
-            const cleanTitle = parsedEvent.title.toLowerCase();
-            const isStagePlay = cleanTitle.includes('sân khấu thực cảnh') || cleanTitle.includes('xứ quảng');
-            
-            let dupQuery = `SELECT event_id, title FROM Events WHERE title LIKE @exactTitle`;
-            const reqDup = pool.request().input("exactTitle", sql.NVarChar, `%${parsedEvent.title.substring(0, 15)}%`);
-
-            if (isStagePlay) {
-                dupQuery = `SELECT event_id, title FROM Events WHERE title LIKE '%thực cảnh%' OR title LIKE '%xứ Quảng%'`;
-            }
-
-            const checkDuplicate = await reqDup.query(dupQuery);
-
-            if (checkDuplicate.recordset.length > 0) {
-                const existingId = checkDuplicate.recordset[0].event_id;
-                console.log(`⏩ [Deduplication Match] Phát hiện trùng lặp với sự kiện ID ${existingId}: "${checkDuplicate.recordset[0].title}"`);
+            // RULE 2: Smart Word-Overlap Deduplication
+            const duplicateMatch = findDuplicateInList(parsedEvent.title, existingEvents);
+            if (duplicateMatch) {
+                console.log(`⏩ [Deduplication Match] Bỏ qua vì đã trùng với sự kiện ID ${duplicateMatch.event_id}: "${duplicateMatch.title}"`);
                 skippedDuplicatesCount++;
                 continue;
             }
@@ -369,6 +376,9 @@ async function runAiEventScraper() {
 
             const newEventId = insertEventResult.recordset[0].event_id;
             console.log(`✅ [AI Event Scraper] Đã tạo sự kiện mới hợp lệ (ID: ${newEventId}, Địa điểm: "${parsedEvent.location_name}"): "${parsedEvent.title}"`);
+            
+            // Add to existing list in memory so subsequent items in same run match against it!
+            existingEvents.push({ event_id: newEventId, title: parsedEvent.title, location_name: parsedEvent.location_name });
             newEventsCount++;
 
         } catch (itemErr) {
