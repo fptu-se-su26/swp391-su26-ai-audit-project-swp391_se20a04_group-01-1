@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// name=ProfilePage.tsx
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import ChangePasswordModal from "./ChangePasswordModal";
 import EditProfileModal from "./EditProfileModal";
@@ -257,6 +258,17 @@ export default function ProfilePage({
     }
   };
 
+  // helper to load custom favorite locations
+  const loadFavoriteCustomLocations = useCallback(async () => {
+    try {
+      const locations = await getFavoriteLocations();
+      setFavoriteCustomLocations(Array.isArray(locations) ? locations : []);
+    } catch (err) {
+      console.error("Lỗi lấy địa điểm tự do yêu thích", err);
+      setFavoriteCustomLocations([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeMenu === "saved_routes") {
       fetchSavedRoutes();
@@ -285,20 +297,24 @@ export default function ProfilePage({
       };
       fetchFavEvents();
 
-      const fetchFavLocations = async () => {
-        try {
-          const locations = await getFavoriteLocations();
-          setFavoriteCustomLocations(locations);
-        } catch (err) {
-          console.error("Lỗi lấy địa điểm tự do yêu thích", err);
-          setFavoriteCustomLocations([]);
-        }
-      };
-      fetchFavLocations();
+      // custom locations
+      loadFavoriteCustomLocations();
     } else if (activeMenu === "settings") {
       fetchPreferences();
     }
-  }, [activeMenu, fetchPreferences, fetchFavoriteDetails]);
+  }, [activeMenu, fetchPreferences, fetchFavoriteDetails, loadFavoriteCustomLocations]);
+
+  // Listen to favorites updates from other components (RoutePanel etc.)
+  useEffect(() => {
+    const handler = () => {
+      if (activeMenu === "favorites") {
+        loadFavoriteCustomLocations();
+        fetchFavoriteDetails();
+      }
+    };
+    window.addEventListener("favorites:updated", handler);
+    return () => window.removeEventListener("favorites:updated", handler);
+  }, [activeMenu, loadFavoriteCustomLocations, fetchFavoriteDetails]);
 
   const triggerDeleteConfirm = (id: number) => {
     setRouteToDelete(id);
@@ -1512,6 +1528,7 @@ export default function ProfilePage({
                             onClick={async () => {
                               try {
                                 await toggleFavorite(poi.poi_id);
+                                window.dispatchEvent(new CustomEvent("favorites:updated"));
                                 showPremiumToast(
                                   "Đã xóa khỏi danh sách yêu thích!",
                                   "success",
@@ -1637,6 +1654,7 @@ export default function ProfilePage({
                   setFavoriteCustomLocations((prev) =>
                     prev.filter((l) => l.favorite_id !== loc.favorite_id)
                   );
+                  window.dispatchEvent(new CustomEvent("favorites:updated"));
                   showPremiumToast("Đã xóa địa điểm tự do!", "success");
                 } catch (err) {
                   showPremiumToast("Có lỗi xảy ra khi xóa.", "error");
