@@ -314,6 +314,8 @@ Hoàn toàn có thể. Việc dùng AI giúp nhóm hoàn thành sản phẩm nha
 1. Thuật toán phát hiện tuyến đường cấm và cảnh báo ngập lụt theo bán kính 80m.
 2. Luồng xử lý phân quyền RBAC JWT Stateless và vá lỗ hổng 2FA OTP.
 3. Sự phối hợp ăn ý của 4 thành viên trong việc thiết kế CSDL 3NF, xử lý deep-linking và tối ưu hóa Virtual DOM bản đồ.
+4. Tối ưu hóa Hiệu năng Frontend & Tích hợp Hệ thống (Frontend Performance & Integration)
+5. Tích hợp dữ liệu không gian địa lý và thuật toán tìm kiếm nâng cao (Spatial GIS Integration & Advanced Search)
 ```
 
 ### 16.4. Em/nhóm muốn cải thiện kỹ năng nào sau bài này?

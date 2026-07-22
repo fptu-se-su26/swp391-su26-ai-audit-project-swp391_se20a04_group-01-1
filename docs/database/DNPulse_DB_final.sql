@@ -1,6 +1,13 @@
--- DN-Pulse: Intelligent Urban Routing System Database Schema
+-- ============================================================================
+-- DN-Pulse: Intelligent Urban Routing System Database Script
+-- CONSOLIDATED DATABASE SCRIPT (SCHEMA + SEED DATA)
 -- DBMS: Microsoft SQL Server (MSSQL)
--- Created based on the updated ERD
+-- File gộp duy nhất chứa đầy đủ Schema, Bảng bổ sung, Patch & Dữ liệu Seed mẫu
+-- ============================================================================
+
+-- ============================================================================
+-- PHẦN 1: TẠO BẢNG VÀ RÀNG BUỘC (FULL SCHEMA)
+-- ============================================================================
 
 -- 1. Create EventCategories Table
 CREATE TABLE EventCategories (
@@ -266,3 +273,125 @@ CREATE TABLE SavedRoutes (
     is_emergency BIT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT GETDATE()
 );
+GO
+
+-- ============================================================================
+-- PHẦN 2: SEED DATA MẪU (ADMIN USER, CATEGORIES, POIS, EVENTS & EVENT ROADS)
+-- ============================================================================
+
+-- 2.1 Default Admin User (user_id = 1)
+SET IDENTITY_INSERT Users ON;
+IF NOT EXISTS (SELECT * FROM Users WHERE user_id = 1)
+BEGIN
+    INSERT INTO Users (user_id, username, email, password_hash, full_name, role, is_active, is_email_verified)
+    VALUES (1, N'admin', N'admin@dnpulse.vn', N'$2b$10$pL3hW/8zTjYy4fR6R9GZ0u.8Gk.sP2d4E5F6G7H8I9J0K1L2M3N4O', N'System Administrator', N'admin', 1, 1);
+END;
+SET IDENTITY_INSERT Users OFF;
+GO
+
+-- 2.2 Seed POIsCategories
+SET IDENTITY_INSERT POIsCategories ON;
+INSERT INTO POIsCategories (id, name, icon, color_code, description) VALUES
+(1, N'Điểm tham quan', 'compass', '#10B981', N'Các danh lam thắng cảnh, địa điểm du lịch nổi bật'),
+(2, N'Nhà hàng', 'utensils', '#F59E0B', N'Nhà hàng, quán ăn, ẩm thực đặc sản'),
+(3, N'Khách sạn', 'hotel', '#8B5CF6', N'Khách sạn, resort, nhà nghỉ lưu trú'),
+(4, N'Giải trí', 'gamepad-2', '#EC4899', N'Khu vui chơi, giải trí, công viên'),
+(5, N'Bảo tàng', 'landmark', '#6366F1', N'Bảo tàng, di tích lịch sử, văn hóa'),
+(6, N'ATM', 'dollar-sign', '#14B8A6', N'Cây ATM, ngân hàng, điểm rút tiền'),
+(7, N'Trạm xăng', 'fuel', '#F59E0B', N'Trạm xăng dầu'),
+(8, N'Quán cà phê', 'coffee', '#8B4513', N'Cà phê & Đồ uống'),
+(9, N'Bệnh viện', 'hospital', '#EF4444', N'Cơ sở y tế'),
+(10, N'Khu mua sắm', 'shopping-bag', '#F59E0B', N'Trung tâm thương mại, siêu thị, khu mua sắm');
+SET IDENTITY_INSERT POIsCategories OFF;
+GO
+
+-- 2.3 Seed EventCategories
+SET IDENTITY_INSERT EventCategories ON;
+INSERT INTO EventCategories (category_id, name, icon, color_code, description) VALUES
+(1, N'Lễ hội & Văn hóa', N'🎆', '#FF6B35', N'Các lễ hội, hoạt động văn hóa tại Đà Nẵng'),
+(2, N'Thể thao', N'🏃', '#2ECC71', N'Các sự kiện thể thao, marathon, giải đấu'),
+(3, N'Âm nhạc', N'🎵', '#9B59B6', N'Liveshow, concert, chương trình âm nhạc'),
+(4, N'Ẩm thực', N'🍜', '#F1C40F', N'Hội chợ ẩm thực, lễ hội món ngon'),
+(5, N'Triển lãm', N'🎨', '#3498DB', N'Triển lãm nghệ thuật, hội chợ thương mại'),
+(6, N'Khác', N'📌', '#95A5A6', N'Các sự kiện cộng đồng khác');
+SET IDENTITY_INSERT EventCategories OFF;
+GO
+
+-- 2.4 Seed Events
+SET IDENTITY_INSERT Events ON;
+INSERT INTO Events (
+    event_id, category_id, created_by, title, short_description, description,
+    location_name, latitude, longitude, address, district, start_time, end_time,
+    banner_url, thumbnail_url, status, is_featured, is_free, ticket_price, created_at, updated_at
+) VALUES 
+(
+    1, 1, 1,
+    N'Lễ hội Pháo hoa Quốc tế DIFF 2026',
+    N'DIFF 2026 quy tụ 8 đội thi pháo hoa quốc tế hàng đầu bên bờ sông Hàn.',
+    N'Lễ hội Pháo hoa Quốc tế Đà Nẵng - DIFF 2026 là sự kiện văn hóa du lịch quy mô lớn.',
+    N'Khán đài Sông Hàn, đường Trần Hưng Đạo', 16.078945, 108.228998, N'Đường Trần Hưng Đạo, Quận Sơn Trà, Đà Nẵng', N'Sơn Trà',
+    '2026-05-30 19:00:00', '2026-07-11 23:00:00',
+    'https://th.bing.com/th/id/OIP.LNfywjnnvAbMycU4woqtoQHaFN?w=244&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3',
+    'https://th.bing.com/th/id/OIP.KMNBO26TnBTj-yWsKl-z3QHaFJ?w=248&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3',
+    'approved', 1, 0, 800000, GETDATE(), GETDATE()
+),
+(
+    2, 2, 1,
+    N'Danang International Marathon 2026',
+    N'Giải chạy marathon quốc tế lớn nhất miền Trung tại công viên Biển Đông.',
+    N'Giải chạy được chứng nhận bởi AIMS. Cung đường dọc bờ biển và qua các cây cầu nổi tiếng.',
+    N'Công viên Biển Đông, Sơn Trà', 16.068396, 108.246032, N'Võ Nguyên Giáp, Phước Mỹ, Sơn Trà, Đà Nẵng', N'Sơn Trà',
+    '2026-08-23 04:00:00', '2026-08-23 11:30:00',
+    'https://th.bing.com/th/id/OIP.TtOSiwxPtRYX97P_Mv5kcQHaFi?w=209&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3',
+    'https://th.bing.com/th/id/OIP.SJ7z8O6EkB-VeCXPB0hH7gHaEK?w=320&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3',
+    'approved', 1, 0, 350000, GETDATE(), GETDATE()
+),
+(
+    3, 3, 1,
+    N'Liveshow Ca Nhạc "Music By The Sea"',
+    N'Đêm nhạc acoustic lãng mạn đón hoàng hôn trên bãi biển Mỹ Khê.',
+    N'Hòa mình vào không gian âm nhạc acoustic mộc mạc với tiếng sóng vỗ rì rào tại bãi biển Mỹ Khê.',
+    N'Bãi tắm số 3, bãi biển Mỹ Khê', 16.070385, 108.245812, N'Võ Nguyên Giáp, Sơn Trà, Đà Nẵng', N'Sơn Trà',
+    '2026-06-28 17:00:00', '2026-06-28 21:00:00',
+    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=1000',
+    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400',
+    'approved', 0, 1, 0, GETDATE(), GETDATE()
+),
+(
+    4, 4, 1,
+    N'Lễ hội Ẩm thực Quốc tế Đà Nẵng 2026',
+    N'Hội chợ giao lưu văn hóa ẩm thực Á - Âu tại Công viên APEC.',
+    N'Khám phá hàng trăm gian hàng ẩm thực đặc sắc từ các nước trên thế giới và các món ăn truyền thống miền Trung.',
+    N'Công viên APEC, Hải Châu', 16.058174, 108.223260, N'Đường 2 Tháng 9, Bình Hiên, Hải Châu, Đà Nẵng', N'Hải Châu',
+    '2026-06-14 09:00:00', '2026-06-18 22:00:00',
+    'https://th.bing.com/th/id/OIP.Xw4I7NuR7Zi7DH858W2tVQHaE8?w=266&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3',
+    'https://th.bing.com/th/id/OIP.xz2_j7fGTwMC4QItDxOnOAHaE7?w=235&h=180&c=7&r=0&o=7&dpr=1.3&pid=1.7&rm=3',
+    'approved', 1, 1, 0, GETDATE(), GETDATE()
+);
+SET IDENTITY_INSERT Events OFF;
+GO
+
+-- 2.5 Seed EventRoad
+INSERT INTO EventRoad (
+    event_id, road_name, restriction_type, restriction_start, restriction_end,
+    polyline_encoded, geojson_coords, description, created_at, bypass_coords, days_of_week, start_time_of_day, end_time_of_day
+) VALUES 
+(
+    1, N'Đường Trần Hưng Đạo (đoạn từ Cầu Rồng đến Cầu Sông Hàn)', 'CLOSED',
+    '2026-05-30 00:00:00', '2026-07-11 23:59:59', NULL,
+    '[[108.228028,16.07231],[108.229424,16.072493],[108.230904,16.071463],[108.232033,16.068644],[108.233009,16.065763]]',
+    N'Cấm toàn bộ phương tiện lưu thông phục vụ khán đài DIFF.', GETDATE(),
+    '[[108.2325, 16.0682]]', '1,6', '18:00:00', '23:00:00'
+);
+GO
+
+-- ============================================================================
+-- VERIFY CREATED TABLES & SEED COUNTS
+-- ============================================================================
+SELECT 'EventCategories' AS TableName, COUNT(*) AS TotalRows FROM EventCategories
+UNION ALL SELECT 'POIsCategories', COUNT(*) FROM POIsCategories
+UNION ALL SELECT 'Users', COUNT(*) FROM Users
+UNION ALL SELECT 'Events', COUNT(*) FROM Events
+UNION ALL SELECT 'EventRoad', COUNT(*) FROM EventRoad;
+
+PRINT N'✅ Đã khởi tạo hoàn tất toàn bộ Database DN-Pulse Schema & Seed Data!';

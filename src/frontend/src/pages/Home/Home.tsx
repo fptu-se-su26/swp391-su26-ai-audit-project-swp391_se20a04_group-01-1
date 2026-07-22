@@ -84,7 +84,7 @@ import { WeatherWidget } from "./components/WeatherWidget";
 
 import POIsLayer from "./components/POIsLayer";
 import { poiAPI, eventAPI, trafficAlertAPI } from "../../services/api";
-import { POIData } from "./components/POIPopup";
+import POIPopup, { POIData } from "./components/POIPopup";
 import POIFeaturedSidebar from "./components/POIFeaturedSidebar";
 import EventsLayer, {
   EventData,
@@ -879,7 +879,24 @@ export default function Home() {
             return next;
           });
         } else {
-          setDestination({ lng, lat, label: fullName });
+          // Khi tìm kiếm địa điểm: Hiển thị Modal địa điểm trên bản đồ trước, KHÔNG chỉ đường ngay
+          // Chỉ khi người dùng bấm nút "Chỉ đường tới đây" trên Modal thì mới bắt đầu tính tuyến đường
+          setSelectedPOI({
+            poi_id: Math.floor(Date.now() % 1000000),
+            name: fullName,
+            latitude: lat,
+            longitude: lng,
+            address: fullName,
+            description: "Địa điểm từ kết quả tìm kiếm",
+            image_url: null,
+            website_url: null,
+            phone_number: null,
+            rating: null,
+            is_featured: false,
+            category_name: "Địa điểm tìm kiếm",
+            category_icon: "📍",
+            category_color: "#3B82F6",
+          });
           setDestinationQuery(fullName);
         }
 
@@ -2035,6 +2052,33 @@ export default function Home() {
             </>
           ) : (
             <EventsLayer events={events} onSelectEvent={handleEventClick} />
+          )}
+
+          {/* Popup hiển thị khi chọn hoặc tìm kiếm địa điểm */}
+          {selectedPOI && (
+            <POIPopup
+              poi={selectedPOI}
+              onClose={() => setSelectedPOI(null)}
+              onDirectionsClick={(poi) => {
+                setDestination({
+                  lng: poi.longitude,
+                  lat: poi.latitude,
+                  label: poi.name,
+                  poi_id: poi.poi_id,
+                });
+                setDestinationQuery(poi.name);
+                if (userLocation) {
+                  setOrigin({
+                    lng: userLocation.lng,
+                    lat: userLocation.lat,
+                    label: "Vị trí của bạn",
+                  });
+                  setOriginQuery("Vị trí của bạn");
+                }
+                setSelectedPOI(null);
+              }}
+              userLocation={userLocation}
+            />
           )}
         </Map>
       </div>

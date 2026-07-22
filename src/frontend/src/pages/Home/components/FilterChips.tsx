@@ -76,7 +76,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
 
   const wrapperClass = isMobile
     ? "relative flex md:hidden items-center w-full pointer-events-auto"
-    : "relative hidden md:flex items-center max-w-[750px] lg:max-w-[950px] xl:max-w-[1050px] w-full pointer-events-auto shrink-0 self-start mt-0.5";
+    : "relative hidden md:flex items-center max-w-[750px] lg:max-w-[950px] xl:max-w-[1000px] w-full pointer-events-auto shrink-0 self-start mt-0.5";
 
   return (
     <div className={wrapperClass}>
@@ -95,7 +95,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-nowrap w-full scroll-smooth py-1 px-1 scrollbar-hiden"
+        className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-nowrap w-full scroll-smooth px-1 scrollbar-hiden"
       >
         {filterCategories.map((cat) => {
           const Icon = cat.icon;

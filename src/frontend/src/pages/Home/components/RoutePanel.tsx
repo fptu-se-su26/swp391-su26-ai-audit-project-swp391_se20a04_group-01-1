@@ -20,12 +20,15 @@ import {
   RotateCcw,
   ChevronDown,
   ChevronUp,
+  Mic,
+  MicOff,
 } from "lucide-react";
 
 import { savedRouteService } from "../../../services/savedRouteService";
 import { showPremiumToast } from "../../../utils/toastUtils";
 import { useFavoritePoiStore } from "../../../store/favoritePoiStore";
 import { LocationPoint, RouteData, RouteStep } from "../hooks/useMapRouting";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 
 interface RoutePanelProps {
   viewMode: "pois" | "events";
@@ -115,6 +118,54 @@ export function RoutePanel({
   const [isCustomLocationFavorited, setIsCustomLocationFavorited] =
   useState(false);
   const { favoriteIds, toggleFavorite } = useFavoritePoiStore();
+
+  // Voice Search integration
+  const {
+    isSupported: isSpeechSupported,
+    isListening,
+    transcript,
+    error: speechError,
+    startListening,
+    stopListening,
+  } = useSpeechRecognition();
+  const [listeningTarget, setListeningTarget] = useState<"destination" | "origin" | null>(null);
+
+  const handleToggleVoiceSearch = (target: "destination" | "origin") => {
+    if (!isSpeechSupported) {
+      showPremiumToast("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói Web Speech API.", "error");
+      return;
+    }
+    if (isListening && listeningTarget === target) {
+      stopListening();
+      setListeningTarget(null);
+    } else {
+      setListeningTarget(target);
+      setActiveInputField(target);
+      startListening("vi-VN");
+      showPremiumToast("🎙️ Đang lắng nghe... Vui lòng đọc tên địa điểm.", "info");
+    }
+  };
+
+  useEffect(() => {
+    if (transcript && listeningTarget) {
+      if (listeningTarget === "destination") {
+        setDestinationQuery(transcript);
+        setActiveInputField("destination");
+        if (setShowSuggestions) setShowSuggestions(true);
+      } else if (listeningTarget === "origin") {
+        setOriginQuery(transcript);
+        setActiveInputField("origin");
+        if (setShowSuggestions) setShowSuggestions(true);
+      }
+    }
+  }, [transcript, listeningTarget]);
+
+  useEffect(() => {
+    if (speechError) {
+      showPremiumToast(speechError, "error");
+      setListeningTarget(null);
+    }
+  }, [speechError]);
 
   // Lấy ID của POI hoặc Event từ destination
   const destinationPoiId = destination?.poi_id;
@@ -208,7 +259,7 @@ showPremiumToast(
             <Search className="text-blue-500 mr-2 shrink-0" size={18} />
             <input
               type="text"
-              placeholder="Tìm kiếm địa điểm tại Đà Nẵng..."
+              placeholder="Tìm kiếm địa điểm..."
               value={destinationQuery}
               onChange={(e) => {
                 setDestinationQuery(e.target.value);
@@ -220,6 +271,26 @@ showPremiumToast(
               }}
               className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
             />
+            <button
+              type="button"
+              onClick={() => handleToggleVoiceSearch("destination")}
+              className={`ml-2 p-1.5 rounded-full transition-all shrink-0 ${
+                isListening && listeningTarget === "destination"
+                  ? "bg-red-500 text-white animate-pulse shadow-md shadow-red-300"
+                  : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
+              }`}
+              title={
+                isListening && listeningTarget === "destination"
+                  ? "Đang lắng nghe giọng nói..."
+                  : "Tìm kiếm bằng giọng nói"
+              }
+            >
+              {isListening && listeningTarget === "destination" ? (
+                <MicOff size={16} />
+              ) : (
+                <Mic size={16} />
+              )}
+            </button>
           </div>
         ) : (
           <div className="w-full max-md:max-h-[35vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
@@ -228,20 +299,42 @@ showPremiumToast(
               <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
               </span>
-              <input
-                type="text"
-                placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
-                value={originQuery}
-                onChange={(e) => {
-                  setOriginQuery(e.target.value);
-                  setActiveInputField("origin");
-                }}
-                onFocus={() => {
-                  setActiveInputField("origin");
-                  if (suggestions.length > 0) setShowSuggestions(true);
-                }}
-                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-              />
+              <div className="relative w-full flex items-center">
+                <input
+                  type="text"
+                  placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
+                  value={originQuery}
+                  onChange={(e) => {
+                    setOriginQuery(e.target.value);
+                    setActiveInputField("origin");
+                  }}
+                  onFocus={() => {
+                    setActiveInputField("origin");
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleToggleVoiceSearch("origin")}
+                  className={`absolute right-2 p-1 rounded-full transition-all shrink-0 ${
+                    isListening && listeningTarget === "origin"
+                      ? "bg-red-500 text-white animate-pulse"
+                      : "text-slate-400 hover:text-blue-600 hover:bg-slate-200"
+                  }`}
+                  title={
+                    isListening && listeningTarget === "origin"
+                      ? "Đang lắng nghe..."
+                      : "Tìm bằng giọng nói"
+                  }
+                >
+                  {isListening && listeningTarget === "origin" ? (
+                    <MicOff size={14} />
+                  ) : (
+                    <Mic size={14} />
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Chặng đi giữa (Waypoints) */}
@@ -300,20 +393,42 @@ showPremiumToast(
               <span className="text-red-500 z-10 text-sm font-bold shrink-0">
                 📍
               </span>
-              <input
-                type="text"
-                placeholder="Chọn điểm đến..."
-                value={destinationQuery}
-                onChange={(e) => {
-                  setDestinationQuery(e.target.value);
-                  setActiveInputField("destination");
-                }}
-                onFocus={() => {
-                  setActiveInputField("destination");
-                  if (suggestions.length > 0) setShowSuggestions(true);
-                }}
-                className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-              />
+              <div className="relative w-full flex items-center">
+                <input
+                  type="text"
+                  placeholder="Chọn điểm đến..."
+                  value={destinationQuery}
+                  onChange={(e) => {
+                    setDestinationQuery(e.target.value);
+                    setActiveInputField("destination");
+                  }}
+                  onFocus={() => {
+                    setActiveInputField("destination");
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleToggleVoiceSearch("destination")}
+                  className={`absolute right-2 p-1 rounded-full transition-all shrink-0 ${
+                    isListening && listeningTarget === "destination"
+                      ? "bg-red-500 text-white animate-pulse"
+                      : "text-slate-400 hover:text-blue-600 hover:bg-slate-200"
+                  }`}
+                  title={
+                    isListening && listeningTarget === "destination"
+                      ? "Đang lắng nghe..."
+                      : "Tìm bằng giọng nói"
+                  }
+                >
+                  {isListening && listeningTarget === "destination" ? (
+                    <MicOff size={14} />
+                  ) : (
+                    <Mic size={14} />
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Nút Thêm điểm dừng */}
