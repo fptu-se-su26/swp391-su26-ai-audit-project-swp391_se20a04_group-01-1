@@ -6,6 +6,7 @@ const fs = require('fs');
 const { sql, poolPromise } = require('../db');
 const { authenticateToken, authorizeRole } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { uploadToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 
 // GET /api/events - Lấy danh sách sự kiện (có thể lọc theo status)
 router.get('/', async (req, res) => {
@@ -389,7 +390,17 @@ router.post('/:eventId/images', authenticateToken, upload.single('image'), async
             return res.status(400).json({ message: "Vui lòng chọn một file ảnh để tải lên!" });
         }
 
-        const imageUrl = `/uploads/${req.file.filename}`;
+        let imageUrl;
+        const cloudUrl = await uploadToCloudinary(req.file, 'dnpulse_events');
+        if (cloudUrl) {
+            imageUrl = cloudUrl;
+        } else {
+            const filename = `event-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(req.file.originalname || '.jpg')}`;
+            const localPath = path.join(__dirname, '..', 'uploads', filename);
+            fs.writeFileSync(localPath, req.file.buffer);
+            imageUrl = `/uploads/${filename}`;
+        }
+
         const pool = await poolPromise;
         
         const eventCheck = await pool.request()
@@ -397,7 +408,6 @@ router.post('/:eventId/images', authenticateToken, upload.single('image'), async
             .query("SELECT event_id FROM Events WHERE event_id = @event_id");
             
         if (eventCheck.recordset.length === 0) {
-            fs.unlinkSync(req.file.path);
             return res.status(404).json({ message: "Không tìm thấy sự kiện!" });
         }
         
@@ -409,10 +419,9 @@ router.post('/:eventId/images', authenticateToken, upload.single('image'), async
                     OUTPUT INSERTED.*
                     VALUES (@event_id, @image_url, @caption, GETDATE())`);
 
-        res.status(201).json({ success: true, message: "Tải ảnh lên thành công!", data: result.recordset[0] });
+        res.status(201).json({ success: true, message: "Tải ảnh lên Cloudinary thành công!", data: result.recordset[0] });
     } catch (error) {
         console.error("Lỗi upload ảnh sự kiện:", error);
-        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
         res.status(500).json({ message: "Lỗi server", error: error.message });
     }
 });
