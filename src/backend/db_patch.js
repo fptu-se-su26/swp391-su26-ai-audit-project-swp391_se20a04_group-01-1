@@ -117,6 +117,28 @@ async function runPatch() {
                 PRINT 'UserSocialAccount table already exists';
             END
         `;
+        // ... [các đoạn code cũ trong file] ...
+
+        console.log('Checking UserFavoriteLocations table...');
+        const checkFavoriteLocationsQuery = `
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserFavoriteLocations')
+            BEGIN
+                CREATE TABLE UserFavoriteLocations (
+                    id INT IDENTITY(1,1) PRIMARY KEY,
+                    user_id INT NOT NULL FOREIGN KEY REFERENCES Users (user_id) ON DELETE CASCADE,
+                    label NVARCHAR(255) NOT NULL,
+                    latitude DECIMAL(9,6) NOT NULL,
+                    longitude DECIMAL(9,6) NOT NULL,
+                    source_place_id NVARCHAR(100) NULL, -- mapbox_id để tránh trùng lặp
+                    saved_at DATETIME NOT NULL DEFAULT GETDATE()
+                );
+                PRINT 'Created UserFavoriteLocations table';
+            END
+            ELSE
+            BEGIN
+                PRINT 'UserFavoriteLocations table already exists';
+            END
+        `;
         await pool.request().query(checkUserSocialAccountQuery);
         
         console.log('✅ Database patch applied successfully!');

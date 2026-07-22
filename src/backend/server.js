@@ -53,6 +53,7 @@ app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/user", require("./routes/user.routes"));
 app.use("/api/admin", require("./routes/admin.routes"));
 app.use("/api/events", require("./routes/events.routes"));
+app.use("/api/favorite-locations", require("./routes/favoriteLocation.routes"));
 app.use("/api/event-categories", require("./routes/eventCategory.routes"));
 app.use("/api/flood-zones", require("./routes/flood.routes"));
 app.use("/api/pois", require("./routes/poi.routes"));
