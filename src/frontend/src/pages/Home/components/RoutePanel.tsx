@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { saveFavoriteLocation } from "../../../services/favoriteLocationService";
+import { saveFavoriteLocation, getFavoriteLocations, deleteFavoriteLocation } from "../../../services/favoriteLocationService";
 import {
   Search,
   ArrowUpDown,
@@ -116,8 +116,12 @@ export function RoutePanel({
 }: RoutePanelProps) {
   const [isStarting, setIsStarting] = useState(false);
   const [isCustomLocationFavorited, setIsCustomLocationFavorited] =
-  useState(false);
+    useState(false);
   const { favoriteIds, toggleFavorite } = useFavoritePoiStore();
+
+  // new states to prevent duplicate clicks
+  const [isSavingFav, setIsSavingFav] = useState(false);
+  const [localFavState, setLocalFavState] = useState<boolean | null>(null);
 
   // Voice Search integration
   const {
@@ -170,25 +174,121 @@ export function RoutePanel({
   // Lấy ID của POI hoặc Event từ destination
   const destinationPoiId = destination?.poi_id;
   const destinationEventId = (destination as any)?.event_id;
-  useEffect(() => {
-  setIsCustomLocationFavorited(false);
-}, [destination?.lat, destination?.lng]);
 
-  // 1. ĐỒNG BỘ LOGIC YÊU THÍCH: Lấy trực tiếp từ favoriteEventIds của Home truyền xuống
-  // Không dùng useState cục bộ ở đây nữa!
-  const isFavDest = destinationPoiId
-  ? favoriteIds.has(destinationPoiId)
-  : destinationEventId
-    ? favoriteEventIds.has(destinationEventId)
-    : isCustomLocationFavorited;
+  // Reset local state khi thay đổi điểm đến
+  useEffect(() => {
+    setLocalFavState(null);
+  }, [destinationPoiId, destinationEventId, destination?.lat, destination?.lng]);
+
+  useEffect(() => {
+  // Hàm xử lý khi nhận được tín hiệu cập nhật danh sách yêu thích
+  const handleFavoritesUpdated = () => {
+    // Reset trạng thái trước khi kiểm tra lại
+    setIsCustomLocationFavorited(false);
+
+    // Kiểm tra các địa điểm yêu thích tùy chỉnh
+    const checkIfCustomFavorited = async () => {
+      if (!destination) return;
+      if (destinationPoiId || destinationEventId) return; // system POI / event handled elsewhere
+      if (destination.lat === undefined || destination.lng === undefined) return;
+
+      try {
+        const favs = await getFavoriteLocations();
+        if (Array.isArray(favs)) {
+          const match = favs.find((f: any) => {
+            if (f.source_place_id && (destination as any).id) {
+              return f.source_place_id === (destination as any).id || f.source_place_id === (destination as any).place_id;
+            }
+            // fallback: distance-based (~20 meters)
+            const dLat = Math.abs(f.latitude - destination.lat);
+            const dLng = Math.abs(f.longitude - destination.lng);
+            return dLat < 0.00025 && dLng < 0.00025;
+          });
+          setIsCustomLocationFavorited(!!match);
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    checkIfCustomFavorited();
+  };
+
+  // 1. Chạy ngay khi destination thay đổi (như code ban đầu của bạn)
+  handleFavoritesUpdated();
+
+  // 2. Lắng nghe sự kiện "favorites:updated" khi có hành động Thêm/Xóa ở nơi khác (như ProfilePage)
+  window.addEventListener("favorites:updated", handleFavoritesUpdated);
+
+  // 3. Cleanup sự kiện khi component unmount hoặc destination thay đổi[cite: 3]
+  return () => {
+    window.removeEventListener("favorites:updated", handleFavoritesUpdated);
+  };
+}, [destination, destinationPoiId, destinationEventId]);
+
+  // 1. ĐỒNG BỘ LOGIC YÊU THÍCH: Kết hợp state cục bộ và state global
+  const derivedIsFavDest = destinationPoiId
+    ? favoriteIds.has(destinationPoiId)
+    : destinationEventId
+      ? favoriteEventIds.has(destinationEventId)
+      : isCustomLocationFavorited;
+
+  const isFavDest = localFavState !== null ? localFavState : derivedIsFavDest;
 
   // Luôn cho phép hiển thị nút yêu thích vì giờ đã hỗ trợ cả địa điểm tự do
-  const canBeFavorited = !!destination;
+  const canBeFavorited = !!destinationQuery || !!destination;
+
+  const forwardGeocode = async (query: string) => {
+    try {
+      const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+      const response = await fetch(
+        `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(query)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=1&language=vi`,
+      );
+      const data = await response.json();
+      if (data?.features && data.features.length > 0) {
+        const f = data.features[0];
+        return {
+          lat: f.geometry?.coordinates?.[1],
+          lng: f.geometry?.coordinates?.[0],
+          label: f.properties?.full_address || f.properties?.name || f.text || query,
+          sourcePlaceId: f.properties?.mapbox_id || f.id || undefined,
+          rawFeature: f,
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error("Forward geocode error:", err);
+      return null;
+    }
+  };
+
+  const findExistingCustomFavorite = async (lat?: number, lng?: number, sourcePlaceId?: string, name?: string) => {
+    try {
+      const favs = await getFavoriteLocations();
+      if (!Array.isArray(favs)) return null;
+      return favs.find((f: any) => {
+        if (sourcePlaceId && f.source_place_id) {
+          return f.source_place_id === sourcePlaceId;
+        }
+        // name match fallback
+        if (name && f.name && f.name === name) return true;
+        if (lat !== undefined && lng !== undefined) {
+          const dLat = Math.abs(f.latitude - lat);
+          const dLng = Math.abs(f.longitude - lng);
+          return dLat < 0.00025 && dLng < 0.00025; // ~ <30m
+        }
+        return false;
+      }) || null;
+    } catch (err) {
+      console.error("Error checking existing favorites:", err);
+      return null;
+    }
+  };
 
   const handleFavDestClick = async () => {
-    if (!destination) return;
+    if (!canBeFavorited || isSavingFav) return;
 
-    // Kiểm tra trạng thái đăng nhập
+    // Kiểm tra đăng nhập
     const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
     if (!token) {
       showPremiumToast(
@@ -198,47 +298,149 @@ export function RoutePanel({
       return;
     }
 
+    setIsSavingFav(true);
+
     try {
+      // 1) POI đã có trong hệ thống
       if (destinationPoiId) {
-        // 1. Nhánh lưu POI (Hệ thống)
-        const res = await toggleFavorite(destinationPoiId);
-        showPremiumToast(
-          res
-            ? "Đã lưu địa điểm vào danh sách yêu thích!"
-            : "Đã xóa địa điểm khỏi danh sách yêu thích.",
-          "success"
-        );
-      } else if (destinationEventId) {
-        // 2. Nhánh lưu Sự kiện
-        const isFav = await onToggleEventFavorite(destinationEventId);
-        showPremiumToast(
-          isFav
-            ? "Đã lưu sự kiện vào danh sách yêu thích!"
-            : "Đã xóa sự kiện khỏi danh sách.",
-          "success"
-        );
-      } else {
-        // 3. Nhánh lưu Địa điểm tự do (Từ Mapbox search)
-        // Lấy ID của mapbox nếu có để lưu vào source_place_id
-        const sourcePlaceId = (destination as any).id || (destination as any).place_id || undefined;
-        
-        await saveFavoriteLocation(
-  destination.label || destinationQuery,
-  destination.lat,
-  destination.lng,
-  sourcePlaceId
-);
+        try {
+          const res = await toggleFavorite(destinationPoiId);
+          setLocalFavState(res);
+          showPremiumToast(
+            res
+              ? "Đã lưu địa điểm vào danh sách yêu thích!"
+              : "Đã xóa địa điểm khỏi danh sách yêu thích.",
+            "success"
+          );
+        } catch (err: any) {
+          // Nếu toggleFavorite trả về lỗi 404 (POI không tồn tại) => fallback: lưu như custom location nếu có tọa độ
+          console.warn("toggleFavorite error:", err);
+          const status = err?.response?.status;
+          if (status === 404) {
+            // fallback to saving custom location if we have coords
+            const lat = destination?.lat;
+            const lng = destination?.lng;
+            const label = destination?.label || destinationQuery;
+            const sourcePlaceId = (destination as any)?.id || (destination as any)?.place_id;
+            if (lat !== undefined && lng !== undefined) {
+              // check existing then save
+              const existing = await findExistingCustomFavorite(lat, lng, sourcePlaceId, label);
+              if (existing) {
+                await deleteFavoriteLocation(existing.favorite_id);
+                setIsCustomLocationFavorited(false);
+                setLocalFavState(false);
+                showPremiumToast("Đã xóa khỏi danh sách yêu thích!", "success");
+              } else {
+                await saveFavoriteLocation(label || destinationQuery, lat, lng, sourcePlaceId);
+                setIsCustomLocationFavorited(true);
+                setLocalFavState(true);
+                showPremiumToast("Đã lưu địa điểm tự do vào danh sách yêu thích!", "success");
+              }
+              // notify others
+              window.dispatchEvent(new CustomEvent("favorites:updated"));
+            } else {
+              showPremiumToast("Không có toạ độ để lưu địa điểm.", "error");
+            }
+          } else {
+            showPremiumToast("Không thể cập nhật trạng thái yêu thích lúc này.", "error");
+          }
+        } finally {
+          setIsSavingFav(false);
+        }
+        return;
+      }
 
-setIsCustomLocationFavorited(true);
+      // 2) Event -> dùng onToggleEventFavorite (đã truyền từ Home)
+      if (destinationEventId) {
+        try {
+          const isFav = await onToggleEventFavorite(destinationEventId);
+          setLocalFavState(isFav);
+          showPremiumToast(
+            isFav
+              ? "Đã lưu sự kiện vào danh sách yêu thích!"
+              : "Đã xóa sự kiện khỏi danh sách.",
+            "success"
+          );
+        } catch (err) {
+          console.error("Error toggling event favorite:", err);
+          showPremiumToast("Không thể cập nhật sự kiện yêu thích.", "error");
+        } finally {
+          setIsSavingFav(false);
+        }
+        return;
+      }
 
-showPremiumToast(
-  "Đã lưu địa điểm tự do vào danh sách yêu thích!",
-  "success"
-);
+      // 3) Địa điểm tự do (custom): cần coords. Nếu chưa có coords, gọi forward-geocode từ destinationQuery
+      let lat = destination?.lat;
+      let lng = destination?.lng;
+      let label = destination?.label || destinationQuery;
+      let sourcePlaceId = (destination as any)?.id || (destination as any)?.place_id;
+
+      if ((lat === undefined || lng === undefined) && destinationQuery) {
+        const resolved = await forwardGeocode(destinationQuery);
+        if (!resolved) {
+          showPremiumToast("Không tìm thấy địa điểm. Vui lòng thử lại hoặc chọn từ gợi ý.", "error");
+          setIsSavingFav(false);
+          return;
+        }
+        lat = resolved.lat;
+        lng = resolved.lng;
+        label = resolved.label;
+        sourcePlaceId = resolved.sourcePlaceId;
+        // update destination in parent UI (so user sees marker)
+        setDestination({
+          lat,
+          lng,
+          label,
+          ...(sourcePlaceId ? { id: sourcePlaceId } : {}),
+        } as any);
+        setDestinationQuery(label);
+      }
+
+      if (lat === undefined || lng === undefined) {
+        showPremiumToast("Thiếu toạ độ địa điểm. Vui lòng chọn vị trí hợp lệ.", "error");
+        setIsSavingFav(false);
+        return;
+      }
+
+      // Kiểm tra xem đã có favorite tương ứng chưa
+      const existing = await findExistingCustomFavorite(lat, lng, sourcePlaceId, label);
+      if (existing) {
+        // Nếu tồn tại -> xóa (toggle)
+        try {
+          await deleteFavoriteLocation(existing.favorite_id);
+          setIsCustomLocationFavorited(false);
+          setLocalFavState(false);
+          showPremiumToast("Đã xóa khỏi danh sách yêu thích!", "success");
+          // notify others
+          window.dispatchEvent(new CustomEvent("favorites:updated"));
+        } catch (err) {
+          console.error("Error deleting favorite location:", err);
+          showPremiumToast("Không thể xóa địa điểm yêu thích.", "error");
+        } finally {
+          setIsSavingFav(false);
+        }
+        return;
+      }
+
+      // Nếu chưa tồn tại -> lưu
+      try {
+        await saveFavoriteLocation(label || destinationQuery, lat, lng, sourcePlaceId);
+        setIsCustomLocationFavorited(true);
+        setLocalFavState(true);
+        showPremiumToast("Đã lưu địa điểm tự do vào danh sách yêu thích!", "success");
+        // notify others
+        window.dispatchEvent(new CustomEvent("favorites:updated"));
+      } catch (err) {
+        console.error("Lỗi khi lưu favorite location:", err);
+        showPremiumToast("Không thể lưu địa điểm lúc này.", "error");
+      } finally {
+        setIsSavingFav(false);
       }
     } catch (error) {
-      console.error("Lỗi khi lưu yêu thích:", error);
-      showPremiumToast("Không thể cập nhật trạng thái yêu thích lúc này.", "error");
+      console.error("Lỗi khi xử lý yêu thích:", error);
+      showPremiumToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+      setIsSavingFav(false);
     }
   };
 
@@ -626,6 +828,7 @@ showPremiumToast(
             {canBeFavorited ? (
               <button
                 onClick={handleFavDestClick}
+                disabled={isSavingFav}
                 className={`w-full py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all border ${
                   isFavDest
                     ? "bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100"
