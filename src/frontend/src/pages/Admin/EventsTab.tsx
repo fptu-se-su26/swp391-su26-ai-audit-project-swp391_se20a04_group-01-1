@@ -1,9 +1,11 @@
 import React from 'react';
 import {
     Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight,
-    AlertCircle, RefreshCw, Save, Calendar, X, Upload
+    AlertCircle, RefreshCw, Save, Calendar, X, Upload,
+    Bot, Sparkles, CheckCircle2, XCircle
 } from 'lucide-react';
 import { DBEvent, EventFormData } from './types';
+import { eventAPI } from '../../services/api';
 import Map, { Marker, NavigationControl } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
@@ -60,6 +62,34 @@ export default function EventsTab({
     const [showAddressSuggestions, setShowAddressSuggestions] = React.useState(false);
     const [loadingAddressSearch, setLoadingAddressSearch] = React.useState(false);
     const [isFocused, setIsFocused] = React.useState(false);
+
+    const [isScrapingAi, setIsScrapingAi] = React.useState(false);
+    const [aiScrapeMsg, setAiScrapeMsg] = React.useState<string | null>(null);
+
+    const handleTriggerAiScrape = async () => {
+        setIsScrapingAi(true);
+        setAiScrapeMsg(null);
+        try {
+            const res = await eventAPI.triggerAiScrape();
+            setAiScrapeMsg(res.data.message || 'Cào tin tức DanangFantastiCity thành công!');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } catch (err: any) {
+            setAiScrapeMsg('❌ Lỗi AI cào tin: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setIsScrapingAi(false);
+        }
+    };
+
+    const handleQuickStatusUpdate = async (id: number, newStatus: 'approved' | 'rejected' | 'pending') => {
+        try {
+            await eventAPI.updateEventStatus(id, newStatus);
+            window.location.reload();
+        } catch (err: any) {
+            alert('Lỗi cập nhật trạng thái: ' + (err.response?.data?.message || err.message));
+        }
+    };
 
     // Image upload states
     const [bannerFile, setBannerFile] = React.useState<File | null>(null);
@@ -227,33 +257,55 @@ export default function EventsTab({
                             </div>
                         </div>
                     </div>
-                    <button
-                        onClick={() => {
-                            setEditingEvent(null);
-                            setEventFormData({
-                                title: '',
-                                short_description: '',
-                                description: '',
-                                location_name: '',
-                                latitude: 16.0544,
-                                longitude: 108.2022,
-                                start_time: '',
-                                end_time: '',
-                                status: 'pending',
-                                category_id: 1
-                            });
-                            setBannerFile(null);
-                            setThumbnailFile(null);
-                            setBannerPreview(null);
-                            setThumbnailPreview(null);
-                            onImageChange(null, null);
-                            setShowModal(true);
-                        }}
-                        className="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-500/10 shrink-0"
-                    >
-                        <Plus size={16} /> Thêm sự kiện mới
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            onClick={handleTriggerAiScrape}
+                            disabled={isScrapingAi}
+                            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-md disabled:opacity-50"
+                        >
+                            <Bot size={18} className={isScrapingAi ? 'animate-spin' : ''} />
+                            {isScrapingAi ? 'AI Đang Cào DanangFantastiCity...' : '⚡ AI Cào Tin DanangFantastiCity'}
+                        </button>
+                        <button
+                            onClick={() => {
+                                setEditingEvent(null);
+                                setEventFormData({
+                                    title: '',
+                                    short_description: '',
+                                    description: '',
+                                    location_name: '',
+                                    latitude: 16.0544,
+                                    longitude: 108.2022,
+                                    start_time: '',
+                                    end_time: '',
+                                    status: 'pending',
+                                    category_id: 1
+                                });
+                                setBannerFile(null);
+                                setThumbnailFile(null);
+                                setBannerPreview(null);
+                                setThumbnailPreview(null);
+                                onImageChange(null, null);
+                                setShowModal(true);
+                            }}
+                            className="bg-blue-600 text-white font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-500/10"
+                        >
+                            <Plus size={16} /> Thêm mới
+                        </button>
+                    </div>
                 </div>
+
+                {aiScrapeMsg && (
+                    <div className="p-4 bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl text-sm flex items-center justify-between font-medium">
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="text-purple-600" size={18} />
+                            <span>{aiScrapeMsg}</span>
+                        </div>
+                        <button onClick={() => setAiScrapeMsg(null)} className="text-indigo-500 hover:text-indigo-700">
+                            <X size={16} />
+                        </button>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
@@ -309,7 +361,25 @@ export default function EventsTab({
                                                 {evt.view_count.toLocaleString('vi-VN')}
                                             </td>
                                             <td className="py-4 px-6 text-center">
-                                                <div className="flex items-center justify-center gap-3">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    {evt.status === 'pending' && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleQuickStatusUpdate(evt.event_id, 'approved')}
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white p-1.5 rounded-lg transition flex items-center gap-1 text-xs font-semibold shadow-sm"
+                                                                title="Phê duyệt ngay"
+                                                            >
+                                                                <CheckCircle2 size={15} /> Duyệt
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleQuickStatusUpdate(evt.event_id, 'rejected')}
+                                                                className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-1.5 rounded-lg transition flex items-center gap-1 text-xs font-semibold"
+                                                                title="Từ chối sự kiện"
+                                                            >
+                                                                <XCircle size={15} /> Từ chối
+                                                            </button>
+                                                        </>
+                                                    )}
                                                     <button
                                                         onClick={() => {
                                                             setEditingEvent(evt);

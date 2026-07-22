@@ -438,4 +438,52 @@ router.delete('/images/:imageId', authenticateToken, async (req, res) => {
     }
 });
 
+// POST /api/events/ai-scrape - Admin kích hoạt AI Cào tin tức DanangFantastiCity
+const { runAiEventScraper } = require('../services/aiScraperService');
+router.post('/ai-scrape', authenticateToken, authorizeRole(['admin', 'system_admin']), async (req, res) => {
+    try {
+        const result = await runAiEventScraper();
+        res.json(result);
+    } catch (error) {
+        console.error("Lỗi kích hoạt AI Event Scraper:", error);
+        res.status(500).json({ message: "Lỗi server khi chạy AI Event Scraper", error: error.message });
+    }
+});
+
+// PUT /api/events/:id/status - Admin Phê duyệt (approved) hoặc Từ chối (rejected) sự kiện
+router.put('/:id/status', authenticateToken, authorizeRole(['admin', 'system_admin']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!['approved', 'rejected', 'pending'].includes(status)) {
+            return res.status(400).json({ message: "Trạng thái không hợp lệ! (chỉ chấp nhận approved, rejected, pending)" });
+        }
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("event_id", sql.Int, id)
+            .input("status", sql.NVarChar, status)
+            .query(`
+                UPDATE Events 
+                SET status = @status, updated_at = GETDATE()
+                OUTPUT INSERTED.*
+                WHERE event_id = @event_id
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ message: "Không tìm thấy sự kiện!" });
+        }
+
+        res.json({
+            success: true,
+            message: `Đã cập nhật trạng thái sự kiện thành '${status}' thành công!`,
+            data: result.recordset[0]
+        });
+    } catch (error) {
+        console.error("Lỗi cập nhật trạng thái sự kiện:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
+});
+
 module.exports = router;
