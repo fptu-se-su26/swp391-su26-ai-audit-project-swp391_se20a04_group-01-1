@@ -172,6 +172,20 @@ export default function EventsTab({
         }
     }, [showModal, editingEvent]);
 
+    // Fly mini map to event location when modal opens or coordinates update
+    React.useEffect(() => {
+        if (showModal && miniMapRef.current && eventFormData.longitude && eventFormData.latitude) {
+            const timer = setTimeout(() => {
+                miniMapRef.current?.flyTo({
+                    center: [eventFormData.longitude, eventFormData.latitude],
+                    zoom: 14,
+                    duration: 600
+                });
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [showModal, eventFormData.latitude, eventFormData.longitude]);
+
     React.useEffect(() => {
         if (editingEvent && eventFormData.location_name === editingEvent.location_name) {
             setAddressSuggestions([]);
