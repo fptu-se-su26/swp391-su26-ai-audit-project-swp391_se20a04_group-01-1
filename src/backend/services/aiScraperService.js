@@ -97,7 +97,7 @@ async function fetchDanangEventsRaw() {
         eventsRaw.push(
             {
                 source: 'DanangFantastiCity',
-                title: 'Lần đầu tiên, biển Mỹ Khê trở thành sân khấu thực cảnh kể chuyện xứ Quảng bằng ánh sáng và âm nhạc',
+                title: 'Biển Mỹ Khê trở thành sân khấu thực cảnh kể chuyện xứ Quảng bằng ánh sáng và âm nhạc',
                 url: 'https://danangfantasticity.com/vi/kham-pha/bien-my-khe-tro-thanh-san-khau-thuc-canh'
             },
             {
@@ -118,11 +118,22 @@ async function parseEventWithGemini(rawItem) {
     const detailInfo = await fetchArticleDetailInfo(rawItem.url);
     const realImageUrl = detailInfo.imageUrl || 'https://danangfantasticity.com/wp-content/uploads/dfc/public/cate-bg/9.jpg';
     
+    // Quick filter check for general travel articles (Time Out gợi ý, Lonely Planet, Kinh nghiệm...)
+    const lowerTitle = rawItem.title.toLowerCase();
+    if (lowerTitle.includes('gợi ý') || lowerTitle.includes('lonely planet') || lowerTitle.includes('cẩm nang') || lowerTitle.includes('kinh nghiệm') || lowerTitle.includes('top ')) {
+        return {
+            is_specific_event: false,
+            title: rawItem.title,
+            location_name: "Đà Nẵng"
+        };
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
         return {
+            is_specific_event: true,
             title: rawItem.title,
-            location_name: "Bãi biển Mỹ Khê, Đường Võ Nguyên Giáp",
+            location_name: "Bãi biển Mỹ Khê",
             address: "Đường Võ Nguyên Giáp, Sơn Trà, Đà Nẵng",
             district: "Sơn Trà",
             category_name: "Sự kiện văn hóa",
@@ -140,26 +151,30 @@ async function parseEventWithGemini(rawItem) {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
-        const prompt = `Bạn là hệ thống AI trích xuất dữ liệu sự kiện du lịch và giao thông Đà Nẵng.
-Hãy phân tích tiêu đề và nội dung bài báo sau từ nguồn DanangFantastiCity:
+        const prompt = `Bạn là hệ thống AI phân loại và trích xuất dữ liệu sự kiện du lịch Đà Nẵng.
+Hãy phân tích tiêu đề và nội dung bài báo từ DanangFantastiCity:
 Tiêu đề: "${rawItem.title}"
 Link nguồn: "${rawItem.url}"
-Link ảnh đại diện chính: "${realImageUrl}"
 Nội dung chi tiết: "${detailInfo.cleanText.substring(0, 1500)}"
 
-Hãy trích xuất và trả về ĐÚNG MỘT CHUỖI JSON (không chứa codeblock, không chứa markdown, chỉ chứa JSON thuần) với định dạng sau:
+QUY TẮC PHÂN LOẠI QUAN TRỌNG:
+1. Nếu đây chỉ là bài báo gợi ý du lịch chung chung (ví dụ: "Time Out gợi ý...", "Cẩm nang du lịch...", "Top món ăn...", "Danh sách chợ...") KHÔNG CÓ ĐỊA ĐIỂM VÀ THỜI GIAN TỔ CHỨC CỤ THỂ HOẶC CHỈ LÀ BÀI VIẾT NÓI CHUNG VỀ ĐÀ NẴNG -> Đặt "is_specific_event": false.
+2. Nếu đây là SỰ KIỆN/LỄ HỘI CỤ THỂ có địa điểm tổ chức thực tế -> Đặt "is_specific_event": true.
+
+Trả về ĐÚNG MỘT CHUỖI JSON thuần (không codeblock, không markdown):
 {
+  "is_specific_event": true/false,
   "title": "Tên sự kiện rõ ràng",
-  "location_name": "Tên địa điểm tổ chức cụ thể (ví dụ: Bảo tàng Đà Nẵng, Bãi biển Mỹ Khê, Công viên Biển Đông...)",
-  "address": "Địa chỉ đường phố đầy đủ (ví dụ: 24 Trần Phú, Hải Châu, Đà Nẵng)",
+  "location_name": "Tên địa điểm cụ thể (VD: Bãi biển Mỹ Khê, Bảo tàng Đà Nẵng, Cung Thể thao Tuyên Sơn...). Nếu không có địa điểm cụ thể ghi 'Đà Nẵng'",
+  "address": "Địa chỉ đường phố đầy đủ",
   "district": "Tên quận ở Đà Nẵng (Sơn Trà / Hải Châu / Ngũ Hành Sơn / Thanh Khê / Liên Chiểu / Cẩm Lệ)",
-  "category_name": "Một trong các nhóm: Sự kiện văn hóa | Lễ hội | Thể thao | Giao thông | Triển lãm",
-  "start_time": "Thời gian bắt đầu chuẩn ISO-8601 (ví dụ: 2026-08-15T19:00:00Z)",
-  "end_time": "Thời gian kết thúc chuẩn ISO-8601 (ví dụ: 2026-08-17T22:00:00Z)",
+  "category_name": "Sự kiện văn hóa | Lễ hội | Thể thao | Giao thông | Triển lãm",
+  "start_time": "ISO-8601 string",
+  "end_time": "ISO-8601 string",
   "short_description": "Tóm tắt 1-2 câu về sự kiện (KHÔNG chứa tiền tố hay ký tự lạ)",
-  "description": "Mô tả chi tiết sự kiện và hoạt động chính",
-  "banner_url": "Trả về đúng chuỗi link ảnh: ${realImageUrl}",
-  "thumbnail_url": "Trả về đúng chuỗi link ảnh: ${realImageUrl}",
+  "description": "Mô tả chi tiết sự kiện",
+  "banner_url": "${realImageUrl}",
+  "thumbnail_url": "${realImageUrl}",
   "closed_roads": []
 }`;
 
@@ -177,8 +192,9 @@ Hãy trích xuất và trả về ĐÚNG MỘT CHUỖI JSON (không chứa codeb
     } catch (err) {
         console.error("Lỗi phân tích Gemini AI:", err.message);
         return {
+            is_specific_event: true,
             title: rawItem.title,
-            location_name: "Bãi biển Mỹ Khê, Đường Võ Nguyên Giáp",
+            location_name: "Bãi biển Mỹ Khê",
             address: "Đường Võ Nguyên Giáp, Sơn Trà, Đà Nẵng",
             district: "Sơn Trà",
             category_name: "Sự kiện văn hóa",
@@ -198,7 +214,6 @@ Hãy trích xuất và trả về ĐÚNG MỘT CHUỖI JSON (không chứa codeb
  */
 async function geocodeLocationDaNang(locationName, address) {
     const fullQuery = `${locationName || ''} ${address || ''} Đà Nẵng`.trim();
-    console.log(`🔍 [AI Geocoding] Đang tra cứu bản đồ tự động cho địa điểm: "${fullQuery}"`);
 
     // Step A: Check Known Landmarks Dictionary first (100% accurate)
     const combinedStr = fullQuery.toLowerCase();
@@ -260,7 +275,7 @@ async function geocodeLocationDaNang(locationName, address) {
  * 4. Main Service: Fetch, Parse with AI, Geocode accurately & Insert Events
  */
 async function runAiEventScraper() {
-    console.log("🤖 [AI Event Scraper] Đang cào trang chi tiết tin tức, ảnh thật & tra cứu bản đồ tự động cho địa điểm...");
+    console.log("🤖 [AI Event Scraper] Đang cào trang chi tiết tin tức, lọc địa điểm cụ thể & tra cứu bản đồ tự động...");
     
     const rawEvents = await fetchDanangEventsRaw();
     console.log(`📡 [AI Event Scraper] Tìm thấy ${rawEvents.length} bài viết tiềm năng.`);
@@ -268,6 +283,7 @@ async function runAiEventScraper() {
     const pool = await poolPromise;
     let newEventsCount = 0;
     let skippedDuplicatesCount = 0;
+    let skippedNonEventsCount = 0;
 
     const categoriesResult = await pool.request().query("SELECT category_id, name FROM EventCategories");
     const categoriesMap = categoriesResult.recordset;
@@ -278,44 +294,40 @@ async function runAiEventScraper() {
             const parsedEvent = await parseEventWithGemini(rawItem);
             if (!parsedEvent || !parsedEvent.title) continue;
 
-            const coords = await geocodeLocationDaNang(parsedEvent.location_name, parsedEvent.address);
-            parsedEvent.latitude = coords.latitude;
-            parsedEvent.longitude = coords.longitude;
+            // RULE 1: Skip general travel/recommendation articles without specific locations
+            const genericLocations = ['đà nẵng', 'thành phố đà nẵng', 'việt nam', ''];
+            const isGenericLoc = genericLocations.includes((parsedEvent.location_name || '').trim().toLowerCase());
+            
+            if (parsedEvent.is_specific_event === false || isGenericLoc) {
+                console.log(`⏩ [Skip Non-Specific Event] Bỏ qua bài báo gợi ý/không có địa điểm tổ chức cụ thể: "${parsedEvent.title}" (Địa điểm: ${parsedEvent.location_name})`);
+                skippedNonEventsCount++;
+                continue;
+            }
 
-            const checkDuplicate = await pool.request()
-                .input("title", sql.NVarChar, `%${parsedEvent.title.substring(0, 20)}%`)
-                .query(`
-                    SELECT event_id FROM Events 
-                    WHERE title LIKE @title
-                `);
+            // RULE 2: Enhanced Smart Deduplication (Title similarity or Location + Key phrase match)
+            const cleanTitle = parsedEvent.title.toLowerCase();
+            const isStagePlay = cleanTitle.includes('sân khấu thực cảnh') || cleanTitle.includes('xứ quảng');
+            
+            let dupQuery = `SELECT event_id, title FROM Events WHERE title LIKE @exactTitle`;
+            const reqDup = pool.request().input("exactTitle", sql.NVarChar, `%${parsedEvent.title.substring(0, 15)}%`);
+
+            if (isStagePlay) {
+                dupQuery = `SELECT event_id, title FROM Events WHERE title LIKE '%thực cảnh%' OR title LIKE '%xứ Quảng%'`;
+            }
+
+            const checkDuplicate = await reqDup.query(dupQuery);
 
             if (checkDuplicate.recordset.length > 0) {
                 const existingId = checkDuplicate.recordset[0].event_id;
-                await pool.request()
-                    .input("event_id", sql.Int, existingId)
-                    .input("banner_url", sql.NVarChar, parsedEvent.banner_url)
-                    .input("thumbnail_url", sql.NVarChar, parsedEvent.thumbnail_url)
-                    .input("latitude", sql.Float, parsedEvent.latitude)
-                    .input("longitude", sql.Float, parsedEvent.longitude)
-                    .input("location_name", sql.NVarChar, parsedEvent.location_name)
-                    .input("address", sql.NVarChar, parsedEvent.address)
-                    .input("short_description", sql.NVarChar, parsedEvent.short_description || '')
-                    .query(`
-                        UPDATE Events 
-                        SET banner_url = @banner_url,
-                            thumbnail_url = @thumbnail_url,
-                            latitude = @latitude,
-                            longitude = @longitude,
-                            location_name = @location_name,
-                            address = @address,
-                            short_description = @short_description,
-                            updated_at = GETDATE()
-                        WHERE event_id = @event_id
-                    `);
-                console.log(`🔄 [AI Scraper] Đã cập nhật Ảnh thật, Mô tả sạch & Tọa độ bản đồ chuẩn cho sự kiện ID: ${existingId}`);
+                console.log(`⏩ [Deduplication Match] Phát hiện trùng lặp với sự kiện ID ${existingId}: "${checkDuplicate.recordset[0].title}"`);
                 skippedDuplicatesCount++;
                 continue;
             }
+
+            // Step B: Geocode location accurately
+            const coords = await geocodeLocationDaNang(parsedEvent.location_name, parsedEvent.address);
+            parsedEvent.latitude = coords.latitude;
+            parsedEvent.longitude = coords.longitude;
 
             let matchedCat = categoriesMap.find(c => c.name.toLowerCase().includes((parsedEvent.category_name || '').toLowerCase()));
             let categoryId = matchedCat ? matchedCat.category_id : defaultCategoryId;
@@ -356,7 +368,7 @@ async function runAiEventScraper() {
                 `);
 
             const newEventId = insertEventResult.recordset[0].event_id;
-            console.log(`✅ [AI Event Scraper] Đã tạo sự kiện mới (ID: ${newEventId}, Tọa độ bản đồ [${parsedEvent.latitude}, ${parsedEvent.longitude}]): "${parsedEvent.title}"`);
+            console.log(`✅ [AI Event Scraper] Đã tạo sự kiện mới hợp lệ (ID: ${newEventId}, Địa điểm: "${parsedEvent.location_name}"): "${parsedEvent.title}"`);
             newEventsCount++;
 
         } catch (itemErr) {
@@ -366,9 +378,10 @@ async function runAiEventScraper() {
 
     return {
         success: true,
-        message: `Hoàn tất AI Scraper từ DanangFantastiCity! Thêm mới ${newEventsCount} sự kiện, cập nhật tọa độ & ảnh thật cho ${skippedDuplicatesCount} tin cũ.`,
+        message: `Hoàn tất AI Scraper từ DanangFantastiCity! Thêm mới ${newEventsCount} sự kiện hợp lệ, bỏ qua ${skippedDuplicatesCount} tin trùng và ${skippedNonEventsCount} tin không có địa điểm cụ thể.`,
         newEventsCount,
-        skippedDuplicatesCount
+        skippedDuplicatesCount,
+        skippedNonEventsCount
     };
 }
 
