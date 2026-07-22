@@ -570,6 +570,7 @@ export default function AdminDashboard() {
                     eventFormData={eventFormData} setEventFormData={setEventFormData} handleApproveEvent={handleApproveEvent}
                     handleDeleteEvent={handleDeleteEvent} handleCreateEvent={handleCreateEvent}
                     onImageChange={handleEventImageChange}
+                    onRefresh={fetchEvents}
                 />
             )}
             {activeMenu === 'traffic' && (

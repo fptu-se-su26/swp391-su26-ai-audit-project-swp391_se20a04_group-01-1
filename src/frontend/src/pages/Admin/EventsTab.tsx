@@ -28,6 +28,7 @@ interface Props {
     handleDeleteEvent: (id: number) => void;
     handleCreateEvent: (e: React.FormEvent) => void;
     onImageChange: (banner: File | null, thumbnail: File | null) => void;
+    onRefresh?: () => void;
 }
 
 const ROWS_PER_PAGE = 5;
@@ -56,7 +57,7 @@ export default function EventsTab({
     events, loadingEvents, searchTerm, setSearchTerm, statusFilter, setStatusFilter,
     currentPage, setCurrentPage, showModal, setShowModal, editingEvent, setEditingEvent,
     eventFormData, setEventFormData, handleApproveEvent, handleDeleteEvent, handleCreateEvent,
-    onImageChange
+    onImageChange, onRefresh
 }: Props) {
     const [addressSuggestions, setAddressSuggestions] = React.useState<any[]>([]);
     const [showAddressSuggestions, setShowAddressSuggestions] = React.useState(false);
@@ -72,6 +73,7 @@ export default function EventsTab({
         try {
             const res = await eventAPI.triggerAiScrape();
             setAiScrapeMsg(res.data.message || 'Cập nhật tin tức DanangFantastiCity thành công!');
+            if (onRefresh) onRefresh();
         } catch (err: any) {
             setAiScrapeMsg('❌ Lỗi AI cào tin: ' + (err.response?.data?.message || err.message));
         } finally {
