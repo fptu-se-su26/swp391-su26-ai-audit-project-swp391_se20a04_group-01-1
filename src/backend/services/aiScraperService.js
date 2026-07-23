@@ -184,6 +184,7 @@ Nội dung chi tiết: "${detailInfo.cleanText.substring(0, 1500)}"
 QUY TẮC PHÂN LOẠI QUAN TRỌNG:
 1. Nếu đây chỉ là bài báo gợi ý du lịch chung chung (ví dụ: "Time Out gợi ý...", "Cẩm nang du lịch...", "Top món ăn...", "Danh sách chợ...", "Hành trình về nguồn...") KHÔNG CÓ ĐỊA ĐIỂM VÀ THỜI GIAN TỔ CHỨC CỤ THỂ HOẶC CHỈ LÀ BÀI VIẾT NÓI CHUNG VỀ ĐÀ NẴNG -> Đặt "is_specific_event": false.
 2. Nếu đây là SỰ KIỆN/LỄ HỘI CỤ THỂ có địa điểm tổ chức thực tế (VD: Bãi biển Mỹ Khê, Bảo tàng Đà Nẵng, Cung Thể thao Tuyên Sơn...) -> Đặt "is_specific_event": true.
+3. CHỈ trích xuất các sự kiện đang diễn ra trong hiện tại hoặc diễn ra trong tương lai. Nếu sự kiện đã kết thúc hoàn toàn trong quá khứ -> Đặt "is_specific_event": false.
 
 Trả về ĐÚNG MỘT CHUỖI JSON thuần (không codeblock, không markdown):
 {
@@ -323,7 +324,16 @@ async function runAiEventScraper() {
                 continue;
             }
 
-            // RULE 2: Smart Word-Overlap Deduplication
+            // RULE 2: Skip events that ended in the past (Only keep current & future events)
+            const now = new Date();
+            const eventEndTime = parsedEvent.end_time ? new Date(parsedEvent.end_time) : (parsedEvent.start_time ? new Date(parsedEvent.start_time) : null);
+            if (eventEndTime && eventEndTime < now) {
+                console.log(`⏩ [Skip Past Event] Bỏ qua sự kiện đã diễn ra trong quá khứ: "${parsedEvent.title}" (Thời gian kết thúc: ${eventEndTime.toISOString()})`);
+                skippedNonEventsCount++;
+                continue;
+            }
+
+            // RULE 3: Smart Word-Overlap Deduplication
             const duplicateMatch = findDuplicateInList(parsedEvent.title, existingEvents);
             if (duplicateMatch) {
                 console.log(`⏩ [Deduplication Match] Bỏ qua vì đã trùng với sự kiện ID ${duplicateMatch.event_id}: "${duplicateMatch.title}"`);
