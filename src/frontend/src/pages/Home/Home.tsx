@@ -1319,23 +1319,37 @@ const DANANG_FAMOUS_LANDMARKS = [
     const now = new Date();
     const features = activeOrSelectedEventRoads
       .filter((road) => road.geojson_coords && road.geojson_coords.length > 0)
-      .map((road) => ({
-        type: "Feature",
-        properties: {
-          road_id: road.road_id,
-          road_name: road.road_name,
-          restriction_type: road.restriction_type,
-          event_title: road.event_title || "Sự kiện cấm đường",
-          description: road.description || "",
-          isActive: isRoadRestrictionActive(road, now),
-          isSelected:
-            selectedRoadPopup && selectedRoadPopup.road_id === road.road_id,
-        },
-        geometry: {
-          type: "LineString",
-          coordinates: road.geojson_coords,
-        },
-      }));
+      .map((road) => {
+        const normalizedCoords = (road.geojson_coords || []).map((pt: any) => {
+          if (Array.isArray(pt) && pt.length >= 2) {
+            const p0 = Number(pt[0]);
+            const p1 = Number(pt[1]);
+            if (p0 < 50 && p1 > 50) {
+              return [p1, p0];
+            }
+            return [p0, p1];
+          }
+          return pt;
+        });
+
+        return {
+          type: "Feature",
+          properties: {
+            road_id: road.road_id,
+            road_name: road.road_name,
+            restriction_type: road.restriction_type,
+            event_title: road.event_title || "Sự kiện cấm đường",
+            description: road.description || "",
+            isActive: isRoadRestrictionActive(road, now),
+            isSelected:
+              selectedRoadPopup && selectedRoadPopup.road_id === road.road_id,
+          },
+          geometry: {
+            type: "LineString",
+            coordinates: normalizedCoords,
+          },
+        };
+      });
 
     return {
       type: "FeatureCollection",

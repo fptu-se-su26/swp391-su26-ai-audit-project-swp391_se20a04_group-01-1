@@ -70,6 +70,27 @@ router.get("/", async (req, res) => {
   }
 });
 
+async function processUploadedImage(file, folder = "dnpulse_events") {
+  if (!file) return null;
+  try {
+    const cloudUrl = await uploadToCloudinary(file, folder);
+    if (cloudUrl) return cloudUrl;
+  } catch (err) {
+    console.warn("⚠️ Cloudinary upload không thành công, lưu vào đĩa cục bộ:", err.message);
+  }
+
+  // Fallback: Lưu file buffer vào thư mục cục bộ /uploads/
+  const ext = path.extname(file.originalname || "") || ".jpg";
+  const filename = `event-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+  const uploadDir = path.join(__dirname, "..", "uploads");
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+  const filePath = path.join(uploadDir, filename);
+  fs.writeFileSync(filePath, file.buffer);
+  return `/uploads/${filename}`;
+}
+
 // POST /api/events - Tạo sự kiện mới (Yêu cầu đăng nhập)
 router.post(
   "/",
@@ -110,10 +131,10 @@ router.post(
       let thumbnail_url = req.body.thumbnail_url || null;
       if (req.files) {
         if (req.files["banner"] && req.files["banner"][0]) {
-          banner_url = `/uploads/${req.files["banner"][0].filename}`;
+          banner_url = await processUploadedImage(req.files["banner"][0], "dnpulse_events");
         }
         if (req.files["thumbnail"] && req.files["thumbnail"][0]) {
-          thumbnail_url = `/uploads/${req.files["thumbnail"][0].filename}`;
+          thumbnail_url = await processUploadedImage(req.files["thumbnail"][0], "dnpulse_events");
         }
       }
 
@@ -204,10 +225,10 @@ router.put(
       let thumbnail_url = req.body.thumbnail_url || null;
       if (req.files) {
         if (req.files["banner"] && req.files["banner"][0]) {
-          banner_url = `/uploads/${req.files["banner"][0].filename}`;
+          banner_url = await processUploadedImage(req.files["banner"][0], "dnpulse_events");
         }
         if (req.files["thumbnail"] && req.files["thumbnail"][0]) {
-          thumbnail_url = `/uploads/${req.files["thumbnail"][0].filename}`;
+          thumbnail_url = await processUploadedImage(req.files["thumbnail"][0], "dnpulse_events");
         }
       }
 
