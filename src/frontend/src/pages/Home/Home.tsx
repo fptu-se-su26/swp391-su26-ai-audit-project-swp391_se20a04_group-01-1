@@ -106,6 +106,7 @@ import { useLiveLocationSharing } from "./hooks/useLiveLocationSharing";
 import { useSavedRoutesState } from "./hooks/useSavedRoutesState";
 import { FilterChips } from "./components/FilterChips";
 import { TrafficLegend } from "./components/TrafficLegend";
+import { POILegend } from "./components/POILegend";
 import { TopRightActions } from "./components/TopRightActions";
 import { decodePolyline } from "../../utils/polylineHelper";
 import { parseRouteData } from "../../utils/utlis";
@@ -2278,7 +2279,14 @@ export default function Home() {
       </div>
 
       {/* TRAFFIC LEGEND */}
+      {/* TRAFFIC LEGEND */}
       <TrafficLegend show={mapControls.traffic && !isNavigating} />
+
+      {/* POI LEGEND — chỉ hiện khi đang chọn 1 POI, đẩy lên trên nếu Traffic Legend cũng đang hiện để không đè lên nhau */}
+      <POILegend
+        show={viewMode === "pois" && !!selectedPOI && !isNavigating}
+        stacked={mapControls.traffic && !isNavigating}
+      />
 
       {/* MAP TOOLBAR DƯỚI GÓC PHẢI */}
       {!isNavigating && (
