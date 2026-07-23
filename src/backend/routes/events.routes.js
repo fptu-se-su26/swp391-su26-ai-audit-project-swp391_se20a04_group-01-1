@@ -570,7 +570,6 @@ router.post(
       console.error("Lỗi upload ảnh sự kiện:", error);
       res.status(500).json({ message: "Lỗi server", error: error.message });
     }
-    }
   },
 );
 

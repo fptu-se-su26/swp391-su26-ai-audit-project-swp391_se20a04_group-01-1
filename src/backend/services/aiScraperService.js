@@ -4,20 +4,25 @@ const { sql, poolPromise } = require('../db');
 // Mapbox token from environment variables
 const MAPBOX_TOKEN = process.env.MAPBOX_ACCESS_TOKEN || process.env.VITE_MAPBOX_ACCESS_TOKEN || process.env.VITE_MAPBOX_TOKEN || '';
 
-// Known landmark coordinates in Da Nang to prevent fallback to airport
+// Known landmark coordinates in Da Nang & Quang Nam to prevent fallback to airport
 const KNOWN_DANANG_LANDMARKS = [
+    { keywords: ['sông hàn', 'han river', 'hai bên bờ sông hàn', 'bờ sông hàn'], lat: 16.0667, lng: 108.2250 },
     { keywords: ['mỹ khê', 'my khe', 'bãi biển mỹ khê', 'biển mỹ khê'], lat: 16.0602, lng: 108.2462 },
+    { keywords: ['hội an', 'hoi an', 'phố cổ hội an'], lat: 15.8801, lng: 108.3380 },
     { keywords: ['công viên biển đông', 'bien dong park'], lat: 16.0678, lng: 108.2472 },
     { keywords: ['cầu rồng', 'dragon bridge'], lat: 16.0610, lng: 108.2272 },
     { keywords: ['cầu sông hàn', 'han river bridge'], lat: 16.0722, lng: 108.2275 },
     { keywords: ['cầu trần thị lý'], lat: 16.0508, lng: 108.2312 },
+    { keywords: ['cung thể thao tuyên sơn', 'tuyên sơn'], lat: 16.0360, lng: 108.2240 },
     { keywords: ['sơn trà', 'bán đảo sơn trà', 'chùa linh ứng'], lat: 16.1000, lng: 108.2778 },
     { keywords: ['ngũ hành sơn', 'marble mountains'], lat: 16.0042, lng: 108.2635 },
     { keywords: ['bà nà', 'ba na hills'], lat: 15.9961, lng: 107.9877 },
     { keywords: ['bạch đằng', 'đường bạch đằng'], lat: 16.0680, lng: 108.2240 },
     { keywords: ['trần hưng đạo', 'đường trần hưng đạo'], lat: 16.0650, lng: 108.2300 },
     { keywords: ['bảo tàng đà nẵng', 'bao tang da nang', 'thành điện hải'], lat: 16.0754, lng: 108.2244 },
-    { keywords: ['bảo tàng điêu khắc chăm', 'bảo tàng chăm', 'cham museum'], lat: 16.0601, lng: 108.2227 }
+    { keywords: ['bảo tàng điêu khắc chăm', 'bảo tàng chăm', 'cham museum'], lat: 16.0601, lng: 108.2227 },
+    { keywords: ['nhà hát trưng vương'], lat: 16.0689, lng: 108.2208 },
+    { keywords: ['chợ đêm sơn trà', 'chợ đêm helio', 'helio'], lat: 16.0381, lng: 108.2253 }
 ];
 
 /**
@@ -175,7 +180,7 @@ async function parseEventWithGemini(rawItem) {
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
-        const prompt = `Bạn là hệ thống AI phân loại và trích xuất dữ liệu sự kiện du lịch Đà Nẵng.
+        const prompt = `Bạn là hệ thống AI phân loại và trích xuất dữ liệu sự kiện du lịch Đà Nẵng & Quảng Nam.
 Hãy phân tích tiêu đề và nội dung bài báo từ DanangFantastiCity:
 Tiêu đề: "${rawItem.title}"
 Link nguồn: "${rawItem.url}"
@@ -183,20 +188,23 @@ Nội dung chi tiết: "${detailInfo.cleanText.substring(0, 1500)}"
 
 QUY TẮC PHÂN LOẠI QUAN TRỌNG:
 1. Nếu đây chỉ là bài báo gợi ý du lịch chung chung (ví dụ: "Time Out gợi ý...", "Cẩm nang du lịch...", "Top món ăn...", "Danh sách chợ...", "Hành trình về nguồn...") KHÔNG CÓ ĐỊA ĐIỂM VÀ THỜI GIAN TỔ CHỨC CỤ THỂ HOẶC CHỈ LÀ BÀI VIẾT NÓI CHUNG VỀ ĐÀ NẴNG -> Đặt "is_specific_event": false.
-2. Nếu đây là SỰ KIỆN/LỄ HỘI CỤ THỂ có địa điểm tổ chức thực tế (VD: Bãi biển Mỹ Khê, Bảo tàng Đà Nẵng, Cung Thể thao Tuyên Sơn...) -> Đặt "is_specific_event": true.
+2. Nếu đây là SỰ KIỆN/LỄ HỘI CỤ THỂ có địa điểm tổ chức thực tế (VD: Bãi biển Mỹ Khê, Bảo tàng Đà Nẵng, Cung Thể thao Tuyên Sơn, Sông Hàn, Hội An...) -> Đặt "is_specific_event": true.
 3. CHỈ trích xuất các sự kiện đang diễn ra trong hiện tại hoặc diễn ra trong tương lai. Nếu sự kiện đã kết thúc hoàn toàn trong quá khứ -> Đặt "is_specific_event": false.
 
 Trả về ĐÚNG MỘT CHUỖI JSON thuần (không codeblock, không markdown):
 {
   "is_specific_event": true/false,
   "title": "Tên sự kiện rõ ràng",
-  "location_name": "Tên địa điểm cụ thể. Nếu không có địa điểm cụ thể ghi 'Đà Nẵng'",
+  "location_name": "Tên địa điểm cụ thể",
+  "clean_searchable_location": "Tên vị trí sạch cho Google Maps (VD: 'Sông Hàn Đà Nẵng', 'Bãi biển Mỹ Khê', 'Phố cổ Hội An', 'Bảo tàng Đà Nẵng')",
   "address": "Địa chỉ đường phố đầy đủ",
-  "district": "Tên quận ở Đà Nẵng (Sơn Trà / Hải Châu / Ngũ Hành Sơn / Thanh Khê / Liên Chiểu / Cẩm Lệ)",
+  "district": "Tên quận/huyện (Sơn Trà / Hải Châu / Ngũ Hành Sơn / Thanh Khê / Liên Chiểu / Cẩm Lệ / Hội An)",
+  "estimated_latitude": 16.0667,
+  "estimated_longitude": 108.2250,
   "category_name": "Sự kiện văn hóa | Lễ hội | Thể thao | Giao thông | Triển lãm",
   "start_time": "ISO-8601 string",
   "end_time": "ISO-8601 string",
-  "short_description": "Tóm tắt 1-2 câu về sự kiện (KHÔNG chứa tiền tố hay ký tự lạ)",
+  "short_description": "Tóm tắt 1-2 câu về sự kiện",
   "description": "Mô tả chi tiết sự kiện",
   "banner_url": "${realImageUrl}",
   "thumbnail_url": "${realImageUrl}",
@@ -217,7 +225,7 @@ Trả về ĐÚNG MỘT CHUỖI JSON thuần (không codeblock, không markdown)
     } catch (err) {
         console.error("Lỗi phân tích Gemini AI:", err.message);
         return {
-            is_specific_event: false, // Default to false on parse error to avoid corrupt data
+            is_specific_event: false,
             title: rawItem.title,
             location_name: "Đà Nẵng"
         };
@@ -225,21 +233,41 @@ Trả về ĐÚNG MỘT CHUỖI JSON thuần (không codeblock, không markdown)
 }
 
 /**
- * 3. Geocode location_name to Latitude & Longitude in Da Nang via Google Maps / OSM & Mapbox API
+ * 3. Geocode location_name to Latitude & Longitude in Da Nang / Quang Nam via Gemini AI, OSM & Mapbox API
  */
-async function geocodeLocationDaNang(locationName, address) {
-    const fullQuery = `${locationName || ''} ${address || ''} Đà Nẵng`.trim();
+async function geocodeLocationDaNang(locationName, address, cleanSearchable, estLat, estLng) {
+    // Step A: If Gemini provided valid estimated coordinates in Da Nang / Quang Nam region, use them!
+    if (typeof estLat === 'number' && typeof estLng === 'number') {
+        if (estLat >= 15.7 && estLat <= 16.3 && estLng >= 107.8 && estLng <= 108.6) {
+            console.log(`📍 [Gemini AI Geocoding] Sử dụng tọa độ từ AI kiến thức địa lý: [${estLat}, ${estLng}]`);
+            return { latitude: estLat, longitude: estLng };
+        }
+    }
 
-    // Step A: Check Known Landmarks Dictionary first (100% accurate)
+    const rawQuery = `${cleanSearchable || ''} ${locationName || ''} ${address || ''}`.trim();
+    
+    // Clean up noisy words for geocoding queries
+    const cleanedQuery = rawQuery
+        .replace(/& hai bên bờ/gi, '')
+        .replace(/hai bên bờ/gi, '')
+        .replace(/các phường/gi, '')
+        .replace(/phường/gi, '')
+        .replace(/thành phố/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const fullQuery = `${cleanedQuery} Đà Nẵng Việt Nam`.trim();
     const combinedStr = fullQuery.toLowerCase();
+
+    // Step B: Check Known Landmarks Dictionary (100% accurate)
     for (const landmark of KNOWN_DANANG_LANDMARKS) {
         if (landmark.keywords.some(kw => combinedStr.includes(kw))) {
-            console.log(`📍 [Geocoding] Khớp địa danh Đà Nẵng nổi tiếng: "${landmark.keywords[0]}" -> [${landmark.lat}, ${landmark.lng}]`);
+            console.log(`📍 [Geocoding Landmarks] Khớp địa danh nổi tiếng: "${landmark.keywords[0]}" -> [${landmark.lat}, ${landmark.lng}]`);
             return { latitude: landmark.lat, longitude: landmark.lng };
         }
     }
 
-    // Step B: Query OpenStreetMap / Google Maps Geocoding API
+    // Step C: Query OpenStreetMap Geocoding API
     try {
         const osmUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(fullQuery)}&format=json&limit=1&countrycodes=vn`;
         const resOSM = await fetch(osmUrl, {
@@ -250,8 +278,8 @@ async function geocodeLocationDaNang(locationName, address) {
             if (dataOSM && dataOSM.length > 0) {
                 const lat = parseFloat(dataOSM[0].lat);
                 const lng = parseFloat(dataOSM[0].lon);
-                if (lat >= 15.8 && lat <= 16.3 && lng >= 107.8 && lng <= 108.5) {
-                    console.log(`📍 [Geocoding Online] Tra cứu bản đồ thành công: "${dataOSM[0].display_name}" -> [${lat}, ${lng}]`);
+                if (lat >= 15.7 && lat <= 16.3 && lng >= 107.8 && lng <= 108.6) {
+                    console.log(`📍 [Geocoding Online OSM] Tra cứu bản đồ thành công: "${dataOSM[0].display_name}" -> [${lat}, ${lng}]`);
                     return { latitude: lat, longitude: lng };
                 }
             }
@@ -260,16 +288,16 @@ async function geocodeLocationDaNang(locationName, address) {
         console.warn("Lỗi tra cứu OpenStreetMap:", err.message);
     }
 
-    // Step C: Fallback to Mapbox Places Geocoding API
+    // Step D: Fallback to Mapbox Places Geocoding API
     try {
-        const query = encodeURIComponent(`${locationName || address || 'Đà Nẵng'}, Đà Nẵng, Việt Nam`);
+        const query = encodeURIComponent(`${cleanedQuery || 'Đà Nẵng'}, Việt Nam`);
         const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_TOKEN}&proximity=108.22,16.06&limit=1`;
         const res = await fetch(url);
         if (res.ok) {
             const data = await res.json();
             if (data.features && data.features.length > 0) {
                 const [lng, lat] = data.features[0].center;
-                if (lat >= 15.9 && lat <= 16.2 && lng >= 107.8 && lng <= 108.4) {
+                if (lat >= 15.7 && lat <= 16.3 && lng >= 107.8 && lng <= 108.6) {
                     console.log(`📍 [Mapbox Geocoding] Tra cứu bản đồ thành công: "${data.features[0].place_name}" -> [${lat}, ${lng}]`);
                     return { latitude: lat, longitude: lng };
                 }
@@ -279,11 +307,24 @@ async function geocodeLocationDaNang(locationName, address) {
         console.error("Lỗi geocoding Mapbox:", err.message);
     }
 
+    // Step E: Smart Keyword Fallbacks (Avoid static Airport fallback)
+    if (combinedStr.includes('sông') || combinedStr.includes('hàn')) {
+        return { latitude: 16.0667, longitude: 108.2250 }; // Sông Hàn
+    }
+    if (combinedStr.includes('hội an')) {
+        return { latitude: 15.8801, longitude: 108.3380 }; // Phố cổ Hội An
+    }
     if (combinedStr.includes('biển') || combinedStr.includes('bãi')) {
-        return { latitude: 16.0602, longitude: 108.2462 };
+        return { latitude: 16.0602, longitude: 108.2462 }; // Bãi biển Mỹ Khê
+    }
+    if (combinedStr.includes('hải châu')) {
+        return { latitude: 16.0600, longitude: 108.2200 }; // Quận Hải Châu
+    }
+    if (combinedStr.includes('sơn trà')) {
+        return { latitude: 16.1000, longitude: 108.2778 }; // Quận Sơn Trà
     }
 
-    return { latitude: 16.0544, longitude: 108.2022 };
+    return { latitude: 16.0602, longitude: 108.2462 }; // Default to My Khe Beach area instead of Airport
 }
 
 /**
@@ -342,7 +383,13 @@ async function runAiEventScraper() {
             }
 
             // Step B: Geocode location accurately
-            const coords = await geocodeLocationDaNang(parsedEvent.location_name, parsedEvent.address);
+            const coords = await geocodeLocationDaNang(
+                parsedEvent.location_name,
+                parsedEvent.address,
+                parsedEvent.clean_searchable_location,
+                parsedEvent.estimated_latitude,
+                parsedEvent.estimated_longitude
+            );
             parsedEvent.latitude = coords.latitude;
             parsedEvent.longitude = coords.longitude;
 
