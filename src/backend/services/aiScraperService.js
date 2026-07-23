@@ -57,7 +57,13 @@ function findDuplicateInList(newTitle, existingEvents) {
 /**
  * Helper: Extract OpenGraph image or first article image from detail page
  */
-async function fetchArticleDetailInfo(articleUrl) {
+/**
+ * Helper: Extract OpenGraph image or first article image from detail page
+ */
+async function fetchArticleDetailInfo(articleUrl, preloadedImage, preloadedText) {
+    if (preloadedImage && preloadedText && preloadedText.length > 200) {
+        return { imageUrl: preloadedImage, cleanText: preloadedText };
+    }
     try {
         const res = await fetch(articleUrl, {
             headers: {
@@ -71,7 +77,7 @@ async function fetchArticleDetailInfo(articleUrl) {
                             html.match(/<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']/i) ||
                             html.match(/<img[^>]+src=["'](https?:\/\/[^"']+\.(?:jpg|jpeg|png|webp))["']/i);
             
-            let imageUrl = ogMatch ? ogMatch[1] : null;
+            let imageUrl = ogMatch ? ogMatch[1] : (preloadedImage || null);
 
             const cleanText = html.replace(/<script[\s\S]*?<\/script>/gi, '')
                                   .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -79,62 +85,102 @@ async function fetchArticleDetailInfo(articleUrl) {
                                   .replace(/\s+/g, ' ')
                                   .substring(0, 3000);
 
-            return { imageUrl, cleanText };
+            return { imageUrl, cleanText: cleanText.length > 50 ? cleanText : (preloadedText || '') };
         }
     } catch (err) {
         console.error("Lỗi đọc trang chi tiết bài báo:", err.message);
     }
-    return { imageUrl: null, cleanText: '' };
+    return { imageUrl: preloadedImage || null, cleanText: preloadedText || '' };
 }
 
 /**
- * 1. Fetch raw articles & images from DanangFantastiCity
+ * 1. Fetch raw articles & images from DanangFantastiCity via WP REST API + HTML Scraping Fallback
  */
 async function fetchDanangEventsRaw() {
     const eventsRaw = [];
 
+    // Approach A: Query WordPress REST API (100% reliable, returns all 20+ latest events with titles, links & images)
     try {
-        const targetUrl = 'https://danangfantasticity.com/danh-muc/le-hoi-su-kien?id=12925';
-        const res = await fetch(targetUrl, {
+        const wpApiUrl = 'https://danangfantasticity.com/wp-json/wp/v2/posts?per_page=30&_embed=true';
+        const res = await fetch(wpApiUrl, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
-        
         if (res.ok) {
-            const html = await res.text();
-            
-            const generalLinkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
-            let match;
-            const foundUrls = new Set();
+            const posts = await res.json();
+            if (Array.isArray(posts) && posts.length > 0) {
+                for (const post of posts) {
+                    const link = post.link || '';
+                    // Skip English (/en/) and Japanese (/ja/) translated duplicates
+                    if (link.includes('/en/') || link.includes('/ja/')) continue;
 
-            while ((match = generalLinkRegex.exec(html)) !== null) {
-                const url = match[1];
-                const text = match[2].replace(/<[^>]+>/g, '').trim();
+                    let title = post.title?.rendered || '';
+                    title = title
+                        .replace(/&#8211;/g, '-')
+                        .replace(/&#8220;/g, '"')
+                        .replace(/&#8221;/g, '"')
+                        .replace(/&amp;/g, '&')
+                        .replace(/<[^>]+>/g, '')
+                        .trim();
 
-                if ((url.includes('/vi/kham-pha/') || url.includes('/su-kien/')) && text.length > 15 && !foundUrls.has(url)) {
-                    foundUrls.add(url);
-                    const fullUrl = url.startsWith('http') ? url : `https://danangfantasticity.com${url}`;
-                    eventsRaw.push({
-                        source: 'DanangFantastiCity',
-                        title: text,
-                        url: fullUrl
-                    });
+                    const featuredImage = post._embedded?.['wp:featuredmedia']?.[0]?.source_url || post.jetpack_featured_media_url || null;
+                    const contentSnippet = (post.excerpt?.rendered || post.content?.rendered || '')
+                        .replace(/<[^>]+>/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim()
+                        .substring(0, 2000);
+
+                    if (title && link) {
+                        eventsRaw.push({
+                            source: 'DanangFantastiCity',
+                            title,
+                            url: link,
+                            imageUrl: featuredImage,
+                            contentSnippet
+                        });
+                    }
                 }
             }
         }
     } catch (err) {
-        console.error("Lỗi cào dữ liệu từ DanangFantastiCity:", err.message);
+        console.warn("Lỗi truy vấn WordPress REST API DanangFantastiCity:", err.message);
     }
 
+    // Approach B: Fallback to HTML Scraping if WP API fails
     if (eventsRaw.length === 0) {
-        eventsRaw.push(
-            {
-                source: 'DanangFantastiCity',
-                title: 'Biển Mỹ Khê trở thành sân khấu thực cảnh kể chuyện xứ Quảng bằng ánh sáng và âm nhạc',
-                url: 'https://danangfantasticity.com/vi/kham-pha/bien-my-khe-tro-thanh-san-khau-thuc-canh'
+        try {
+            const targetUrl = 'https://danangfantasticity.com/danh-muc/le-hoi-su-kien?id=12925';
+            const res = await fetch(targetUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                }
+            });
+            
+            if (res.ok) {
+                const html = await res.text();
+                const generalLinkRegex = /<a[^>]+href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi;
+                let match;
+                const foundUrls = new Set();
+
+                while ((match = generalLinkRegex.exec(html)) !== null) {
+                    const url = match[1];
+                    const text = match[2].replace(/<[^>]+>/g, '').trim();
+
+                    if (text.length > 15 && !foundUrls.has(url) && !url.includes('/en/') && !url.includes('/ja/')) {
+                        foundUrls.add(url);
+                        const fullUrl = url.startsWith('http') ? url : `https://danangfantasticity.com${url}`;
+                        eventsRaw.push({
+                            source: 'DanangFantastiCity',
+                            title: text,
+                            url: fullUrl
+                        });
+                    }
+                }
             }
-        );
+        } catch (err) {
+            console.error("Lỗi cào dữ liệu HTML từ DanangFantastiCity:", err.message);
+        }
     }
 
     return eventsRaw;
@@ -187,9 +233,9 @@ Link nguồn: "${rawItem.url}"
 Nội dung chi tiết: "${detailInfo.cleanText.substring(0, 1500)}"
 
 QUY TẮC PHÂN LOẠI QUAN TRỌNG:
-1. Nếu đây chỉ là bài báo gợi ý du lịch chung chung (ví dụ: "Time Out gợi ý...", "Cẩm nang du lịch...", "Top món ăn...", "Danh sách chợ...", "Hành trình về nguồn...") KHÔNG CÓ ĐỊA ĐIỂM VÀ THỜI GIAN TỔ CHỨC CỤ THỂ HOẶC CHỈ LÀ BÀI VIẾT NÓI CHUNG VỀ ĐÀ NẴNG -> Đặt "is_specific_event": false.
-2. Nếu đây là SỰ KIỆN/LỄ HỘI CỤ THỂ có địa điểm tổ chức thực tế (VD: Bãi biển Mỹ Khê, Bảo tàng Đà Nẵng, Cung Thể thao Tuyên Sơn, Sông Hàn, Hội An...) -> Đặt "is_specific_event": true.
-3. CHỈ trích xuất các sự kiện đang diễn ra trong hiện tại hoặc diễn ra trong tương lai. Nếu sự kiện đã kết thúc hoàn toàn trong quá khứ -> Đặt "is_specific_event": false.
+1. Nếu đây chỉ là bài báo gợi ý du lịch chung chung (ví dụ: "Time Out gợi ý...", "Cẩm nang du lịch...", "Top món ăn...", "Danh sách chợ...", "Hành trình về nguồn...") KHÔNG CÓ ĐỊA ĐIỂM HOẶC CHỈ LÀ BÀI VIẾT NÓI CHUNG VỀ ĐÀ NẴNG -> Đặt "is_specific_event": false.
+2. Nếu đây là SỰ KIỆN/LỄ HỘI/GIẢI THẤU/CHƯƠNG TRÌNH THỜI TRANG/ÂM NHẠC CỤ THỂ có địa điểm tổ chức thực tế (bao gồm Bãi biển Mỹ Khê, Bãi biển Đà Nẵng, Bờ sông Hàn, Phố cổ Hội An, Công viên Biển Đông, Cung Thể thao Tuyên Sơn, Resort, Sân vận động...) -> Đặt "is_specific_event": true và trích xuất "location_name" rõ ràng.
+3. CHỈ trích xuất các sự kiện đang diễn ra trong hiện tại hoặc diễn ra trong tương lai (từ năm 2026 trở đi). Nếu sự kiện đã kết thúc hoàn toàn trong quá khứ -> Đặt "is_specific_event": false.
 
 Trả về ĐÚNG MỘT CHUỖI JSON thuần (không codeblock, không markdown):
 {
@@ -349,8 +395,10 @@ async function runAiEventScraper() {
     const categoriesMap = categoriesResult.recordset;
     const defaultCategoryId = categoriesMap.length > 0 ? categoriesMap[0].category_id : 1;
 
-    for (const rawItem of rawEvents.slice(0, 5)) {
+    for (const rawItem of rawEvents.slice(0, 25)) {
         try {
+            // Delay 1.2s to strictly respect Gemini API Rate Limits (15 requests per minute)
+            await new Promise(resolve => setTimeout(resolve, 1200));
             const parsedEvent = await parseEventWithGemini(rawItem);
             if (!parsedEvent || !parsedEvent.title) continue;
 
