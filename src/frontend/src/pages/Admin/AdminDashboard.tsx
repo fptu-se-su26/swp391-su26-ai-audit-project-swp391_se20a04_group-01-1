@@ -525,9 +525,208 @@ export default function AdminDashboard() {
           showPremiumToast("Xóa sự kiện thành công!", "success");
           fetchEvents();
         } catch (error) {
-          showPremiumToast("Lỗi xóa sự kiện.", "error");
-        }
       },
+    );
+  };
+
+    const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setPwdError(false); setPwdMessage('');
+        try {
+            await userService.changePassword({ currentPassword: pwdFormData.currentPassword || '', newPassword: pwdFormData.newPassword, confirmPassword: pwdFormData.confirmPassword });
+            setPwdMessage('✅ Cập nhật mật khẩu thành công!');
+            setPwdFormData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        } catch (error: any) {
+            setPwdError(true); setPwdMessage(error.response?.data?.message || 'Có lỗi xảy ra!');
+        }
+    };
+
+    const handleUnbanUser = async (userId: number) => {
+        showCustomConfirm(
+            'Xác nhận mở khóa',
+            'Bạn có chắc chắn muốn mở khóa cho tài khoản này không?',
+            async () => {
+                try {
+                    await userService.unbanUser(userId);
+                    fetchUsers();
+                } catch (error) {}
+            }
+        );
+    };
+
+    const handleBanSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!userToBan) return;
+        try {
+            await userService.banUser(userToBan.user_id, banReason);
+            setShowBanModal(false); setUserToBan(null); fetchUsers();
+        } catch (error) {}
+    };
+
+    const handleSetup2FA = async () => {
+        try {
+            const result = await authService.setup2FA();
+            if (result?.success && result?.data?.qrCode) {
+                setTwoFaQRCode(result.data.qrCode); setTwoFaSecret(result.data.secret); setShowTwoFaQR(true);
+            }
+        } catch (error) {
+            setTwoFaQRCode('https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/DanangSmart:admin');
+            setTwoFaSecret('JBSWY3DPEHPK3PXP'); setShowTwoFaQR(true);
+        }
+    };
+
+    const handleConfirm2FA = async () => {
+        try {
+            const result = await authService.confirm2FA(totpConfirmCode, twoFaSecret as string);
+            if (result?.success) {
+                setTwoFactorEnabled(true);
+                setShowTwoFaQR(false);
+                localStorage.setItem('is_2fa_enabled', '1');
+                showPremiumToast('Kích hoạt 2FA thành công!', 'success');
+            }
+        } catch (error) {
+            showPremiumToast('Mã xác thực lỗi. Vui lòng kiểm tra lại.', 'error');
+        }
+    };
+
+    const handleDisable2FA = async () => {
+        setTwoFaMessage('');
+        setTwoFaError(false);
+        try {
+            const result = await userService.disable2FA({ password: disable2FaPassword });
+            if (result.success) {
+                setTwoFactorEnabled(false);
+                setShowDisable2FaInput(false);
+                setDisable2FaPassword('');
+                localStorage.setItem('is_2fa_enabled', '0');
+                showPremiumToast('Đã tắt xác thực 2 lớp (2FA) thành công!', 'success');
+            } else {
+                setTwoFaError(true);
+                setTwoFaMessage(result.error?.message || result.message || 'Lỗi khi tắt 2FA');
+            }
+        } catch (error: any) {
+            setTwoFaError(true);
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Mật khẩu không chính xác hoặc lỗi hệ thống!';
+            setTwoFaMessage(errorMessage);
+        }
+    };
+
+
+
+    return (
+        <AdminLayout 
+            activeMenu={activeMenu} 
+            setActiveMenu={setActiveMenu}
+            counts={{
+                events: events.length,
+                flood: floodZones.length,
+                closure: roadClosures.length,
+                traffic: trafficAlerts.length,
+                pois: pendingPOIsCount,
+                pendingPOIs: pendingPOIsCount
+            }}
+        >
+            {activeMenu === 'overview' && <OverviewTab events={events} trafficAlerts={trafficAlerts} floodZones={floodZones} />}
+            {activeMenu === 'events' && (
+                <EventsTab
+                    events={events} loadingEvents={loadingEvents} searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+                    statusFilter={statusFilter} setStatusFilter={setStatusFilter} currentPage={currentPage} setCurrentPage={setCurrentPage}
+                    showModal={showModal} setShowModal={setShowModal} editingEvent={editingEvent} setEditingEvent={setEditingEvent}
+                    eventFormData={eventFormData} setEventFormData={setEventFormData} handleApproveEvent={handleApproveEvent}
+                    handleDeleteEvent={handleDeleteEvent} handleCreateEvent={handleCreateEvent}
+                    onImageChange={handleEventImageChange}
+                    onRefresh={fetchEvents}
+                />
+            )}
+            {activeMenu === 'traffic' && (
+                <TrafficTab
+                    trafficAlerts={trafficAlerts} toggleTrafficStatus={toggleTrafficStatus} showTrafficModal={showTrafficModal}
+                    setShowTrafficModal={setShowTrafficModal} trafficFormData={trafficFormData} setTrafficFormData={setTrafficFormData}
+                    handleCreateTrafficAlert={handleCreateTrafficAlert}
+                    deleteTrafficAlert={handleDeleteTrafficAlert}
+                />
+            )}
+            {activeMenu === 'flood' && <FloodTab floodZones={floodZones} toggleFloodStatus={toggleFloodStatus} />}
+            {activeMenu === 'closure' && (
+                <ClosureTab 
+                    roadClosures={roadClosures} 
+                    events={events}
+                    onRefresh={fetchRoadClosures} 
+                />
+            )}
+            {activeMenu === 'users' && (
+                <UsersTab
+                    adminUsers={adminUsers} showBanModal={showBanModal} setShowBanModal={setShowBanModal}
+                    userToBan={userToBan} setUserToBan={setUserToBan} banReason={banReason} setBanReason={setBanReason}
+                    handleBanSubmit={handleBanSubmit} handleUnbanUser={handleUnbanUser}
+                />
+            )}
+            {activeMenu === 'settings' && (
+                <SettingsTab
+                    profileForm={profileForm} setProfileForm={setProfileForm} profileMessage={profileMessage}
+                    profileError={profileError} handleUpdateProfileSubmit={handleUpdateProfileSubmit}
+                    hasPassword={hasPassword} pwdFormData={pwdFormData} setPwdFormData={setPwdFormData}
+                    pwdMessage={pwdMessage} pwdError={pwdError} showPwd={showPwd} setShowPwd={setShowPwd}
+                    handleChangePasswordSubmit={handleChangePasswordSubmit} twoFactorEnabled={twoFactorEnabled}
+                    twoFaQRCode={twoFaQRCode} twoFaSecret={twoFaSecret} totpConfirmCode={totpConfirmCode}
+                    setTotpConfirmCode={setTotpConfirmCode} showTwoFaQR={showTwoFaQR} setShowTwoFaQR={setShowTwoFaQR}
+                    showDisable2FaInput={showDisable2FaInput} setShowDisable2FaInput={setShowDisable2FaInput}
+                    disable2FaPassword={disable2FaPassword} setDisable2FaPassword={setDisable2FaPassword}
+                    twoFaMessage={twoFaMessage} twoFaError={twoFaError} isConfirming2FA={isConfirming2FA}
+                    handleSetup2FA={handleSetup2FA} handleConfirm2FA={handleConfirm2FA} handleDisable2FA={handleDisable2FA}
+                    setTwoFaQRCode={setTwoFaQRCode} setTwoFaSecret={setTwoFaSecret} setTwoFaError={setTwoFaError} setTwoFaMessage={setTwoFaMessage}
+                />
+            )}
+            {activeMenu === 'pois' && (
+                <POIsTab 
+                    onRefresh={() => {
+                        fetchPendingPOIsCount();
+                    }} 
+                />
+            )}
+            {/* CUSTOM CONFIRM MODAL DIALOG */}
+            {confirmModal.isOpen && (
+                <div 
+                    style={{
+                        animation: 'fadeIn 250ms ease-out forwards'
+                    }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm pointer-events-auto"
+                >
+                    <div 
+                        style={{
+                            animation: 'scaleUp 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards'
+                        }}
+                        className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full mx-4 text-left font-sans"
+                    >
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-blue-50 text-blue-500">
+                                <AlertTriangle size={20} />
+                            </span>
+                            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                                {confirmModal.title}
+                            </h3>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-500 mb-6 leading-relaxed whitespace-pre-line">
+                            {confirmModal.message}
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={confirmModal.onCancel}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                onClick={confirmModal.onConfirm}
+                                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-100 transition-all"
+                            >
+                                Xác nhận
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </AdminLayout>
     );
   };
 

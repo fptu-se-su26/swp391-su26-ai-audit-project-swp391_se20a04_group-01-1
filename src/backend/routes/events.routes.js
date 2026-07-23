@@ -6,6 +6,7 @@ const fs = require("fs");
 const { sql, poolPromise } = require("../db");
 const { authenticateToken, authorizeRole } = require("../middleware/auth");
 const upload = require("../middleware/upload");
+const { uploadToCloudinary, deleteFromCloudinary } = require("../utils/cloudinary");
 
 // GET /api/events - Lấy danh sách sự kiện (có thể lọc theo status)
 router.get("/", async (req, res) => {
@@ -513,13 +514,19 @@ router.post(
       const { eventId } = req.params;
       const { caption } = req.body;
 
-      if (!req.file) {
-        return res
-          .status(400)
-          .json({ message: "Vui lòng chọn một file ảnh để tải lên!" });
+      let imageUrl;
+      const cloudUrl = await uploadToCloudinary(req.file, "dnpulse_events");
+      if (cloudUrl) {
+        imageUrl = cloudUrl;
+      } else if (req.file) {
+        const filename = `event-${Date.now()}-${Math.round(Math.random() * 1e9)}${path.extname(req.file.originalname || ".jpg")}`;
+        const localPath = path.join(__dirname, "..", "uploads", filename);
+        if (req.file.buffer) {
+          fs.writeFileSync(localPath, req.file.buffer);
+        }
+        imageUrl = `/uploads/${filename}`;
       }
 
-      const imageUrl = `/uploads/${req.file.filename}`;
       const pool = await poolPromise;
 
       const eventCheck = await pool
@@ -528,7 +535,6 @@ router.post(
         .query("SELECT event_id FROM Events WHERE event_id = @event_id");
 
       if (eventCheck.recordset.length === 0) {
-        fs.unlinkSync(req.file.path);
         return res.status(404).json({ message: "Không tìm thấy sự kiện!" });
       }
 
@@ -538,22 +544,22 @@ router.post(
         .input("image_url", sql.NVarChar, imageUrl)
         .input("caption", sql.NVarChar, caption || "Người dùng đóng góp")
         .query(`
-    INSERT INTO EventImages (
-      event_id,
-      image_url,
-      caption,
-      uploaded_at,
-      approval_status
-    )
-    OUTPUT INSERTED.*
-    VALUES (
-      @event_id,
-      @image_url,
-      @caption,
-      GETDATE(),
-      'pending'
-    )
-  `);
+          INSERT INTO EventImages (
+            event_id,
+            image_url,
+            caption,
+            uploaded_at,
+            approval_status
+          )
+          OUTPUT INSERTED.*
+          VALUES (
+            @event_id,
+            @image_url,
+            @caption,
+            GETDATE(),
+            'pending'
+          )
+        `);
 
       res.status(201).json({
         success: true,
@@ -562,9 +568,8 @@ router.post(
       });
     } catch (error) {
       console.error("Lỗi upload ảnh sự kiện:", error);
-      if (req.file && fs.existsSync(req.file.path))
-        fs.unlinkSync(req.file.path);
       res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
     }
   },
 );
@@ -590,6 +595,54 @@ router.delete("/images/:imageId", authenticateToken, async (req, res) => {
     console.error("Lỗi xóa ảnh sự kiện:", error);
     res.status(500).json({ message: "Lỗi server", error: error.message });
   }
+});
+
+// POST /api/events/ai-scrape - Admin kích hoạt AI Cào tin tức DanangFantastiCity
+const { runAiEventScraper } = require('../services/aiScraperService');
+router.post('/ai-scrape', authenticateToken, authorizeRole(['admin', 'system_admin']), async (req, res) => {
+    try {
+        const result = await runAiEventScraper();
+        res.json(result);
+    } catch (error) {
+        console.error("Lỗi kích hoạt AI Event Scraper:", error);
+        res.status(500).json({ message: "Lỗi server khi chạy AI Event Scraper", error: error.message });
+    }
+});
+
+// PUT /api/events/:id/status - Admin Phê duyệt (approved) hoặc Từ chối (rejected) sự kiện
+router.put('/:id/status', authenticateToken, authorizeRole(['admin', 'system_admin']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!['approved', 'rejected', 'pending'].includes(status)) {
+            return res.status(400).json({ message: "Trạng thái không hợp lệ! (chỉ chấp nhận approved, rejected, pending)" });
+        }
+
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input("event_id", sql.Int, id)
+            .input("status", sql.NVarChar, status)
+            .query(`
+                UPDATE Events 
+                SET status = @status, updated_at = GETDATE()
+                OUTPUT INSERTED.*
+                WHERE event_id = @event_id
+            `);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ message: "Không tìm thấy sự kiện!" });
+        }
+
+        res.json({
+            success: true,
+            message: `Đã cập nhật trạng thái sự kiện thành '${status}' thành công!`,
+            data: result.recordset[0]
+        });
+    } catch (error) {
+        console.error("Lỗi cập nhật trạng thái sự kiện:", error);
+        res.status(500).json({ message: "Lỗi server", error: error.message });
+    }
 });
 
 module.exports = router;
