@@ -381,12 +381,30 @@ router.put("/traffic-alerts/:id/toggle", async (req, res) => {
     }
 
     const pool = await poolPromise;
+
+    // Khi BẬT LẠI một cảnh báo đã hết hạn (is_active=true), phải gia hạn expire_at
+    // tính từ thời điểm hiện tại. Nếu không, scheduler (chạy mỗi 60s) sẽ thấy
+    // expire_at vẫn ở quá khứ và tự động tắt lại ngay, khiến cảnh báo không bao giờ
+    // xuất hiện lại trên lớp giao thông ở trang bản đồ (API công khai lọc theo
+    // is_active=1 AND expire_at > GETDATE()).
     const result = await pool
       .request()
       .input("alert_id", sql.Int, parseInt(id))
       .input("is_active", sql.Bit, is_active ? 1 : 0).query(`
         UPDATE TrafficAlerts
-        SET is_active = @is_active, updated_at = GETDATE()
+        SET
+          is_active = @is_active,
+          expire_at = CASE
+            WHEN @is_active = 1
+            THEN DATEADD(MINUTE, ISNULL(expire_after_minutes, 30), GETDATE())
+            ELSE expire_at
+          END,
+          last_verified_at = CASE
+            WHEN @is_active = 1
+            THEN GETDATE()
+            ELSE last_verified_at
+          END,
+          updated_at = GETDATE()
         WHERE alert_id = @alert_id
       `);
 

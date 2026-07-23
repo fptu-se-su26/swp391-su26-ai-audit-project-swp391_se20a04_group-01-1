@@ -327,6 +327,9 @@ export default function Home() {
     setReportFormData,
     fetchTrafficAlerts,
     handleSubmitTrafficReport,
+    trafficVoteLoading,
+    fetchTrafficAlertVotes,
+    handleVoteTrafficAlert,
   } = useTrafficAlertState();
 
   const [mapControls, setMapControls] = useState({
@@ -2046,6 +2049,9 @@ export default function Home() {
             mapControls={mapControls}
             selectedTrafficAlert={selectedTrafficAlert}
             setSelectedTrafficAlert={setSelectedTrafficAlert}
+            fetchTrafficAlertVotes={fetchTrafficAlertVotes}
+            handleVoteTrafficAlert={handleVoteTrafficAlert}
+            trafficVoteLoading={trafficVoteLoading}
             selectedRoadPopup={selectedRoadPopup}
             setSelectedRoadPopup={setSelectedRoadPopup}
             isRoadRestrictionActive={isRoadRestrictionActive}
