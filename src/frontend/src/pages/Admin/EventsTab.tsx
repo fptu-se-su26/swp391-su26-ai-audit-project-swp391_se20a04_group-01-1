@@ -748,12 +748,10 @@ export default function EventsTab({
                     {bannerPreview ? (
                       <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
                         <img
+                          key={bannerPreview}
                           src={bannerPreview}
                           alt="Banner preview"
                           className="w-full h-28 object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400";
-                          }}
                         />
                         <button
                           type="button"
@@ -813,12 +811,10 @@ export default function EventsTab({
                     {thumbnailPreview ? (
                       <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
                         <img
+                          key={thumbnailPreview}
                           src={thumbnailPreview}
                           alt="Thumbnail preview"
                           className="w-full h-28 object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400";
-                          }}
                         />
                         <button
                           type="button"
