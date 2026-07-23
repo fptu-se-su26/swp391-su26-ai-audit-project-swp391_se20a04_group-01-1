@@ -255,36 +255,37 @@ export function useMapRouting(
           let selectedRoute = data.routes[0];
           let alertMsg: string | null = null;
 
+          // Chuẩn bị sẵn danh sách vùng ngập (kể cả khi avoidCongestion cần dùng lại
+          // để không "quên" ràng buộc tránh ngập khi xử lý bước tránh kẹt xe bên dưới).
+          const weatherFloodZones = (options.trafficAlerts || [])
+            .filter(
+              (alert: any) =>
+                alert.is_active &&
+                (alert.type === "FLOOD" || alert.type === "WEATHER"),
+            )
+            .map((alert: any) => ({
+              id: `temp-weather-${alert.id}`,
+              zone_id: alert.id,
+              name: alert.title,
+              district: alert.location || "Đà Nẵng",
+              center: [alert.longitude, alert.latitude] as [number, number],
+              radius: 800, // Bán kính ảnh hưởng ngập lụt dự báo (~800m)
+              depthCm: 30, // Độ sâu ngập giả định (> 10cm để thuật toán né tránh)
+              level: "high" as const,
+              description: alert.description,
+            }));
+
+          const combinedFloodZones = [
+            ...options.floodZones,
+            ...weatherFloodZones,
+          ];
+
+          const combinedConfirmedIds = [
+            ...options.confirmedFloodZoneIds,
+            ...weatherFloodZones.map((w) => w.id),
+          ];
+
           if (options.avoidFlood) {
-            // Trích xuất các cảnh báo ngập lụt động từ danh sách TrafficAlerts
-            const weatherFloodZones = (options.trafficAlerts || [])
-              .filter(
-                (alert: any) =>
-                  alert.is_active &&
-                  (alert.type === "FLOOD" || alert.type === "WEATHER"),
-              )
-              .map((alert: any) => ({
-                id: `temp-weather-${alert.id}`,
-                zone_id: alert.id,
-                name: alert.title,
-                district: alert.location || "Đà Nẵng",
-                center: [alert.longitude, alert.latitude] as [number, number],
-                radius: 800, // Bán kính ảnh hưởng ngập lụt dự báo (~800m)
-                depthCm: 30, // Độ sâu ngập giả định (> 10cm để thuật toán né tránh)
-                level: "high" as const,
-                description: alert.description,
-              }));
-
-            const combinedFloodZones = [
-              ...options.floodZones,
-              ...weatherFloodZones,
-            ];
-
-            const combinedConfirmedIds = [
-              ...options.confirmedFloodZoneIds,
-              ...weatherFloodZones.map((w) => w.id),
-            ];
-
             const result = await findSafeRouteZone(
               data.routes,
               combinedFloodZones,
@@ -309,6 +310,11 @@ export function useMapRouting(
               destination,
               travelMode,
               mapboxToken,
+              150,
+              // Chỉ áp ràng buộc tránh ngập khi avoidFlood đang bật, để bước tránh
+              // kẹt xe không bao giờ chọn nhầm route băng qua vùng ngập bị chặn.
+              options.avoidFlood ? combinedFloodZones : [],
+              options.avoidFlood ? combinedConfirmedIds : [],
             );
             selectedRoute = result.selectedRoute;
             if (result.alertMsg) {
