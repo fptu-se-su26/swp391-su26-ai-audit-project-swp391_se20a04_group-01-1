@@ -195,8 +195,8 @@ export default function EventsTab({
   React.useEffect(() => {
     if (showModal) {
       if (editingEvent) {
-        setBannerPreview(resolveImageUrl(editingEvent.banner_url));
-        setThumbnailPreview(resolveImageUrl(editingEvent.thumbnail_url));
+        if (!bannerFile) setBannerPreview(resolveImageUrl(editingEvent.banner_url));
+        if (!thumbnailFile) setThumbnailPreview(resolveImageUrl(editingEvent.thumbnail_url));
       } else {
         setBannerFile(null);
         setThumbnailFile(null);
@@ -205,7 +205,7 @@ export default function EventsTab({
         onImageChange(null, null);
       }
     }
-  }, [showModal, editingEvent]);
+  }, [showModal]);
 
   // Fly mini map to event location when modal opens or coordinates update
   React.useEffect(() => {
@@ -734,8 +734,11 @@ export default function EventsTab({
                         const file = e.target.files?.[0] || null;
                         setBannerFile(file);
                         if (file) {
-                          const url = URL.createObjectURL(file);
-                          setBannerPreview(url);
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setBannerPreview(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
                         } else {
                           setBannerPreview(null);
                         }
@@ -744,7 +747,14 @@ export default function EventsTab({
                     />
                     {bannerPreview ? (
                       <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                        <img src={bannerPreview} alt="Banner preview" className="w-full h-28 object-cover" />
+                        <img
+                          src={bannerPreview}
+                          alt="Banner preview"
+                          className="w-full h-28 object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400";
+                          }}
+                        />
                         <button
                           type="button"
                           onClick={() => {
@@ -789,8 +799,11 @@ export default function EventsTab({
                         const file = e.target.files?.[0] || null;
                         setThumbnailFile(file);
                         if (file) {
-                          const url = URL.createObjectURL(file);
-                          setThumbnailPreview(url);
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setThumbnailPreview(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
                         } else {
                           setThumbnailPreview(null);
                         }
@@ -799,7 +812,14 @@ export default function EventsTab({
                     />
                     {thumbnailPreview ? (
                       <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                        <img src={thumbnailPreview} alt="Thumbnail preview" className="w-full h-28 object-cover" />
+                        <img
+                          src={thumbnailPreview}
+                          alt="Thumbnail preview"
+                          className="w-full h-28 object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400";
+                          }}
+                        />
                         <button
                           type="button"
                           onClick={() => {
