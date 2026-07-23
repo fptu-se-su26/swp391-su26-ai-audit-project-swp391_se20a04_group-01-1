@@ -856,13 +856,30 @@ export default function Home() {
     setPendingDestination({ lng, lat });
   };
 
+// Danh mục các địa danh nổi tiếng bậc nhất Đà Nẵng
+const DANANG_FAMOUS_LANDMARKS = [
+  { name: "Cầu Rồng", address: "Cầu Rồng, Quận Hải Châu / Sơn Trà, Đà Nẵng", center: [108.2278968, 16.0611682] },
+  { name: "Cầu Sông Hàn", address: "Cầu Sông Hàn, Đà Nẵng", center: [108.2284106, 16.0723604] },
+  { name: "Bãi biển Mỹ Khê", address: "Bãi biển Mỹ Khê, Quận Sơn Trà, Đà Nẵng", center: [108.2462, 16.0602] },
+  { name: "Chợ Hàn", address: "119 Trần Phú, Phước Ninh, Hải Châu, Đà Nẵng", center: [108.2242830, 16.0683525] },
+  { name: "Chợ Cồn", address: "290 Hùng Vương, Vĩnh Trung, Thanh Khê, Đà Nẵng", center: [108.2136, 16.0681] },
+  { name: "Bà Nà Hills", address: "Hòa Phú, Hòa Vang, Đà Nẵng", center: [107.9877, 15.9961] },
+  { name: "Bán đảo Sơn Trà (Chùa Linh Ứng)", address: "Thọ Quang, Sơn Trà, Đà Nẵng", center: [108.2778, 16.1000] },
+  { name: "Cung thể thao Tuyên Sơn", address: "Đường Nại Nam 2, Hòa Cường Bắc, Hải Châu, Đà Nẵng", center: [108.2240, 16.0360] },
+  { name: "Công viên Biển Đông", address: "Võ Nguyên Giáp, Phước Mỹ, Sơn Trà, Đà Nẵng", center: [108.2472, 16.0678] },
+  { name: "Cầu Trần Thị Lý", address: "Cầu Trần Thị Lý, Đà Nẵng", center: [108.2312, 16.0508] },
+  { name: "Bảo tàng Điêu khắc Chăm", address: "Số 2 2 Tháng 9, Bình Hiên, Hải Châu, Đà Nẵng", center: [108.2227, 16.0601] },
+  { name: "Bảo tàng Đà Nẵng (Thành Điện Hải)", address: "24 Trần Phú, Thạch Thang, Hải Châu, Đà Nẵng", center: [108.2244, 16.0754] },
+  { name: "Chợ đêm Sơn Trà", address: "Mai Hắc Đế, An Hải Trung, Sơn Trà, Đà Nẵng", center: [108.2305, 16.0620] },
+  { name: "Chợ đêm Helio", address: "Đường 2 Tháng 9, Hòa Cường Bắc, Hải Châu, Đà Nẵng", center: [108.2253, 16.0381] },
+  { name: "Sân bay Quốc tế Đà Nẵng", address: "Nguyễn Văn Linh, Hòa Thuận Tây, Hải Châu, Đà Nẵng", center: [108.2022, 16.0544] }
+];
+
   useEffect(() => {
     let query = "";
-    if (activeInputField === "origin") {
-      query = originQuery;
-    } else if (activeInputField === "destination") {
-      query = destinationQuery;
-    } else if (activeInputField && activeInputField.startsWith("waypoint-")) {
+    if (activeInputField === "origin") query = originQuery;
+    else if (activeInputField === "destination") query = destinationQuery;
+    else if (activeInputField && activeInputField.startsWith("waypoint-")) {
       const idx = parseInt(activeInputField.split("-")[1], 10);
       query = waypointQueries[idx] || "";
     }
@@ -872,8 +889,51 @@ export default function Home() {
       setShowSuggestions(false);
       return;
     }
+
     const delayDebounceFn = setTimeout(async () => {
       setLoadingSearch(true);
+      const normalizedQuery = query.toLowerCase().trim();
+
+      // 1. Tìm kiếm trong Danh mục Địa danh Nổi tiếng Đà Nẵng (Tức thì, 0ms latency)
+      const landmarkMatches = DANANG_FAMOUS_LANDMARKS.filter((lm) => {
+        const nameLower = lm.name.toLowerCase();
+        const words = normalizedQuery.split(/\s+/);
+        return nameLower.includes(normalizedQuery) || words.every((w) => nameLower.includes(w));
+      }).map((lm, idx) => ({
+        id: `landmark-${idx}`,
+        text: lm.name,
+        text_vi: lm.name,
+        place_name: lm.address,
+        place_name_vi: lm.address,
+        center: lm.center,
+      }));
+
+      // 2. Tra cứu OpenStreetMap Nominatim API (Tra cứu chính xác địa danh Việt Nam)
+      let osmFeatures: any[] = [];
+      try {
+        const osmUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + " Đà Nẵng")}&format=json&limit=5&countrycodes=vn`;
+        const osmRes = await fetch(osmUrl, {
+          headers: { "User-Agent": "DNPulse-App/1.0" },
+        });
+        if (osmRes.ok) {
+          const osmData = await osmRes.json();
+          if (Array.isArray(osmData)) {
+            osmFeatures = osmData.map((item: any, idx: number) => ({
+              id: `osm-${item.place_id || idx}`,
+              text: item.display_name.split(",")[0],
+              text_vi: item.display_name.split(",")[0],
+              place_name: item.display_name,
+              place_name_vi: item.display_name,
+              center: [parseFloat(item.lon), parseFloat(item.lat)],
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn("Lỗi tra cứu OpenStreetMap:", err);
+      }
+
+      // 3. Tra cứu Mapbox Search Box API
+      let mapboxFeatures: any[] = [];
       try {
         const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
         const response = await fetch(
@@ -881,21 +941,27 @@ export default function Home() {
         );
         const data = await response.json();
         if (data.features) {
-          const normalizedFeatures = data.features.map((f: any) => ({
+          mapboxFeatures = data.features.map((f: any) => ({
             id: f.properties?.mapbox_id || f.id,
             text: f.properties?.name || "",
             text_vi: f.properties?.name || "",
             place_name: f.properties?.full_address || f.properties?.name || "",
-            place_name_vi:
-              f.properties?.full_address || f.properties?.name || "",
+            place_name_vi: f.properties?.full_address || f.properties?.name || "",
             center: f.geometry?.coordinates || [0, 0],
           }));
-          setSuggestions(normalizedFeatures);
-          setShowSuggestions(true);
         }
       } catch (error) {
         console.error("Lỗi lấy gợi ý tìm kiếm:", error);
       } finally {
+        // Tổng hợp dữ liệu kết quả & Lọc trùng tên
+        const combined = [...landmarkMatches, ...osmFeatures, ...mapboxFeatures];
+        const uniqueResults = combined.filter(
+          (item, index, self) =>
+            index === self.findIndex((t) => t.text.toLowerCase() === item.text.toLowerCase())
+        );
+
+        setSuggestions(uniqueResults.slice(0, 7));
+        setShowSuggestions(true);
         setLoadingSearch(false);
       }
     }, 300);
