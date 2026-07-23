@@ -1,4 +1,10 @@
-import { getDistanceToSegment, getLngLat } from './floodZoneRouteUtils';
+import {
+  getDistanceToSegment,
+  getLngLat,
+  getBlockedFloodZones,
+  getBlockedZonesForRoute,
+  FloodZone,
+} from "./floodZoneRouteUtils";
 
 export interface TrafficAlert {
   id: number;
@@ -14,7 +20,7 @@ export interface TrafficAlert {
 export function isRouteIntersectTrafficAlert(
   routeCoords: [number, number][],
   alert: TrafficAlert,
-  radiusMeters = 150
+  radiusMeters = 150,
 ): boolean {
   if (!routeCoords || routeCoords.length < 2) {
     return false;
@@ -33,7 +39,7 @@ export function isRouteIntersectTrafficAlert(
       p1[0],
       p1[1],
       p2[0],
-      p2[1]
+      p2[1],
     );
 
     if (dist < radiusMeters) {
@@ -48,16 +54,22 @@ export function isRouteIntersectTrafficAlert(
 export function getBlockedTrafficAlertsForRoute(
   routeCoords: [number, number][],
   trafficAlertsList: TrafficAlert[],
-  radiusMeters = 150
+  radiusMeters = 150,
 ): TrafficAlert[] {
-  if (!routeCoords || routeCoords.length < 2 || !trafficAlertsList || trafficAlertsList.length === 0) {
+  if (
+    !routeCoords ||
+    routeCoords.length < 2 ||
+    !trafficAlertsList ||
+    trafficAlertsList.length === 0
+  ) {
     return [];
   }
-  return trafficAlertsList.filter(alert => 
-    alert.is_active && 
-    alert.type === 'CONGESTION' && 
-    (alert.severity === 'HIGH' || alert.severity === 'MEDIUM') &&
-    isRouteIntersectTrafficAlert(routeCoords, alert, radiusMeters)
+  return trafficAlertsList.filter(
+    (alert) =>
+      alert.is_active &&
+      alert.type === "CONGESTION" &&
+      (alert.severity === "HIGH" || alert.severity === "MEDIUM") &&
+      isRouteIntersectTrafficAlert(routeCoords, alert, radiusMeters),
   );
 }
 
@@ -67,9 +79,13 @@ export async function findSafeTrafficRoute(
   trafficAlertsList: TrafficAlert[],
   origin: { lng: number; lat: number; label: string },
   destination: { lng: number; lat: number; label: string },
-  travelMode: 'driving' | 'walking' | 'cycling',
+  travelMode: "driving" | "walking" | "cycling",
   mapboxToken: string,
-  radiusMeters = 150
+  radiusMeters = 150,
+  // NEW: cho phép bước tránh kẹt xe biết về vùng ngập lụt đang được né,
+  // để không chọn nhầm một route "hết kẹt xe" nhưng lại đâm vào vùng ngập.
+  floodZonesList: FloodZone[] = [],
+  confirmedFloodZoneIds: string[] = [],
 ): Promise<{
   selectedRoute: any;
   alertMsg: string | null;
@@ -78,19 +94,52 @@ export async function findSafeTrafficRoute(
     return { selectedRoute: null, alertMsg: null };
   }
 
+  const blockedFloodZones = getBlockedFloodZones(
+    floodZonesList,
+    confirmedFloodZoneIds,
+  );
+  const isFloodSafe = (route: any): boolean => {
+    if (blockedFloodZones.length === 0) return true; // avoidFlood đang tắt hoặc không có vùng ngập nào phải né
+    return (
+      getBlockedZonesForRoute(
+        route.geometry.coordinates,
+        blockedFloodZones,
+        origin,
+        destination,
+      ).length === 0
+    );
+  };
+
   // Filter active congestion alerts (Severity HIGH or MEDIUM)
   const activeCongestions = trafficAlertsList.filter(
-    alert => alert.is_active && alert.type === 'CONGESTION' && (alert.severity === 'HIGH' || alert.severity === 'MEDIUM')
+    (alert) =>
+      alert.is_active &&
+      alert.type === "CONGESTION" &&
+      (alert.severity === "HIGH" || alert.severity === "MEDIUM"),
   );
 
   if (activeCongestions.length === 0) {
-    return { selectedRoute: initialRoutes[0], alertMsg: null };
+    // Không có kẹt xe cần né -> vẫn phải đảm bảo route đầu tiên còn an toàn với ngập lụt.
+    // Nếu route[0] (vốn là selectedRoute từ bước tránh ngập) không an toàn ngập vì lý do nào đó,
+    // ưu tiên tìm route khác trong danh sách đầu vào vẫn thỏa an toàn ngập.
+    if (isFloodSafe(initialRoutes[0])) {
+      return { selectedRoute: initialRoutes[0], alertMsg: null };
+    }
+    const floodSafeFallback = initialRoutes.find(isFloodSafe);
+    return {
+      selectedRoute: floodSafeFallback || initialRoutes[0],
+      alertMsg: null,
+    };
   }
 
-  // Find if any of the initial Mapbox routes are safe (do not cross congestion)
+  // Find if any of the initial Mapbox routes are safe (do not cross congestion AND do not cross blocked flood zones)
   for (const r of initialRoutes) {
-    const blocked = getBlockedTrafficAlertsForRoute(r.geometry.coordinates, activeCongestions, radiusMeters);
-    if (blocked.length === 0) {
+    const blocked = getBlockedTrafficAlertsForRoute(
+      r.geometry.coordinates,
+      activeCongestions,
+      radiusMeters,
+    );
+    if (blocked.length === 0 && isFloodSafe(r)) {
       return { selectedRoute: r, alertMsg: null };
     }
   }
@@ -100,7 +149,7 @@ export async function findSafeTrafficRoute(
   const firstRouteBlocked = getBlockedTrafficAlertsForRoute(
     initialRoutes[0].geometry.coordinates,
     activeCongestions,
-    radiusMeters
+    radiusMeters,
   );
 
   const candidates: any[] = [...initialRoutes];
@@ -120,22 +169,30 @@ export async function findSafeTrafficRoute(
     for (const pt of bypassPoints) {
       try {
         const detourResponse = await fetch(
-          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${pt[0]},${pt[1]};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&access_token=${mapboxToken}`
+          `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin.lng},${origin.lat};${pt[0]},${pt[1]};${destination.lng},${destination.lat}?geometries=geojson&overview=full&alternatives=true&access_token=${mapboxToken}`,
         );
         const detourData = await detourResponse.json();
-        if (detourResponse.ok && detourData.routes && detourData.routes.length > 0) {
+        if (
+          detourResponse.ok &&
+          detourData.routes &&
+          detourData.routes.length > 0
+        ) {
           candidates.push(...detourData.routes);
         }
       } catch (err) {
-        console.error('Error fetching traffic detour route:', err);
+        console.error("Error fetching traffic detour route:", err);
       }
     }
   }
 
-  // Select the shortest route that is free of congestion
-  const safeRoutes = candidates.filter(r => {
-    const blocked = getBlockedTrafficAlertsForRoute(r.geometry.coordinates, activeCongestions, radiusMeters);
-    return blocked.length === 0;
+  // Select the shortest route that is free of congestion AND free of blocked flood zones
+  const safeRoutes = candidates.filter((r) => {
+    const blocked = getBlockedTrafficAlertsForRoute(
+      r.geometry.coordinates,
+      activeCongestions,
+      radiusMeters,
+    );
+    return blocked.length === 0 && isFloodSafe(r);
   });
 
   if (safeRoutes.length > 0) {
@@ -148,13 +205,35 @@ export async function findSafeTrafficRoute(
 
     return {
       selectedRoute: bestRoute,
-      alertMsg: 'Tuyến đường ban đầu đi qua khu vực kẹt xe. Hệ thống đã gợi ý tuyến đường tránh ùn tắc.'
+      alertMsg:
+        "Tuyến đường ban đầu đi qua khu vực kẹt xe. Hệ thống đã gợi ý tuyến đường tránh ùn tắc.",
     };
   }
 
-  // If no safe route is found, fall back to initial route but return a warning alert
+  // Không tìm được route vừa tránh kẹt xe vừa tránh ngập.
+  // Ưu tiên KHÔNG bao giờ rơi vào vùng ngập bị chặn (>10cm): nếu initialRoutes[0] (route đã
+  // được xác nhận an toàn ngập từ bước trước) vẫn an toàn ngập, giữ nguyên nó và chỉ cảnh báo kẹt xe.
+  if (isFloodSafe(initialRoutes[0])) {
+    return {
+      selectedRoute: initialRoutes[0],
+      alertMsg:
+        "Lưu ý: Tất cả các tuyến đường khả dụng đều đi qua khu vực ùn tắc giao thông.",
+    };
+  }
+
+  // Trường hợp hiếm: ngay cả route mặc định cũng không an toàn ngập -> thử tìm bất kỳ candidate nào an toàn ngập
+  const floodSafeAnyCandidate = candidates.find(isFloodSafe);
+  if (floodSafeAnyCandidate) {
+    return {
+      selectedRoute: floodSafeAnyCandidate,
+      alertMsg:
+        "Lưu ý: Không tìm được tuyến vừa tránh ngập vừa tránh kẹt xe. Hệ thống ưu tiên tránh vùng ngập lụt.",
+    };
+  }
+
   return {
     selectedRoute: initialRoutes[0],
-    alertMsg: 'Lưu ý: Tất cả các tuyến đường khả dụng đều đi qua khu vực ùn tắc giao thông.'
+    alertMsg:
+      "Lưu ý: Tất cả các tuyến đường khả dụng đều đi qua khu vực ùn tắc giao thông.",
   };
 }

@@ -65,3 +65,4 @@ coverage/
 # OPTIONAL
 # =========================================
 *.zip
+src/backend/uploads/

@@ -132,9 +132,7 @@ VALUES (
         'https://banahills.sunworld.vn',
         '0236 3791 999',
         4.8,
-        1,
-        1
-    ),
+        1, 'approved', 1),
     (
         3,
         1,
@@ -148,9 +146,7 @@ VALUES (
         NULL,
         '0236 3961 114',
         4.5,
-        1,
-        1
-    ),
+        1, 'approved', 1),
     (
         4,
         1,
@@ -181,9 +177,7 @@ VALUES (
         NULL,
         NULL,
         4.7,
-        1,
-        1
-    ),
+        1, 'approved', 1),
     (
         27,
         1,
@@ -197,9 +191,7 @@ VALUES (
         NULL,
         '0236 3836 001',
         4.7,
-        1,
-        1
-    ),
+        1, 'approved', 1),
     (
         28,
         1,
@@ -213,9 +205,7 @@ VALUES (
         NULL,
         NULL,
         4.3,
-        0,
-        1
-    ),
+        0, 'approved', 1),
     (
         29,
         1,
@@ -229,9 +219,7 @@ VALUES (
         NULL,
         NULL,
         4.4,
-        0,
-        1
-    ),
+        0, 'approved', 1),
     (
         30,
         1,
@@ -245,9 +233,7 @@ VALUES (
         NULL,
         NULL,
         4.2,
-        0,
-        1
-    ),
+        0, 'approved', 1),
     (
         31,
         1,
@@ -261,9 +247,7 @@ VALUES (
         NULL,
         NULL,
         4.5,
-        1,
-        1
-    ),
+        1, 'approved', 1),
 
 -- ===== NHÀ HÀNG (category_id = 2) =====
 (
@@ -279,9 +263,7 @@ VALUES (
     'https://madamelan.vn',
     '0236 3561 757',
     4.3,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     7,
     1,
@@ -295,9 +277,7 @@ VALUES (
     NULL,
     '0236 3583 789',
     4.2,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     8,
     1,
@@ -311,9 +291,7 @@ VALUES (
     NULL,
     '0905 123 456',
     4.1,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     9,
     1,
@@ -327,9 +305,7 @@ VALUES (
     NULL,
     '0935 678 910',
     4.4,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     10,
     1,
@@ -343,9 +319,7 @@ VALUES (
     NULL,
     '0236 3890 099',
     4.0,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     32,
     1,
@@ -359,9 +333,7 @@ VALUES (
     NULL,
     '0935 111 222',
     4.5,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     33,
     1,
@@ -375,9 +347,7 @@ VALUES (
     NULL,
     '0905 333 444',
     4.6,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     34,
     1,
@@ -391,9 +361,7 @@ VALUES (
     NULL,
     '0236 3826 566',
     4.4,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     35,
     1,
@@ -407,9 +375,7 @@ VALUES (
     NULL,
     '0905 555 666',
     4.7,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     36,
     1,
@@ -423,9 +389,7 @@ VALUES (
     NULL,
     '0935 777 888',
     4.3,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     56,
     1,
@@ -439,9 +403,7 @@ VALUES (
     NULL,
     '0905 456 789',
     4.3,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     57,
     1,
@@ -455,9 +417,7 @@ VALUES (
     NULL,
     '0236 3867 456',
     4.6,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     58,
     1,
@@ -471,9 +431,7 @@ VALUES (
     NULL,
     '0905 234 567',
     4.4,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     59,
     1,
@@ -487,9 +445,7 @@ VALUES (
     NULL,
     '0905 111 333',
     4.5,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     60,
     1,
@@ -503,9 +459,7 @@ VALUES (
     NULL,
     '0905 888 999',
     4.2,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     61,
     1,
@@ -519,9 +473,7 @@ VALUES (
     NULL,
     '0905 777 123',
     4.4,
-    0,
-    1
-),
+    0, 'approved', 1),
 
 -- ===== KHÁCH SẠN (category_id = 3) =====
 (
@@ -537,9 +489,7 @@ VALUES (
     'https://www.novotel-danang.com',
     '0236 3929 999',
     4.5,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     12,
     1,
@@ -553,9 +503,7 @@ VALUES (
     'https://danang.intercontinental.com',
     '0236 3938 888',
     4.9,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     13,
     1,
@@ -569,9 +517,7 @@ VALUES (
     'https://www.hyatt.com/danang',
     '0236 3981 234',
     4.6,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     14,
     1,
@@ -585,9 +531,7 @@ VALUES (
     'https://www.pullman-danang.com',
     '0236 3958 888',
     4.4,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     15,
     1,
@@ -601,9 +545,7 @@ VALUES (
     'https://furamavietnam.com',
     '0236 3847 333',
     4.5,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     37,
     1,
@@ -617,9 +559,7 @@ VALUES (
     'https://www.sheraton-danang.com',
     '0236 3988 999',
     4.7,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     38,
     1,
@@ -633,9 +573,7 @@ VALUES (
     NULL,
     '0236 3997 979',
     4.3,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     39,
     1,
@@ -649,9 +587,7 @@ VALUES (
     NULL,
     '0236 3222 999',
     4.2,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     40,
     1,
@@ -665,9 +601,7 @@ VALUES (
     NULL,
     '0236 3955 555',
     4.4,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     41,
     1,
@@ -681,9 +615,7 @@ VALUES (
     NULL,
     '0236 3999 888',
     4.3,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     62,
     1,
@@ -697,9 +629,7 @@ VALUES (
     NULL,
     '0236 3722 888',
     4.2,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     63,
     1,
@@ -713,9 +643,7 @@ VALUES (
     NULL,
     '0236 3888 668',
     4.6,
-    1,
-    1
-),
+    1, 'approved', 1),
 
 -- ===== GIẢI TRÍ (category_id = 4) =====
 (
@@ -731,9 +659,7 @@ VALUES (
     'https://asiapark.sunworld.vn',
     '0236 3681 666',
     4.3,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     17,
     1,
@@ -747,9 +673,7 @@ VALUES (
     NULL,
     NULL,
     4.1,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     18,
     1,
@@ -763,9 +687,7 @@ VALUES (
     NULL,
     '0236 3888 222',
     4.0,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     42,
     1,
@@ -779,9 +701,7 @@ VALUES (
     NULL,
     NULL,
     4.2,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     43,
     1,
@@ -795,9 +715,7 @@ VALUES (
     NULL,
     NULL,
     4.0,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     44,
     1,
@@ -811,9 +729,7 @@ VALUES (
     NULL,
     '0236 3939 888',
     4.1,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     45,
     1,
@@ -827,9 +743,7 @@ VALUES (
     NULL,
     '0236 3636 668',
     4.2,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     46,
     1,
@@ -843,9 +757,7 @@ VALUES (
     NULL,
     '1900 6017',
     4.3,
-    0,
-    1
-),
+    0, 'approved', 1),
 
 -- ===== BẢO TÀNG (category_id = 5) =====
 (
@@ -861,9 +773,7 @@ VALUES (
     NULL,
     '0236 3572 935',
     4.4,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     20,
     1,
@@ -877,9 +787,7 @@ VALUES (
     NULL,
     '0236 3886 773',
     4.2,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     21,
     1,
@@ -893,9 +801,7 @@ VALUES (
     NULL,
     '0236 3835 777',
     4.1,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     47,
     1,
@@ -909,9 +815,7 @@ VALUES (
     NULL,
     '0236 3826 011',
     4.3,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     48,
     1,
@@ -925,9 +829,7 @@ VALUES (
     NULL,
     '0236 3822 288',
     4.0,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     49,
     1,
@@ -941,9 +843,7 @@ VALUES (
     NULL,
     NULL,
     4.1,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     50,
     1,
@@ -957,9 +857,7 @@ VALUES (
     NULL,
     NULL,
     4.5,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     64,
     1,
@@ -973,9 +871,7 @@ VALUES (
     NULL,
     NULL,
     4.1,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     65,
     1,
@@ -989,9 +885,7 @@ VALUES (
     NULL,
     '0236 3821 363',
     4.3,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     66,
     1,
@@ -1005,9 +899,7 @@ VALUES (
     NULL,
     '0236 3831 339',
     4.2,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     67,
     1,
@@ -1021,9 +913,7 @@ VALUES (
     NULL,
     NULL,
     4.4,
-    1,
-    1
-),
+    1, 'approved', 1),
 (
     68,
     1,
@@ -1037,9 +927,7 @@ VALUES (
     NULL,
     '0236 3888 333',
     4.3,
-    0,
-    1
-),
+    0, 'approved', 1),
 
 -- ===== ATM (category_id = 6) =====
 (
@@ -1055,9 +943,7 @@ VALUES (
     NULL,
     '1900 545 413',
     4.0,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     23,
     1,
@@ -1071,9 +957,7 @@ VALUES (
     NULL,
     '1900 9247',
     3.9,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     24,
     1,
@@ -1087,9 +971,7 @@ VALUES (
     NULL,
     '1800 588 822',
     4.0,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     25,
     1,
@@ -1103,9 +985,7 @@ VALUES (
     NULL,
     '1900 558 818',
     3.8,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     26,
     1,
@@ -1119,9 +999,7 @@ VALUES (
     NULL,
     '1900 558 868',
     3.9,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     51,
     1,
@@ -1135,9 +1013,7 @@ VALUES (
     NULL,
     '1800 545 415',
     4.0,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     52,
     1,
@@ -1151,9 +1027,7 @@ VALUES (
     NULL,
     '1900 5555 88',
     3.9,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     53,
     1,
@@ -1167,9 +1041,7 @@ VALUES (
     NULL,
     '1900 585 870',
     4.0,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     54,
     1,
@@ -1183,9 +1055,7 @@ VALUES (
     NULL,
     '1900 599 932',
     3.8,
-    0,
-    1
-),
+    0, 'approved', 1),
 (
     55,
     1,
@@ -1199,12 +1069,10 @@ VALUES (
     NULL,
     '1800 6678',
     3.9,
-    0,
-    1
-),
+    0, 'approved', 1),
 -- ===== TRẠM XĂNG (category_id = 7) =====
 (
-    56,
+    69,
     1,
     7,
     N'Petrolimex Cửa Hàng 01',
@@ -1212,7 +1080,7 @@ VALUES (
     108.2215,
     N'Nguyễn Văn Linh, Hải Châu',
     N'Trạm xăng dầu Petrolimex chính hãng',
-    NULL,
+    'https://images.unsplash.com/photo-1622060878237-a78fa1e32a67?w=400',
     NULL,
     NULL,
     4.5,
@@ -1221,7 +1089,7 @@ VALUES (
     1
 ),
 (
-    57,
+    70,
     1,
     7,
     N'Trạm Xăng PVOIL',
@@ -1229,7 +1097,7 @@ VALUES (
     108.2201,
     N'Hoàng Diệu, Hải Châu',
     N'Cây xăng PVOIL 24/7',
-    NULL,
+    'https://images.unsplash.com/photo-1527018601619-a508a2be00cd?w=400',
     NULL,
     NULL,
     4.5,
@@ -1239,7 +1107,7 @@ VALUES (
 ),
 -- ===== QUÁN CÀ PHÊ (category_id = 8) =====
 (
-    58,
+    71,
     1,
     8,
     N'Highlands Coffee Bạch Đằng',
@@ -1247,7 +1115,7 @@ VALUES (
     108.2255,
     N'Bạch Đằng, Hải Châu',
     N'Quán cà phê view sông Hàn tuyệt đẹp',
-    NULL,
+    'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=400',
     NULL,
     NULL,
     4.5,
@@ -1256,7 +1124,7 @@ VALUES (
     1
 ),
 (
-    59,
+    72,
     1,
     8,
     N'The Coffee House Nguyễn Văn Linh',
@@ -1264,7 +1132,7 @@ VALUES (
     108.2148,
     N'Nguyễn Văn Linh, Thanh Khê',
     N'The Coffee House thiết kế hiện đại',
-    NULL,
+    'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400',
     NULL,
     NULL,
     4.5,
@@ -1273,7 +1141,7 @@ VALUES (
     1
 ),
 (
-    60,
+    73,
     1,
     8,
     N'Cộng Cà Phê',
@@ -1281,7 +1149,7 @@ VALUES (
     108.2238,
     N'Trần Phú, Hải Châu',
     N'Cà phê cốt dừa phong cách bao cấp',
-    NULL,
+    'https://images.unsplash.com/photo-1498804103079-a6351b050096?w=400',
     NULL,
     NULL,
     4.5,
@@ -1291,7 +1159,7 @@ VALUES (
 ),
 -- ===== BỆNH VIỆN (category_id = 9) =====
 (
-    61,
+    74,
     1,
     9,
     N'Bệnh viện Đà Nẵng',
@@ -1299,7 +1167,7 @@ VALUES (
     108.2155,
     N'Hải Phòng, Hải Châu',
     N'Bệnh viện tuyến đầu của thành phố',
-    NULL,
+    'https://images.unsplash.com/photo-1586773860418-d37222d8fce2?w=400',
     NULL,
     NULL,
     4.5,
@@ -1308,7 +1176,7 @@ VALUES (
     1
 ),
 (
-    62,
+    75,
     1,
     9,
     N'Bệnh viện Hoàn Mỹ',
@@ -1316,7 +1184,7 @@ VALUES (
     108.2132,
     N'Nguyễn Văn Linh, Thanh Khê',
     N'Bệnh viện đa khoa quốc tế Hoàn Mỹ',
-    NULL,
+    'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400',
     NULL,
     NULL,
     4.5,

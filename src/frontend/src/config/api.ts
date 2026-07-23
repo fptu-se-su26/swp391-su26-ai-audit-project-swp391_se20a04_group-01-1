@@ -28,7 +28,8 @@ export const API_ENDPOINTS = {
   // Favorite POIs
   FAVORITE_POIS: `${API_BASE_URL}/user/favorites/pois`,
   FAVORITE_POIS_DETAILS: `${API_BASE_URL}/user/favorites/pois/details`,
-  TOGGLE_FAVORITE_POI: (id: number) => `${API_BASE_URL}/pois/${id}/favorite`
+  TOGGLE_FAVORITE_POI: (id: number) => `${API_BASE_URL}/pois/${id}/favorite`,
+  FAVORITE_LOCATIONS: `${API_BASE_URL}/favorite-locations`,
 };
 
 export default API_BASE_URL;

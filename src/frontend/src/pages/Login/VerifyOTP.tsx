@@ -219,19 +219,27 @@ export default function VerifyOTP() {
       </div>
 
       {/* Right Side */}
-
       <div className="auth-right">
-        <div className="auth-right-content flex flex-col justify-center items-center text-center">
+        <img
+          src="https://images.pexels.com/photos/2162459/pexels-photo-2162459.jpeg"
+          alt="Xác minh OTP"
+          className="auth-right-img"
+        />
+        <div className="auth-right-overlay" />
+        
+        <div className="auth-right-content flex flex-col justify-end items-start text-left">
+          <div className="auth-right-badge">
+            <ShieldCheck size={13} fill="currentColor" className="text-white fill-none" />
+            Xác thực OTP
+          </div>
 
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Kiểm tra Email 
+          <h2 className="auth-right-title">
+            Bảo mật tài khoản
           </h2>
 
-          <p className="text-blue-100 opacity-90 max-w-sm">
-            Mã OTP có hiệu lực trong 5 phút. Nếu không thấy thư trong hộp thư
-            đến, hãy kiểm tra mục <b>Spam</b> hoặc <b>Junk</b>.
+          <p className="auth-right-subtitle">
+            Mã OTP có hiệu lực trong 5 phút. Nếu không thấy thư trong hộp thư đến, hãy kiểm tra mục Spam hoặc Junk.
           </p>
-
         </div>
       </div>
     </div>

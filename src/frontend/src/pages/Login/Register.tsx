@@ -4,6 +4,7 @@ import { Eye, EyeOff, User, Lock, Mail, UserCircle, Navigation, MapPin, CheckCir
 import { authAPI } from '../../services/api';
 import { showPremiumToast } from '../../utils/toastUtils';
 import PasswordChecklist from '../../components/PasswordChecklist';
+import { validateUsername } from '../../utils/validators';
 
 // ── Right panel slides ─────────────────────────────────────────────────
 const slides = [
@@ -41,9 +42,10 @@ export default function Register() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [slide, setSlide] = useState(0);
 
-  // State quản lý API
+  // State quản lý API và Validation
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [usernameError, setUsernameError] = useState('');
 
   const [form, setForm] = useState({
     username: '',
@@ -66,58 +68,75 @@ export default function Register() {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
+  // Xử lý kiểm tra realtime cho Username
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setForm(f => ({ ...f, username: val }));
+    
+    const validation = validateUsername(val);
+    if (!validation.valid && val.length > 0) {
+      setUsernameError(validation.error || '');
+    } else {
+      setUsernameError('');
+    }
+  };
+
   // ── LOGIC GỌI API ĐĂNG KÝ ──────────────────────────────────────────
-const handleRegister = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setErrorMsg('');
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
 
-  if (pwMismatch) {
-    setErrorMsg('Mật khẩu nhập lại không khớp!');
-    return;
-  }
+    // Kiểm tra tính hợp lệ của username trước khi submit
+    const usernameValidation = validateUsername(form.username);
+    if (!usernameValidation.valid) {
+      setUsernameError(usernameValidation.error || '');
+      setErrorMsg(usernameValidation.error || 'Tên đăng nhập không hợp lệ');
+      return;
+    }
 
-  setLoading(true);
+    if (pwMismatch) {
+      setErrorMsg('Mật khẩu nhập lại không khớp!');
+      return;
+    }
 
-  try {
-    // Nếu backend yêu cầu fullName thì truyền thêm form.fullName
-    // Nếu chưa thì giữ 3 tham số như hiện tại.
-    const res = await authAPI.register(
-      form.username,
-      form.email,
-      form.password
-      // form.fullName
-    );
+    setLoading(true);
 
-    // Backend mới trả về requiresEmailVerification
-    if (res.data?.requiresEmailVerification) {
-      showPremiumToast(
-        'Tạo tài khoản thành công! Vui lòng kiểm tra email để xác minh.',
-        'success'
+    try {
+      const res = await authAPI.register(
+        form.username,
+        form.email,
+        form.password
       );
 
-      window.location.href = `${
-        import.meta.env.BASE_URL
-      }verify-otp?email=${encodeURIComponent(form.email)}`;
-    } else {
-      showPremiumToast(
-        'Tạo tài khoản thành công! Hãy đăng nhập nhé.',
-        'success'
-      );
+      if (res.data?.requiresEmailVerification) {
+        showPremiumToast(
+          'Tạo tài khoản thành công! Vui lòng kiểm tra email để xác minh.',
+          'success'
+        );
 
-      window.location.href = `${import.meta.env.BASE_URL}login`;
-    }
-  } catch (err: any) {
-    console.error(err);
+        window.location.href = `${
+          import.meta.env.BASE_URL
+        }verify-otp?email=${encodeURIComponent(form.email)}`;
+      } else {
+        showPremiumToast(
+          'Tạo tài khoản thành công! Hãy đăng nhập nhé.',
+          'success'
+        );
 
-    if (err.response?.data?.message) {
-      setErrorMsg(err.response.data.message);
-    } else {
-      setErrorMsg('Không thể kết nối đến máy chủ.');
+        window.location.href = `${import.meta.env.BASE_URL}login`;
+      }
+    } catch (err: any) {
+      console.error(err);
+
+      if (err.response?.data?.message) {
+        setErrorMsg(err.response.data.message);
+      } else {
+        setErrorMsg('Không thể kết nối đến máy chủ.');
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div className="auth-wrapper">
@@ -159,11 +178,22 @@ const handleRegister = async (e: React.FormEvent) => {
                   className="form-input"
                   placeholder="Ví dụ: johndoe123"
                   value={form.username}
-                  onChange={set('username')}
+                  onChange={handleUsernameChange}
                   autoComplete="username"
                   required
+                  style={{
+                    borderColor: usernameError ? '#EF4444' : undefined,
+                  }}
                 />
               </div>
+              {usernameError && (
+                <p style={{ fontSize: '0.75rem', color: '#EF4444', marginTop: '0.25rem' }}>
+                  {usernameError}
+                </p>
+              )}
+              <p style={{ fontSize: '0.7rem', color: '#64748B', marginTop: '0.25rem' }}>
+                Từ 4-20 ký tự, bắt đầu bằng chữ cái, chỉ chứa chữ cái không dấu, số và dấu gạch dưới (_).
+              </p>
             </div>
 
             {/* Email */}
@@ -182,7 +212,7 @@ const handleRegister = async (e: React.FormEvent) => {
                   required
                 />
               </div>
-</div>
+            </div>
 
             {/* Full name */}
             <div className="form-group animate-fade-up delay-3">
@@ -319,21 +349,28 @@ const handleRegister = async (e: React.FormEvent) => {
         </div>
       </div>
 
-      {/* ── RIGHT PANEL ─────────────────────────────────────── */}
-      <div className="auth-right">
-        <img
-          key={slide}
-          src={current.img}
-          alt={current.badge}
-          className="auth-right-img"
-          style={{ animation: 'fadeInUp 0.8s ease both' }}
-        />
-        <div className="auth-right-overlay" />
+      {/* ── RIGHT PANEL (Slider trượt ngang hoàn chỉnh) ─────────────────────── */}
+      <div className="auth-right" style={{ position: 'relative', overflow: 'hidden' }}>
+        {slides.map((s, index) => (
+          <img
+            key={index}
+            src={s.img}
+            alt={s.badge}
+            className="auth-right-img"
+            style={{
+              left: `${index * 100}%`,
+              right: 'auto',
+              transform: `translateX(-${slide * 100}%)`,
+              transition: 'transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)',
+            }}
+          />
+        ))}
+        <div className="auth-right-overlay" style={{ position: 'absolute', inset: 0, zIndex: 1 }} />
 
         {/* Feature list card */}
         <div
           className="auth-right-stats"
-          style={{ flexDirection: 'column' }}
+          style={{ flexDirection: 'column', zIndex: 2, position: 'absolute' }}
         >
           <div className="stat-card" style={{ minWidth: 'auto' }}>
             <div className="stat-value">50K+</div>
@@ -341,7 +378,7 @@ const handleRegister = async (e: React.FormEvent) => {
           </div>
         </div>
 
-        <div className="auth-right-content">
+        <div className="auth-right-content" style={{ zIndex: 2, position: 'absolute', inset: 0 }}>
           <div className="auth-right-badge">
             <MapPin size={13} strokeWidth={2.5} />
             {current.badge}

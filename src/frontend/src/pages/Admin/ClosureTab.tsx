@@ -5,6 +5,22 @@ import { eventRoadService } from '../../services/eventRoadService';
 import toast from 'react-hot-toast';
 import { showPremiumToast } from '../../utils/toastUtils';
 
+function formatToDatetimeLocal(dateStr?: string | null): string {
+    if (!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+    } catch (e) {
+        return '';
+    }
+}
+
 interface Props {
     roadClosures: RoadClosure[];
     events: DBEvent[];
@@ -79,11 +95,17 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
                 if (!mapboxToken) return;
                 const response = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(startQuery)}.json?access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
+                    `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(startQuery)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
                 );
                 const data = await response.json();
                 if (data.features) {
-                    setStartSuggestions(data.features);
+                    const normalized = data.features.map((f: any) => ({
+                        id: f.properties?.mapbox_id || f.id,
+                        place_name: f.properties?.full_address || f.properties?.name || "",
+                        place_name_vi: f.properties?.full_address || f.properties?.name || "",
+                        center: f.geometry?.coordinates || [0, 0]
+                    }));
+                    setStartSuggestions(normalized);
                     setShowStartSuggestions(true);
                 }
             } catch (error) {
@@ -107,11 +129,17 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                 const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
                 if (!mapboxToken) return;
                 const response = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(endQuery)}.json?access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
+                    `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(endQuery)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
                 );
                 const data = await response.json();
                 if (data.features) {
-                    setEndSuggestions(data.features);
+                    const normalized = data.features.map((f: any) => ({
+                        id: f.properties?.mapbox_id || f.id,
+                        place_name: f.properties?.full_address || f.properties?.name || "",
+                        place_name_vi: f.properties?.full_address || f.properties?.name || "",
+                        center: f.geometry?.coordinates || [0, 0]
+                    }));
+                    setEndSuggestions(normalized);
                     setShowEndSuggestions(true);
                 }
             } catch (error) {
@@ -489,7 +517,16 @@ export default function ClosureTab({ roadClosures, events, onRefresh }: Props) {
                                         <div className="relative">
                                             <select
                                                 value={formData.event_id}
-                                                onChange={e => setFormData(prev => ({ ...prev, event_id: e.target.value }))}
+                                                onChange={e => {
+                                                    const selectedId = e.target.value;
+                                                    const selectedEvent = events.find(evt => String(evt.event_id) === String(selectedId));
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        event_id: selectedId,
+                                                        restriction_start: selectedEvent ? formatToDatetimeLocal(selectedEvent.start_time) : prev.restriction_start,
+                                                        restriction_end: selectedEvent ? formatToDatetimeLocal(selectedEvent.end_time) : prev.restriction_end
+                                                    }));
+                                                }}
                                                 className="w-full text-xs font-semibold pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 appearance-none cursor-pointer"
                                                 required
                                             >

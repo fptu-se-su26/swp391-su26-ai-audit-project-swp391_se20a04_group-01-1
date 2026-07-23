@@ -15,11 +15,13 @@ const CATEGORIES = [
   { id: 2, name: "Nhà hàng" },
   { id: 3, name: "Khách sạn" },
   { id: 4, name: "Giải trí" },
-  { id: 5, name: "Khu mua sắm" },
-  { id: 6, name: "Khác" },
+  { id: 5, name: "Bảo tàng" },
+  { id: 6, name: "ATM" },
   { id: 7, name: "Trạm xăng" },
   { id: 8, name: "Quán cà phê" },
   { id: 9, name: "Bệnh viện" },
+  { id: 10, name: "Nhà thuốc" },
+  { id: 11, name: "Khu mua sắm" },
 ];
 
 const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, location, initialData }) => {
@@ -30,9 +32,22 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
     description: initialData?.description || "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(initialData?.image_url ? `http://localhost:5001${initialData.image_url}` : null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(() => {
+    if (!initialData?.image_url) return null;
+    const base = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+    const url = initialData.image_url;
+    return url.startsWith('http') || url.startsWith('blob:') ? url : `${base}${url}`;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+
+  const [poiLocation, setPoiLocation] = useState<{ lat: number; lng: number } | null>(
+    location ? { lat: location.lat, lng: location.lng } : null
+  );
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     if (location && !initialData) {
@@ -58,6 +73,41 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
     }
   }, [location, initialData]);
 
+  useEffect(() => {
+    if (!isFocused || !formData.address.trim() || formData.address.length < 3) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      setLoadingSuggestions(true);
+      try {
+        const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+        const response = await fetch(
+          `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(formData.address)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
+        );
+        const data = await response.json();
+        if (data.features) {
+          const normalized = data.features.map((f: any) => ({
+            id: f.properties?.mapbox_id || f.id,
+            place_name: f.properties?.full_address || f.properties?.name || "",
+            place_name_vi: f.properties?.full_address || f.properties?.name || "",
+            center: f.geometry?.coordinates || [0, 0],
+          }));
+          setSuggestions(normalized);
+          setShowSuggestions(true);
+        }
+      } catch (error) {
+        console.error("Lỗi lấy gợi ý địa chỉ:", error);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [formData.address, isFocused]);
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -81,9 +131,9 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
       submitData.append('address', formData.address);
       submitData.append('description', formData.description);
       
-      if (location) {
-        submitData.append('latitude', location.lat.toString());
-        submitData.append('longitude', location.lng.toString());
+      if (poiLocation) {
+        submitData.append('latitude', poiLocation.lat.toString());
+        submitData.append('longitude', poiLocation.lng.toString());
       } else if (initialData) {
         submitData.append('latitude', initialData.latitude.toString());
         submitData.append('longitude', initialData.longitude.toString());
@@ -161,7 +211,7 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
             </select>
           </div>
 
-          <div>
+          <div className="relative">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               Địa chỉ (không bắt buộc)
             </label>
@@ -171,8 +221,37 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
               disabled={isLoadingAddress}
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-200 disabled:opacity-60"
               value={formData.address}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setTimeout(() => setIsFocused(false), 200)}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
             />
+            {loadingSuggestions && (
+              <div className="absolute right-3 top-[38px] -translate-y-1/2">
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 left-0 right-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                {suggestions.map((item: any) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      const [lng, lat] = item.center;
+                      setPoiLocation({ lat, lng });
+                      setFormData((prev) => ({
+                        ...prev,
+                        address: item.place_name_vi || item.place_name,
+                      }));
+                      setShowSuggestions(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
+                  >
+                    {item.place_name_vi || item.place_name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

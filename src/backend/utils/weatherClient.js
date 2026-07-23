@@ -6,7 +6,8 @@ const DISTRICTS = {
     "Sơn Trà": { lat: 16.0827, lon: 108.2435 },
     "Ngũ Hành Sơn": { lat: 16.0232, lon: 108.2562 },
     "Cẩm Lệ": { lat: 16.0156, lon: 108.2045 },
-    "Hòa Vang": { lat: 15.9904, lon: 108.0674 }
+    "Hòa Vang": { lat: 15.9904, lon: 108.0674 },
+    "Hội An": { lat: 15.8801, lon: 108.3380 }
 };
 
 // Lưu trữ dữ liệu thời tiết giả lập trong bộ nhớ để làm fallback hoặc test
