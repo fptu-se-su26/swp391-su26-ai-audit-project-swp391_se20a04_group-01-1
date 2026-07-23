@@ -1954,7 +1954,9 @@ const DANANG_FAMOUS_LANDMARKS = [
             );
 
             // Chỉ hiển thị icon No Entry đối với đường cấm hoàn toàn
-            if (road.restriction_type !== "CLOSED") return null;
+            if (!midCoord || !Array.isArray(midCoord) || midCoord.length < 2 || isNaN(midCoord[0]) || isNaN(midCoord[1]) || midCoord[1] < -90 || midCoord[1] > 90) {
+              return null;
+            }
 
             return (
               <Marker
@@ -1999,11 +2001,18 @@ const DANANG_FAMOUS_LANDMARKS = [
                 return <AlertTriangle size={13} />;
               };
 
+              const lat = Number(alert.latitude);
+              const lng = Number(alert.longitude);
+
+              if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                return null;
+              }
+
               return (
                 <Marker
                   key={`traffic-alert-${alert.id}`}
-                  longitude={alert.longitude}
-                  latitude={alert.latitude}
+                  longitude={lng}
+                  latitude={lat}
                   anchor="bottom"
                 >
                   <div
