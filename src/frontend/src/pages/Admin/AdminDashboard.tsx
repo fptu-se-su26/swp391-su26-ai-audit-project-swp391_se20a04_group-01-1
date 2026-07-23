@@ -477,41 +477,26 @@ export default function AdminDashboard() {
     }
   };
 
-  // Hàm xử lý thay đổi trạng thái duyệt sự kiện (Pending <-> Approved)
-  const handleApproveEvent = async (eventId: number, currentStatus: string) => {
-    // Sự kiện đã huỷ phải được khôi phục qua form Sửa, không toggle nhanh ở đây.
-    if (currentStatus === "cancelled") return;
-
-    const newStatus = currentStatus === "approved" ? "pending" : "approved";
-
+  // Hàm xử lý thay đổi trạng thái duyệt sự kiện (Pending -> Approved / Rejected)
+  const handleApproveEvent = async (eventId: number, targetStatus: string) => {
     try {
-      const token =
-        localStorage.getItem("token") || localStorage.getItem("auth_token");
-      const response = await fetch(
-        `${BASE_URL}/api/admin/events/${eventId}/status`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
-        },
+      await eventAPI.updateEventStatus(eventId, targetStatus as any);
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.event_id === eventId ? { ...e, status: targetStatus } : e
+        )
       );
-
-      const result = await response.json();
-      if (response.ok && result.success) {
-        alert("🎉 " + result.message);
-        window.location.reload(); // Tải lại trang để cập nhật danh sách
-      } else {
-        alert(
-          "❌ Lỗi: " +
-            (result.message || "Không thể thay đổi trạng thái sự kiện."),
-        );
-      }
-    } catch (error) {
-      console.error("Lỗi kết nối khi cập nhật trạng thái sự kiện:", error);
-      alert("❌ Lỗi kết nối đến máy chủ.");
+      showPremiumToast(
+        targetStatus === "approved"
+          ? "Đã duyệt sự kiện thành công!"
+          : targetStatus === "rejected"
+          ? "Đã từ chối sự kiện!"
+          : "Đã cập nhật trạng thái sự kiện!",
+        targetStatus === "approved" ? "success" : "info"
+      );
+    } catch (error: any) {
+      console.error("Lỗi khi cập nhật trạng thái sự kiện:", error);
+      showPremiumToast("Lỗi khi cập nhật trạng thái sự kiện.", "error");
     }
   };
 

@@ -101,19 +101,22 @@ export default function EventsTab({
     }
   };
 
-  const handleQuickStatusUpdate = async (
-    id: number,
-    newStatus: "approved" | "rejected" | "pending"
-  ) => {
-    try {
-      await eventAPI.updateEventStatus(id, newStatus);
-      handleApproveEvent(id, newStatus);
-    } catch (err: any) {
-      alert(
-        "Lỗi cập nhật trạng thái: " +
-          (err.response?.data?.message || err.message)
-      );
-    }
+  // Custom confirm modal for rejecting events
+  const [rejectEventModal, setRejectEventModal] = React.useState<{
+    isOpen: boolean;
+    eventId: number | null;
+    eventTitle: string;
+  }>({
+    isOpen: false,
+    eventId: null,
+    eventTitle: "",
+  });
+
+  const handleConfirmRejectEvent = () => {
+    if (!rejectEventModal.eventId) return;
+    const id = rejectEventModal.eventId;
+    setRejectEventModal({ isOpen: false, eventId: null, eventTitle: "" });
+    handleApproveEvent(id, "rejected");
   };
 
   const [addressSuggestions, setAddressSuggestions] = React.useState<any[]>([]);
@@ -440,14 +443,14 @@ export default function EventsTab({
                           {e.status === "pending" && (
                             <>
                               <button
-                                onClick={() => handleQuickStatusUpdate(e.event_id, "approved")}
+                                onClick={() => handleApproveEvent(e.event_id, "approved")}
                                 className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm"
                                 title="Duyệt sự kiện này"
                               >
                                 <CheckCircle2 size={13} /> Duyệt
                               </button>
                               <button
-                                onClick={() => handleQuickStatusUpdate(e.event_id, "rejected")}
+                                onClick={() => setRejectEventModal({ isOpen: true, eventId: e.event_id, eventTitle: e.title })}
                                 className="px-2.5 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1"
                                 title="Từ chối sự kiện"
                               >
@@ -890,6 +893,45 @@ export default function EventsTab({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM CONFIRM MODAL TỪ CHỐI SỰ KIỆN */}
+      {rejectEventModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full text-left font-sans animate-scale-up">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-rose-50 text-rose-600 border border-rose-100">
+                <XCircle size={22} />
+              </span>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                  Xác nhận từ chối
+                </h3>
+                <p className="text-xs text-slate-400">Sự kiện thu thập/đóng góp</p>
+              </div>
+            </div>
+            <p className="text-xs font-semibold text-slate-600 mb-6 leading-relaxed">
+              Bạn có chắc chắn muốn từ chối sự kiện <strong className="text-slate-800">"{rejectEventModal.eventTitle}"</strong> không?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setRejectEventModal({ isOpen: false, eventId: null, eventTitle: "" })}
+                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRejectEvent}
+                className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md shadow-rose-200 transition-all flex items-center gap-1"
+              >
+                <XCircle size={14} />
+                Xác nhận từ chối
+              </button>
+            </div>
           </div>
         </div>
       )}

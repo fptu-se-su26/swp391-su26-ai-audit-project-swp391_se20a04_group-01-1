@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Search, CheckCircle, XCircle } from 'lucide-react';
+import { MapPin, Search, CheckCircle, XCircle, AlertTriangle, X } from 'lucide-react';
 import { poiAPI } from '../../services/api';
 import { showPremiumToast } from '../../utils/toastUtils';
 
@@ -10,6 +10,17 @@ interface POIsTabProps {
 export default function POIsTab({ onRefresh }: POIsTabProps) {
     const [pendingPOIs, setPendingPOIs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Custom confirm modal for rejecting POIs
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        poiId: number | null;
+        poiName: string;
+    }>({
+        isOpen: false,
+        poiId: null,
+        poiName: ''
+    });
 
     const fetchPendingPOIs = async () => {
         try {
@@ -33,7 +44,7 @@ export default function POIsTab({ onRefresh }: POIsTabProps) {
     const handleApprove = async (id: number) => {
         try {
             await poiAPI.approvePOI(id);
-            showPremiumToast("Đã duyệt địa điểm", "success");
+            showPremiumToast("Đã duyệt địa điểm thành công!", "success");
             fetchPendingPOIs();
             if (onRefresh) onRefresh();
         } catch (error) {
@@ -42,8 +53,19 @@ export default function POIsTab({ onRefresh }: POIsTabProps) {
         }
     };
 
-    const handleReject = async (id: number) => {
-        if (!window.confirm("Bạn có chắc chắn muốn từ chối địa điểm này?")) return;
+    const handleOpenRejectModal = (poi: any) => {
+        setConfirmModal({
+            isOpen: true,
+            poiId: poi.poi_id,
+            poiName: poi.name
+        });
+    };
+
+    const handleConfirmReject = async () => {
+        if (!confirmModal.poiId) return;
+        const id = confirmModal.poiId;
+        setConfirmModal({ isOpen: false, poiId: null, poiName: '' });
+        
         try {
             await poiAPI.rejectPOI(id);
             showPremiumToast("Đã từ chối địa điểm", "success");
@@ -118,7 +140,7 @@ export default function POIsTab({ onRefresh }: POIsTabProps) {
                                                 <CheckCircle size={18} />
                                             </button>
                                             <button
-                                                onClick={() => handleReject(poi.poi_id)}
+                                                onClick={() => handleOpenRejectModal(poi)}
                                                 className="p-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                                                 title="Từ chối"
                                             >
@@ -132,6 +154,43 @@ export default function POIsTab({ onRefresh }: POIsTabProps) {
                     </tbody>
                 </table>
             </div>
+
+            {/* CUSTOM CONFIRM MODAL TỪ CHỐI POI */}
+            {confirmModal.isOpen && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full text-left font-sans animate-scale-up">
+                        <div className="flex items-center gap-3 mb-4">
+                            <span className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-rose-50 text-rose-600 border border-rose-100">
+                                <AlertTriangle size={20} />
+                            </span>
+                            <div>
+                                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                                    Xác nhận từ chối
+                                </h3>
+                                <p className="text-xs text-slate-400">Địa điểm đóng góp</p>
+                            </div>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-600 mb-6 leading-relaxed">
+                            Bạn có chắc chắn muốn từ chối địa điểm <strong className="text-slate-800">"{confirmModal.poiName}"</strong> không?
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setConfirmModal({ isOpen: false, poiId: null, poiName: '' })}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+                            >
+                                Hủy bỏ
+                            </button>
+                            <button
+                                onClick={handleConfirmReject}
+                                className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md shadow-rose-200 transition-all flex items-center gap-1"
+                            >
+                                <XCircle size={14} />
+                                Xác nhận từ chối
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
