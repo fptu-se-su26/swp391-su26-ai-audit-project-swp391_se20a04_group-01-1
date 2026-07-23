@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Popup } from "react-map-gl/mapbox";
 import { Navigation, X, RouteOff } from "lucide-react";
 import { EventRoad } from "../../../services/eventRoadService";
@@ -19,7 +19,7 @@ interface MapPopupsOrchestratorProps {
     label: string,
     type: string,
     onSuccess: () => void,
-    onError: () => void
+    onError: () => void,
   ) => void;
   handleOpenReportModal: (lat: number, lng: number) => void;
 
@@ -40,6 +40,13 @@ interface MapPopupsOrchestratorProps {
   selectedRoadPopup: EventRoad | null;
   setSelectedRoadPopup: (val: EventRoad | null) => void;
   isRoadRestrictionActive: (road: EventRoad, date: Date) => boolean;
+
+  fetchTrafficAlertVotes: (alertId: number) => Promise<void>;
+  handleVoteTrafficAlert: (
+    alertId: number,
+    voteType: "LIKE" | "DISLIKE",
+  ) => Promise<void>;
+  trafficVoteLoading: boolean;
 }
 
 export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
@@ -64,7 +71,22 @@ export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
   selectedRoadPopup,
   setSelectedRoadPopup,
   isRoadRestrictionActive,
+
+  fetchTrafficAlertVotes,
+  handleVoteTrafficAlert,
+  trafficVoteLoading,
 }) => {
+  useEffect(() => {
+    if (!selectedTrafficAlert) {
+      return;
+    }
+
+    const alertId = selectedTrafficAlert.id ?? selectedTrafficAlert.alert_id;
+
+    if (alertId) {
+      fetchTrafficAlertVotes(Number(alertId));
+    }
+  }, [selectedTrafficAlert?.id, selectedTrafficAlert?.alert_id]);
   return (
     <>
       {/* 1. PENDING DESTINATION POPUP */}
@@ -102,7 +124,8 @@ export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
               </button>
             </div>
             <p className="text-[10px] text-slate-500 mb-3 text-left leading-normal">
-              Hệ thống sẽ vẽ lộ trình tối ưu và cảnh báo tránh các vùng ngập lụt nếu có.
+              Hệ thống sẽ vẽ lộ trình tối ưu và cảnh báo tránh các vùng ngập lụt
+              nếu có.
             </p>
             <div className="flex gap-2">
               <button
@@ -143,7 +166,7 @@ export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
                   if (pendingDestination) {
                     handleOpenReportModal(
                       pendingDestination.lat,
-                      pendingDestination.lng
+                      pendingDestination.lng,
                     );
                   }
                 }}
@@ -186,15 +209,15 @@ export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
                   selectedFloodZone.properties.risk_level === "High"
                     ? "bg-red-100 text-red-600"
                     : selectedFloodZone.properties.risk_level === "Medium"
-                    ? "bg-orange-100 text-orange-600"
-                    : "bg-yellow-100 text-yellow-600"
+                      ? "bg-orange-100 text-orange-600"
+                      : "bg-yellow-100 text-yellow-600"
                 }`}
               >
                 {selectedFloodZone.properties.risk_level === "High"
                   ? "Cao"
                   : selectedFloodZone.properties.risk_level === "Medium"
-                  ? "Trung bình"
-                  : "Thấp"}
+                    ? "Trung bình"
+                    : "Thấp"}
               </span>
             </div>
             <p className="text-[11px] text-slate-600 leading-relaxed border-t border-slate-100 pt-1.5 pb-1.5">
@@ -223,23 +246,25 @@ export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
                   selectedTrafficAlert.type === "CONGESTION"
                     ? "bg-orange-50 border-orange-200 text-orange-600"
                     : selectedTrafficAlert.type === "ACCIDENT"
-                    ? "bg-red-50 border-red-200 text-red-600"
-                    : "bg-blue-50 border-blue-200 text-blue-600"
+                      ? "bg-red-50 border-red-200 text-red-600"
+                      : "bg-blue-50 border-blue-200 text-blue-600"
                 }`}
               >
                 {selectedTrafficAlert.type === "CONGESTION"
                   ? "Kẹt xe"
                   : selectedTrafficAlert.type === "ACCIDENT"
-                  ? "Tai nạn"
-                  : "Thi công"}
+                    ? "Tai nạn"
+                    : selectedTrafficAlert.type === "FLOOD"
+                      ? "Ngập lụt"
+                      : "Thi công"}
               </span>
               <span
                 className={`text-[9px] font-black px-2 py-0.5 rounded-full border uppercase ${
                   selectedTrafficAlert.severity === "HIGH"
                     ? "bg-red-100 border-red-300 text-red-700"
                     : selectedTrafficAlert.severity === "MEDIUM"
-                    ? "bg-orange-100 border-orange-300 text-orange-700"
-                    : "bg-blue-100 border-blue-300 text-blue-700"
+                      ? "bg-orange-100 border-orange-300 text-orange-700"
+                      : "bg-blue-100 border-blue-300 text-blue-700"
                 }`}
               >
                 {selectedTrafficAlert.severity}
@@ -256,6 +281,76 @@ export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
             <p className="text-[10px] text-slate-400 font-semibold mb-1 flex items-center gap-1">
               📍 {selectedTrafficAlert.location}
             </p>
+            <div className="border-t border-slate-100 mt-3 pt-3">
+              <p className="text-[10px] text-slate-500 font-semibold mb-2">
+                Cảnh báo này còn chính xác không?
+              </p>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={trafficVoteLoading}
+                  onClick={() =>
+                    handleVoteTrafficAlert(
+                      Number(
+                        selectedTrafficAlert.id ??
+                          selectedTrafficAlert.alert_id,
+                      ),
+                      "LIKE",
+                    )
+                  }
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition-all disabled:opacity-50 ${
+                    selectedTrafficAlert.my_vote === "LIKE"
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  }`}
+                >
+                  <span>👍</span>
+
+                  <span>Còn đúng ({selectedTrafficAlert.like_count ?? 0})</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={trafficVoteLoading}
+                  onClick={() =>
+                    handleVoteTrafficAlert(
+                      Number(
+                        selectedTrafficAlert.id ??
+                          selectedTrafficAlert.alert_id,
+                      ),
+                      "DISLIKE",
+                    )
+                  }
+                  className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold transition-all disabled:opacity-50 ${
+                    selectedTrafficAlert.my_vote === "DISLIKE"
+                      ? "border-red-500 bg-red-500 text-white"
+                      : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                  }`}
+                >
+                  <span>👎</span>
+
+                  <span>
+                    Không đúng ({selectedTrafficAlert.dislike_count ?? 0})
+                  </span>
+                </button>
+              </div>
+
+              {trafficVoteLoading && (
+                <p className="mt-2 text-center text-[10px] font-semibold text-slate-400">
+                  Đang gửi đánh giá...
+                </p>
+              )}
+
+              {selectedTrafficAlert.expire_at && (
+                <p className="mt-2 text-[9px] text-slate-400">
+                  Hết hiệu lực:{" "}
+                  {new Date(selectedTrafficAlert.expire_at).toLocaleString(
+                    "vi-VN",
+                  )}
+                </p>
+              )}
+            </div>
           </div>
         </Popup>
       )}
@@ -293,7 +388,7 @@ export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
               {(() => {
                 const active = isRoadRestrictionActive(
                   selectedRoadPopup,
-                  new Date()
+                  new Date(),
                 );
                 return (
                   <div
@@ -314,10 +409,10 @@ export const MapPopupsOrchestrator: React.FC<MapPopupsOrchestratorProps> = ({
                 {selectedRoadPopup.restriction_type === "CLOSED"
                   ? "🔴 Cấm hoàn toàn"
                   : selectedRoadPopup.restriction_type === "LIMITED"
-                  ? "🟡 Hạn chế lưu thông"
-                  : selectedRoadPopup.restriction_type === "ONE_WAY"
-                  ? "🔵 Đường một chiều"
-                  : "Hạn chế cấm đỗ"}
+                    ? "🟡 Hạn chế lưu thông"
+                    : selectedRoadPopup.restriction_type === "ONE_WAY"
+                      ? "🔵 Đường một chiều"
+                      : "Hạn chế cấm đỗ"}
               </p>
 
               <p className="text-[11px] text-slate-600 bg-slate-50 p-1.5 rounded border border-slate-100 mb-1.5 leading-relaxed">

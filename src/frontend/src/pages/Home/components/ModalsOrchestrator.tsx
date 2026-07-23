@@ -109,6 +109,14 @@ export const ModalsOrchestrator: React.FC<ModalsOrchestratorProps> = ({
         onChangeLocation={(val) =>
           setReportFormData({ ...reportFormData, location: val })
         }
+        type={reportFormData.type}
+        onChangeType={(val) =>
+          setReportFormData({ ...reportFormData, type: val })
+        }
+        severity={reportFormData.severity}
+        onChangeSeverity={(val) =>
+          setReportFormData({ ...reportFormData, severity: val })
+        }
         onSubmit={handleSubmitTrafficReport}
       />
 

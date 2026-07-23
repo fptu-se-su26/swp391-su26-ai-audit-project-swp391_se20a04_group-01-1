@@ -10,6 +10,10 @@ interface ReportTrafficModalProps {
   onChangeDescription: (val: string) => void;
   location: string;
   onChangeLocation: (val: string) => void;
+  type: string;
+  onChangeType: (val: string) => void;
+  severity: string;
+  onChangeSeverity: (val: string) => void;
   onSubmit: (e: React.FormEvent) => void;
 }
 
@@ -22,6 +26,10 @@ export const ReportTrafficModal: React.FC<ReportTrafficModalProps> = ({
   onChangeDescription,
   location,
   onChangeLocation,
+  type,
+  onChangeType,
+  severity,
+  onChangeSeverity,
   onSubmit,
 }) => {
   if (!isOpen) return null;
@@ -71,6 +79,37 @@ export const ReportTrafficModal: React.FC<ReportTrafficModalProps> = ({
             onChange={(e) => onChangeLocation(e.target.value)}
             className="w-full px-4 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none"
           />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                Loại sự cố
+              </label>
+              <select
+                value={type}
+                onChange={(e) => onChangeType(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none bg-white"
+              >
+                <option value="CONGESTION">Kẹt xe</option>
+                <option value="ACCIDENT">Tai nạn</option>
+                <option value="CONSTRUCTION">Thi công</option>
+                <option value="FLOOD">Ngập lụt / Mưa</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                Mức độ
+              </label>
+              <select
+                value={severity}
+                onChange={(e) => onChangeSeverity(e.target.value)}
+                className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 outline-none bg-white"
+              >
+                <option value="LOW">Thấp</option>
+                <option value="MEDIUM">Trung bình</option>
+                <option value="HIGH">Cao</option>
+              </select>
+            </div>
+          </div>
           <div className="flex justify-end gap-3 pt-3">
             <button
               type="submit"

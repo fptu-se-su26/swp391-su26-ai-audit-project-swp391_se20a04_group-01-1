@@ -144,7 +144,16 @@ export const adminAPI = {
 
 export const trafficAlertAPI = {
   getTrafficAlerts: () => apiClient.get("/traffic-alerts"),
+
   createTrafficAlert: (data: any) => apiClient.post("/traffic-alerts", data),
+
+  getTrafficAlertVotes: (alertId: number) =>
+    apiClient.get(`/traffic-alerts/${alertId}/votes`),
+
+  voteTrafficAlert: (alertId: number, voteType: "LIKE" | "DISLIKE") =>
+    apiClient.put(`/traffic-alerts/${alertId}/vote`, {
+      voteType,
+    }),
 };
 
 export default apiClient;
