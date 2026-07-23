@@ -499,15 +499,50 @@ export default function Home() {
     setPendingDestination(null);
   };
 
-  const handleEventClick = (evt: EventData) => {
+  const handleEventClick = async (evt: EventData) => {
+    // Mở chi tiết sự kiện ngay khi người dùng nhấn
     setSelectedEvent(evt);
-    setShowSavedRoutesSidebar(false);
-    setSelectedPOI(null);
-    mapRef.current?.flyTo({
-      center: [evt.longitude, evt.latitude],
-      zoom: 15,
-      duration: 1200,
-    });
+
+    try {
+      const response = await eventAPI.incrementView(evt.event_id);
+
+      const newViewCount =
+        response.data?.data?.view_count ?? response.data?.view_count;
+
+      if (typeof newViewCount !== "number") {
+        console.warn(
+          "API tăng lượt xem không trả về view_count hợp lệ:",
+          response.data,
+        );
+        return;
+      }
+
+      // Cập nhật sự kiện đang được mở
+      setSelectedEvent((current) => {
+        if (!current || current.event_id !== evt.event_id) {
+          return current;
+        }
+
+        return {
+          ...current,
+          view_count: newViewCount,
+        };
+      });
+
+      // Cập nhật luôn danh sách sự kiện
+      setEvents((currentEvents) =>
+        currentEvents.map((item) =>
+          item.event_id === evt.event_id
+            ? {
+                ...item,
+                view_count: newViewCount,
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      console.error("Không thể tăng lượt xem sự kiện:", error);
+    }
   };
 
   const handlePOIClick = (poi: POIData) => {
@@ -1154,7 +1189,6 @@ export default function Home() {
       }
     }
   }, [location.search, savedRoutes, navigate]);
-
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
