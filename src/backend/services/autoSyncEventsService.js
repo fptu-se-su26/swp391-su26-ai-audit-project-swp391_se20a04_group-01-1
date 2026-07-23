@@ -438,10 +438,12 @@ async function syncDanangEventsAutomatically() {
   const summary = { inserted: 0, updated: 0, skipped: 0, invalid: 0, total: 0 };
   try {
     console.log(
-      "🔄 [CRON] Bắt đầu tự động đồng bộ sự kiện từ các bài viết lẻ...",
+      "🔄 [CRON] Bắt đầu tự động đồng bộ sự kiện từ DanangFantastiCity qua AI Scraper...",
     );
+    const { runAiEventScraper } = require('./aiScraperService');
+    await runAiEventScraper();
 
-    // Gọi đúng hàm cào link bài lẻ
+    // Gọi thêm hàm cào link bài lẻ
     let links = await fetchEventLinksFromListing();
     if (!links || links.length === 0) {
       console.log("[CRON] Không tìm thấy link bài viết sự kiện lẻ nào.");
