@@ -507,6 +507,19 @@ export default function Home() {
     // Mở chi tiết sự kiện ngay khi người dùng nhấn
     setSelectedEvent(evt);
 
+    // Tự động bay (flyTo) đến vị trí địa điểm của sự kiện trên bản đồ
+    if (evt.longitude && evt.latitude && mapRef.current) {
+      const lng = Number(evt.longitude);
+      const lat = Number(evt.latitude);
+      if (!isNaN(lng) && !isNaN(lat) && lng > 0 && lat > 0) {
+        mapRef.current.flyTo({
+          center: [lng, lat],
+          zoom: 15.5,
+          duration: 1200,
+        });
+      }
+    }
+
     try {
       const response = await eventAPI.incrementView(evt.event_id);
 
