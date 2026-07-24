@@ -2704,7 +2704,7 @@ export default function Home() {
 
       {/* EVENT DETAIL SIDEBAR */}
       {!isNavigating && selectedEvent && (
-        <div className="absolute right-20 top-24 z-20 pointer-events-none">
+        <div className="absolute right-20 top-24 z-[200] max-md:fixed max-md:inset-0 max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:z-[450] pointer-events-none">
           <EventDetailSidebar
             event={selectedEvent}
             isFavorite={favoriteEventIds.has(selectedEvent.event_id)}
@@ -2751,7 +2751,7 @@ export default function Home() {
         !isNavigating &&
         viewMode === "pois" &&
         selectedFilter !== null && (
-          <div className="absolute right-20 top-24 z-20 pointer-events-none hidden md:block">
+          <div className="absolute right-20 top-24 z-[200] max-md:fixed max-md:inset-0 max-md:top-auto max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:z-[450] pointer-events-none hidden md:block">
             <div className="pointer-events-auto">
               <POIFeaturedSidebar
                 pois={pois}

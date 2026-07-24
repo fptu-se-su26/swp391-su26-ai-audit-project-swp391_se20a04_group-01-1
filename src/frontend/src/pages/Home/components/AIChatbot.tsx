@@ -242,7 +242,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({
   return (
     <>
       {/* 1. NÚT CHAT BONG BÓNG LƠ LỬNG */}
-      <div className="fixed bottom-6 right-6 max-md:bottom-4 max-md:right-20 max-md:left-auto md:right-12 md:left-auto z-30 md:z-[300]">
+      <div className="fixed bottom-6 right-6 max-md:bottom-4 max-md:right-12 max-md:left-auto md:right-12 md:left-auto z-30 md:z-[300]">
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}

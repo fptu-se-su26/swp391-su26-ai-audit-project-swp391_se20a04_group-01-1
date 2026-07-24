@@ -295,7 +295,7 @@ export function WeatherWidget({
 
   if (loading && weatherList.length === 0) {
     return (
-      <div className="absolute bottom-6 right-16 max-md:bottom-24 max-md:right-3 z-20 w-64 max-md:w-[270px] max-md:max-w-[calc(100vw-24px)] bg-white/90 backdrop-blur-md border border-slate-100 rounded-2xl p-3 shadow-xl flex items-center justify-center gap-2 text-xs text-slate-500">
+      <div className="absolute bottom-6 right-16 max-md:bottom-24 max-md:right-16 z-20 w-64 max-md:w-[270px] max-md:max-w-[calc(100vw-24px)] bg-white/90 backdrop-blur-md border border-slate-100 rounded-2xl p-3 shadow-xl flex items-center justify-center gap-2 text-xs text-slate-500">
         <RefreshCw className="w-4 h-4 animate-spin animate-spin-slow" />
         Đang tải thời tiết...
       </div>
@@ -311,7 +311,8 @@ export function WeatherWidget({
         absolute
         right-24
         bottom-6
-max-md:bottom-24
+        max-md:bottom-24
+        max-md:right-16
         z-20
         transition-all duration-300
         w-80

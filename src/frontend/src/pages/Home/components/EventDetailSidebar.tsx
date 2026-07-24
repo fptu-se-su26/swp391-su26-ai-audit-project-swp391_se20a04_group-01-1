@@ -242,7 +242,7 @@ export default function EventDetailSidebar({
   };
 
   return (
-    <div className="w-80 max-md:w-full max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[50vh] max-md:max-h-[50vh] max-md:rounded-t-3xl max-md:rounded-b-none max-md:z-40 max-md:border-t max-md:border-slate-200/80 max-md:shadow-[0_-8px_30px_rgba(0,0,0,0.12)] max-md:animate-none bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col h-[calc(100vh-140px)] animate-fade-left pointer-events-auto">
+    <div className="w-80 max-md:w-full max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[50vh] max-md:max-h-[50vh] max-md:rounded-t-3xl max-md:rounded-b-none max-md:z-[450] max-md:border-t max-md:border-slate-200/80 max-md:shadow-[0_-8px_30px_rgba(0,0,0,0.12)] max-md:animate-none bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col h-[calc(100vh-140px)] animate-fade-left pointer-events-auto">
       {/* Header: Banner Image */}
       <div className="relative h-40 shrink-0 bg-slate-100 border-b border-slate-100">
         <img

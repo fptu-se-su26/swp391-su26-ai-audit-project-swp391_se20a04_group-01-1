@@ -20,7 +20,7 @@ export const SavedRoutesSidebar: React.FC<SavedRoutesSidebarProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="absolute right-20 top-24 z-20 pointer-events-none animate-fade-in max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:top-auto max-md:z-40 max-md:w-full max-md:p-0">
+    <div className="absolute right-20 top-24 z-20 pointer-events-none animate-fade-in max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:top-auto max-md:z-[450] max-md:w-full max-md:p-0">
       <div className="w-80 max-md:w-full max-md:h-[50vh] max-md:max-h-[50vh] max-md:rounded-t-3xl max-md:rounded-b-none max-md:border-t max-md:border-slate-200/80 max-md:shadow-[0_-8px_30px_rgba(0,0,0,0.12)] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 font-sans text-left flex flex-col max-h-[380px] shrink-0 pointer-events-auto overflow-hidden">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3 shrink-0">
           <h3 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">

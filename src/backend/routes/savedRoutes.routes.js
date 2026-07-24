@@ -9,6 +9,32 @@ const { authenticateToken } = require("../middleware/auth");
 // Không so is_emergency / tránh ngập / tránh kẹt xe — các cờ này được phép khác nhau mà vẫn tính là trùng.
 const DUPLICATE_RADIUS_METERS = 30;
 
+let isSaveTypeColumnVerified = false;
+
+async function ensureSaveTypeColumn(pool) {
+  if (isSaveTypeColumnVerified) return;
+  try {
+    const checkResult = await pool.request().query(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_NAME = 'SavedRoutes' AND COLUMN_NAME = 'save_type';
+    `);
+    if (checkResult.recordset.length === 0) {
+      console.log("🛠️ Tự động thêm cột 'save_type' vào bảng SavedRoutes...");
+      await pool.request().query(`
+        ALTER TABLE SavedRoutes ADD save_type NVARCHAR(20) DEFAULT 'manual';
+      `);
+      await pool.request().query(`
+        UPDATE SavedRoutes SET save_type = 'manual' WHERE save_type IS NULL;
+      `);
+      console.log("✅ Đã tự động thêm cột 'save_type' thành công.");
+    }
+    isSaveTypeColumnVerified = true;
+  } catch (err) {
+    console.error("Lỗi khi tự động kiểm tra/tạo cột save_type:", err.message);
+  }
+}
+
 // Tìm lộ trình "manual" đã tồn tại của user, trùng origin/destination (trong bán kính) + cùng profile.
 async function findDuplicateManualRoute(
   pool,
@@ -21,6 +47,7 @@ async function findDuplicateManualRoute(
     profile,
   },
 ) {
+  await ensureSaveTypeColumn(pool);
   const result = await pool
     .request()
     .input("user_id", sql.Int, user_id)
@@ -80,6 +107,7 @@ router.post("/", authenticateToken, async (req, res) => {
     const resolvedSaveType = save_type === "history" ? "history" : "manual";
 
     const pool = await poolPromise;
+    await ensureSaveTypeColumn(pool);
 
     // Chỉ chống trùng / update cho lộ trình lưu thủ công. Lịch sử di chuyển luôn tạo dòng mới.
     if (resolvedSaveType === "manual") {
