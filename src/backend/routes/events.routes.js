@@ -467,8 +467,29 @@ router.post("/:id/favorite", authenticateToken, async (req, res) => {
         .input("event_id", sql.Int, eventId)
         .input("fav_count", sql.Int, newFavoriteCount)
         .query(
-          "UPDATE Events SET favorite_count = @fav_count WHERE event_id = @event_id",
+          "UPDATE Events SET favorite_count = @fav_count WHERE event_id = @event_id"
         );
+
+      // Thêm thông báo xác nhận đã theo dõi sự kiện vào Hộp thư Notification
+      try {
+        await pool
+          .request()
+          .input("user_id", sql.Int, userId)
+          .input("event_id", sql.Int, eventId)
+          .input("type", sql.NVarChar, "event_reminder")
+          .input("title", sql.NVarChar, `⭐ Đã theo dõi: ${event.title}`)
+          .input(
+            "message",
+            sql.NVarChar,
+            `Bạn đã lưu sự kiện "${event.title}". Hệ thống sẽ tự động gửi thông báo nhắc nhở khi sự kiện sắp diễn ra.`
+          )
+          .query(`
+            INSERT INTO Notifications (user_id, event_id, type, title, message, is_read, created_at)
+            VALUES (@user_id, @event_id, @type, @title, @message, 0, GETDATE())
+          `);
+      } catch (notifErr) {
+        console.warn("⚠️ Lỗi tạo thông báo theo dõi sự kiện:", notifErr.message);
+      }
 
       isFavorite = true;
     }
