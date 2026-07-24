@@ -242,7 +242,7 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({
   return (
     <>
       {/* 1. NÚT CHAT BONG BÓNG LƠ LỬNG */}
-      <div className="fixed bottom-6 right-6 md:right-12 z-40">
+      <div className="fixed bottom-6 right-6 max-md:bottom-4 max-md:right-20 max-md:left-auto md:right-12 md:left-auto z-30 md:z-[300]">
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
@@ -258,135 +258,156 @@ export const AIChatbot: React.FC<AIChatbotProps> = ({
       {/* 2. KHUNG CHAT AI DRAW SIDEBAR */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.95 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="fixed bottom-0 right-0 md:bottom-24 md:right-6 w-full h-full md:w-96 md:h-[520px] bg-slate-900/90 backdrop-blur-xl border border-slate-700/50 md:rounded-2xl rounded-none shadow-2xl z-40 flex flex-col overflow-hidden text-slate-100 font-sans"
-          >
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-700/80 to-indigo-800/80 px-4 py-3 border-b border-slate-700/40 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold tracking-wide">DNPulse Assistant</h3>
-                  <span className="text-[10px] text-blue-200 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-                    Trợ lý dẫn đường AI
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+          <>
+            {/* Backdrop phủ đen mờ đóng khung chat khi click ngoài trên Mobile */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsOpen(false)}
+              className="md:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[490]"
+            />
 
-            {/* Chat Messages Body */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-              {messages.map((msg, index) => {
-                const isModel = msg.role === "model";
-                return (
-                  <div
-                    key={index}
-                    className={`flex ${isModel ? "justify-start" : "justify-end"}`}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-md leading-relaxed whitespace-pre-wrap ${isModel
-                        ? "bg-slate-800/90 border border-slate-700/50 text-slate-200 rounded-tl-none"
-                        : "bg-blue-600 text-white rounded-tr-none"
-                        }`}
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-slate-800/90 border border-slate-700/50 text-slate-400 rounded-2xl rounded-tl-none px-4 py-2.5 text-sm shadow-md flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                    <span>DNPulse đang suy nghĩ...</span>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Quick Prompts Pills */}
-            <div className="px-4 py-2 border-t border-slate-800 bg-slate-950/40 flex gap-2 overflow-x-auto scrollbar-none shrink-0">
-              <button
-                onClick={() => handleQuickPrompt("Thời tiết hôm nay ở các quận Đà Nẵng thế nào?")}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
-              >
-                <CloudRain className="w-3 h-3 text-sky-400" />
-                Thời tiết hôm nay
-              </button>
-              <button
-                onClick={() => handleQuickPrompt("Gợi ý các địa điểm du lịch nổi bật tại Đà Nẵng")}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
-              >
-                <Compass className="w-3 h-3 text-emerald-400" />
-                Địa điểm nổi bật
-              </button>
-              <button
-                onClick={() => handleQuickPrompt("Tìm các điểm ngập lụt hiện tại và chỉ đường tránh ngập từ Cầu Rồng đến Bách Khoa")}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
-              >
-                <Navigation className="w-3 h-3 text-red-400" />
-                Tránh đường ngập
-              </button>
-              <button
-                onClick={() => handleQuickPrompt("Hôm nay Đà Nẵng có sự kiện lễ hội gì lớn không?")}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
-              >
-                <Star className="w-3 h-3 text-yellow-400" />
-                Sự kiện hôm nay
-              </button>
-            </div>
-
-            {/* Input Form Footer */}
-            <form
-              onSubmit={handleFormSubmit}
-              className="p-3 bg-slate-950/60 border-t border-slate-800/80 flex items-center gap-2 shrink-0"
+            <motion.div
+              initial={{ opacity: 0, y: 50, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 50, scale: 0.95 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="fixed bottom-0 right-0 max-md:left-0 max-md:w-full max-md:h-[88dvh] max-md:rounded-t-3xl md:bottom-24 md:right-6 md:w-96 md:h-[520px] md:rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/50 shadow-2xl z-[500] flex flex-col overflow-hidden text-slate-100 font-sans"
             >
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Hỏi DNPulse Assistant..."
-                  disabled={isLoading}
-                  className="w-full bg-slate-800/60 border border-slate-700/60 text-slate-100 rounded-xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                />
+              {/* Drag handle bar hiển thị trên Mobile */}
+              <div
+                onClick={() => setIsOpen(false)}
+                className="md:hidden w-full flex justify-center pt-2.5 pb-1 cursor-pointer shrink-0"
+              >
+                <div className="w-12 h-1.5 bg-slate-700 rounded-full" />
+              </div>
 
-                {/* Voice Record Button */}
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-700/80 to-indigo-800/80 px-4 py-3 border-b border-slate-700/40 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-400/30 flex items-center justify-center">
+                    <Bot className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold tracking-wide">DNPulse Assistant</h3>
+                    <span className="text-[10px] text-blue-200 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                      Trợ lý dẫn đường AI
+                    </span>
+                  </div>
+                </div>
                 <button
-                  type="button"
-                  onClick={toggleListening}
-                  className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${isListening ? "text-red-500 animate-pulse" : "text-slate-400 hover:text-slate-200"
-                    }`}
+                  onClick={() => setIsOpen(false)}
+                  className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
                 >
-                  {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading || !input.trim()}
-                className="p-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 transition-colors shadow-md"
+              {/* Chat Messages Body */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                {messages.map((msg, index) => {
+                  const isModel = msg.role === "model";
+                  return (
+                    <div
+                      key={index}
+                      className={`flex ${isModel ? "justify-start" : "justify-end"}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm shadow-md leading-relaxed whitespace-pre-wrap ${
+                          isModel
+                            ? "bg-slate-800/90 border border-slate-700/50 text-slate-200 rounded-tl-none"
+                            : "bg-blue-600 text-white rounded-tr-none"
+                        }`}
+                      >
+                        {msg.text}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-slate-800/90 border border-slate-700/50 text-slate-400 rounded-2xl rounded-tl-none px-4 py-2.5 text-sm shadow-md flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                      <span>DNPulse đang suy nghĩ...</span>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Quick Prompts Pills */}
+              <div className="px-4 py-2 border-t border-slate-800 bg-slate-950/40 flex gap-2 overflow-x-auto scrollbar-none shrink-0">
+                <button
+                  onClick={() => handleQuickPrompt("Thời tiết hôm nay ở các quận Đà Nẵng thế nào?")}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
+                >
+                  <CloudRain className="w-3 h-3 text-sky-400" />
+                  Thời tiết hôm nay
+                </button>
+                <button
+                  onClick={() => handleQuickPrompt("Gợi ý các địa điểm du lịch nổi bật tại Đà Nẵng")}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
+                >
+                  <Compass className="w-3 h-3 text-emerald-400" />
+                  Địa điểm nổi bật
+                </button>
+                <button
+                  onClick={() => handleQuickPrompt("Tìm các điểm ngập lụt hiện tại và chỉ đường tránh ngập từ Cầu Rồng đến Bách Khoa")}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
+                >
+                  <Navigation className="w-3 h-3 text-red-400" />
+                  Tránh đường ngập
+                </button>
+                <button
+                  onClick={() => handleQuickPrompt("Hôm nay Đà Nẵng có sự kiện lễ hội gì lớn không?")}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700/50 text-[11px] text-slate-300 font-medium shrink-0 transition-colors"
+                >
+                  <Star className="w-3 h-3 text-yellow-400" />
+                  Sự kiện hôm nay
+                </button>
+              </div>
+
+              {/* Input Form Footer */}
+              <form
+                onSubmit={handleFormSubmit}
+                className="p-3 bg-slate-950/80 border-t border-slate-800/80 flex items-center gap-2 shrink-0 max-md:pb-5"
               >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-          </motion.div>
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Hỏi DNPulse Assistant..."
+                    disabled={isLoading}
+                    className="w-full bg-slate-800/60 border border-slate-700/60 text-slate-100 rounded-xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  />
+
+                  {/* Voice Record Button */}
+                  <button
+                    type="button"
+                    onClick={toggleListening}
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${
+                      isListening ? "text-red-500 animate-pulse" : "text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  </button>
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={isLoading || !input.trim()}
+                  className="p-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 transition-colors shadow-md"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </>

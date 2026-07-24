@@ -18,7 +18,7 @@ export const ShareRouteModal: React.FC<ShareRouteModalProps> = ({
   return (
     <div
       style={{ backgroundColor: "rgba(15, 23, 42, 0.4)" }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm pointer-events-auto"
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm pointer-events-auto"
     >
       <div
         style={{

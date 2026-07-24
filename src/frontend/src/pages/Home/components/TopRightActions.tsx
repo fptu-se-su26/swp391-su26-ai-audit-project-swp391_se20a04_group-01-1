@@ -51,8 +51,8 @@ export const TopRightActions: React.FC<TopRightActionsProps> = ({
   handleEventClick,
 }) => {
   return (
-    <div className="flex flex-row items-center gap-2 shrink-0 pointer-events-auto self-start z-[9999]">
-      <div className="relative z-[9999]">
+    <div className="flex flex-row items-center gap-2 shrink-0 pointer-events-auto self-start z-[300]">
+      <div className="relative z-[300]">
         <button
           onClick={() => setShowNotificationModal(!showNotificationModal)}
           className="w-[42px] h-[42px] flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200/60 text-slate-600 hover:text-blue-600 transition-all relative"

@@ -80,7 +80,7 @@ export function NavigationPanel({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 backdrop-blur-md rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 text-slate-800 dark:text-white p-5 flex flex-col gap-4 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto">
+    <div className="bg-white dark:bg-slate-900 backdrop-blur-md rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 text-slate-800 dark:text-white p-5 flex flex-col gap-4 animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-auto max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain custom-scrollbar">
       
       {/* 1. KHU VỰC HƯỚNG DẪN CHÍNH (UPCOMING TURN BANNER - GOOGLE MAPS STYLE) */}
       <div className="flex items-center gap-4 bg-emerald-600 dark:bg-emerald-700 p-4 rounded-2xl shadow-md text-white">
