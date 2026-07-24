@@ -110,17 +110,15 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
         }
     },
 
-    // Bắt đầu polling unread count + full list mỗi 15 giây
+    // Bắt đầu polling đếm số lượng chưa đọc (unread count) siêu nhẹ mỗi 60 giây
     startPolling: () => {
-        const { pollingInterval, fetchUnreadCount, fetchNotifications } = get();
+        const { pollingInterval, fetchUnreadCount } = get();
         if (pollingInterval) return; // Đã chạy rồi
 
-        fetchUnreadCount(); // Fetch ngay lập tức
-        fetchNotifications();
+        fetchUnreadCount(); // Fetch số thông báo ngay lập tức
         const interval = setInterval(() => {
-            fetchUnreadCount();
-            fetchNotifications();
-        }, 15000);
+            fetchUnreadCount(); // Đếm lại số chưa đọc mỗi 60 giây (gói tin siêu nhẹ 50 bytes)
+        }, 60000);
 
         set({ pollingInterval: interval });
     },
