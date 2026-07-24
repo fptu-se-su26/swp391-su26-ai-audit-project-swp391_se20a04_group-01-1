@@ -408,7 +408,7 @@ router.post("/:id/favorite", authenticateToken, async (req, res) => {
       .request()
       .input("event_id", sql.Int, eventId)
       .query(
-        "SELECT event_id, favorite_count FROM Events WHERE event_id = @event_id",
+        "SELECT event_id, title, favorite_count FROM Events WHERE event_id = @event_id",
       );
 
     if (eventCheck.recordset.length === 0) {
@@ -416,6 +416,7 @@ router.post("/:id/favorite", authenticateToken, async (req, res) => {
     }
 
     let currentFavoriteCount = eventCheck.recordset[0].favorite_count || 0;
+    const eventTitle = eventCheck.recordset[0].title || "Sự kiện";
 
     // Check if already favorited
     const favCheck = await pool
@@ -477,11 +478,11 @@ router.post("/:id/favorite", authenticateToken, async (req, res) => {
           .input("user_id", sql.Int, userId)
           .input("event_id", sql.Int, eventId)
           .input("type", sql.NVarChar, "event_reminder")
-          .input("title", sql.NVarChar, `⭐ Đã theo dõi: ${event.title}`)
+          .input("title", sql.NVarChar, `⭐ Đã theo dõi: ${eventTitle}`)
           .input(
             "message",
             sql.NVarChar,
-            `Bạn đã lưu sự kiện "${event.title}". Hệ thống sẽ tự động gửi thông báo nhắc nhở khi sự kiện sắp diễn ra.`
+            `Bạn đã lưu sự kiện "${eventTitle}". Hệ thống sẽ tự động gửi thông báo nhắc nhở khi sự kiện sắp diễn ra.`
           )
           .query(`
             INSERT INTO Notifications (user_id, event_id, type, title, message, is_read, created_at)
