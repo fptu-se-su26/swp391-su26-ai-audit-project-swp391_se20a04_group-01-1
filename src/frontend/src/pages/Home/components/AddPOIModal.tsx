@@ -112,7 +112,11 @@ const AddPOIModal: React.FC<AddPOIModalProps> = ({ onClose, onSubmitSuccess, loc
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setImageFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 

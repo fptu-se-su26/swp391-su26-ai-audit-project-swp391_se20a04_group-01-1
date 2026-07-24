@@ -60,7 +60,7 @@ const parseTimeToDate = (timeStr) => {
     const hours = parts[0] || 0;
     const minutes = parts[1] || 0;
     const seconds = parts[2] || 0;
-    return new Date(Date.UTC(1970, 0, 1, hours, minutes, seconds));
+    return new Date(1970, 0, 1, hours, minutes, seconds);
 };
 
 module.exports = {

@@ -104,6 +104,15 @@ export default function EventsLayer({
   return (
     <>
       {events.map((evt) => {
+        const lat = Number(evt.latitude);
+        const lng = Number(evt.longitude);
+
+        // Kiểm tra an toàn tọa độ Mapbox: Lng [-180, 180], Lat [-90, 90]
+        if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          console.warn(`[EventsLayer] Bỏ qua sự kiện ID ${evt.event_id} có tọa độ không hợp lệ: [${evt.latitude}, ${evt.longitude}]`);
+          return null;
+        }
+
         const status = getEventStatus(evt.start_time, evt.end_time);
         const categoryColor = evt.category_color || "#6366F1";
 
@@ -128,8 +137,8 @@ export default function EventsLayer({
         return (
           <Marker
             key={evt.event_id}
-            longitude={evt.longitude}
-            latitude={evt.latitude}
+            longitude={lng}
+            latitude={lat}
             anchor="bottom"
             onClick={(e) => {
               e.originalEvent?.stopPropagation();

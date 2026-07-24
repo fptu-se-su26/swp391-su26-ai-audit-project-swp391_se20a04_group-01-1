@@ -190,6 +190,8 @@ export const eventAPI = {
   deleteEventImage: (imageId: number) =>
     apiClient.delete(`/events/images/${imageId}`),
   incrementView: (eventId: number) => apiClient.post(`/events/${eventId}/view`),
+  triggerAiScrape: () => apiClient.post('/events/ai-scrape'),
+  updateEventStatus: (id: number, status: 'approved' | 'rejected' | 'pending') => apiClient.put(`/events/${id}/status`, { status }),
 };
 
 export const adminEventImageAPI = {

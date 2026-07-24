@@ -507,6 +507,19 @@ export default function Home() {
     // Mở chi tiết sự kiện ngay khi người dùng nhấn
     setSelectedEvent(evt);
 
+    // Tự động bay (flyTo) đến vị trí địa điểm của sự kiện trên bản đồ
+    if (evt.longitude && evt.latitude && mapRef.current) {
+      const lng = Number(evt.longitude);
+      const lat = Number(evt.latitude);
+      if (!isNaN(lng) && !isNaN(lat) && lng > 0 && lat > 0) {
+        mapRef.current.flyTo({
+          center: [lng, lat],
+          zoom: 15.5,
+          duration: 1200,
+        });
+      }
+    }
+
     try {
       const response = await eventAPI.incrementView(evt.event_id);
 
@@ -843,13 +856,30 @@ export default function Home() {
     setPendingDestination({ lng, lat });
   };
 
+// Danh mục các địa danh nổi tiếng bậc nhất Đà Nẵng
+const DANANG_FAMOUS_LANDMARKS = [
+  { name: "Cầu Rồng", address: "Cầu Rồng, Quận Hải Châu / Sơn Trà, Đà Nẵng", center: [108.2278968, 16.0611682] },
+  { name: "Cầu Sông Hàn", address: "Cầu Sông Hàn, Đà Nẵng", center: [108.2284106, 16.0723604] },
+  { name: "Bãi biển Mỹ Khê", address: "Bãi biển Mỹ Khê, Quận Sơn Trà, Đà Nẵng", center: [108.2462, 16.0602] },
+  { name: "Chợ Hàn", address: "119 Trần Phú, Phước Ninh, Hải Châu, Đà Nẵng", center: [108.2242830, 16.0683525] },
+  { name: "Chợ Cồn", address: "290 Hùng Vương, Vĩnh Trung, Thanh Khê, Đà Nẵng", center: [108.2136, 16.0681] },
+  { name: "Bà Nà Hills", address: "Hòa Phú, Hòa Vang, Đà Nẵng", center: [107.9877, 15.9961] },
+  { name: "Bán đảo Sơn Trà (Chùa Linh Ứng)", address: "Thọ Quang, Sơn Trà, Đà Nẵng", center: [108.2778, 16.1000] },
+  { name: "Cung thể thao Tuyên Sơn", address: "Đường Nại Nam 2, Hòa Cường Bắc, Hải Châu, Đà Nẵng", center: [108.2240, 16.0360] },
+  { name: "Công viên Biển Đông", address: "Võ Nguyên Giáp, Phước Mỹ, Sơn Trà, Đà Nẵng", center: [108.2472, 16.0678] },
+  { name: "Cầu Trần Thị Lý", address: "Cầu Trần Thị Lý, Đà Nẵng", center: [108.2312, 16.0508] },
+  { name: "Bảo tàng Điêu khắc Chăm", address: "Số 2 2 Tháng 9, Bình Hiên, Hải Châu, Đà Nẵng", center: [108.2227, 16.0601] },
+  { name: "Bảo tàng Đà Nẵng (Thành Điện Hải)", address: "24 Trần Phú, Thạch Thang, Hải Châu, Đà Nẵng", center: [108.2244, 16.0754] },
+  { name: "Chợ đêm Sơn Trà", address: "Mai Hắc Đế, An Hải Trung, Sơn Trà, Đà Nẵng", center: [108.2305, 16.0620] },
+  { name: "Chợ đêm Helio", address: "Đường 2 Tháng 9, Hòa Cường Bắc, Hải Châu, Đà Nẵng", center: [108.2253, 16.0381] },
+  { name: "Sân bay Quốc tế Đà Nẵng", address: "Nguyễn Văn Linh, Hòa Thuận Tây, Hải Châu, Đà Nẵng", center: [108.2022, 16.0544] }
+];
+
   useEffect(() => {
     let query = "";
-    if (activeInputField === "origin") {
-      query = originQuery;
-    } else if (activeInputField === "destination") {
-      query = destinationQuery;
-    } else if (activeInputField && activeInputField.startsWith("waypoint-")) {
+    if (activeInputField === "origin") query = originQuery;
+    else if (activeInputField === "destination") query = destinationQuery;
+    else if (activeInputField && activeInputField.startsWith("waypoint-")) {
       const idx = parseInt(activeInputField.split("-")[1], 10);
       query = waypointQueries[idx] || "";
     }
@@ -859,8 +889,51 @@ export default function Home() {
       setShowSuggestions(false);
       return;
     }
+
     const delayDebounceFn = setTimeout(async () => {
       setLoadingSearch(true);
+      const normalizedQuery = query.toLowerCase().trim();
+
+      // 1. Tìm kiếm trong Danh mục Địa danh Nổi tiếng Đà Nẵng (Tức thì, 0ms latency)
+      const landmarkMatches = DANANG_FAMOUS_LANDMARKS.filter((lm) => {
+        const nameLower = lm.name.toLowerCase();
+        const words = normalizedQuery.split(/\s+/);
+        return nameLower.includes(normalizedQuery) || words.every((w) => nameLower.includes(w));
+      }).map((lm, idx) => ({
+        id: `landmark-${idx}`,
+        text: lm.name,
+        text_vi: lm.name,
+        place_name: lm.address,
+        place_name_vi: lm.address,
+        center: lm.center,
+      }));
+
+      // 2. Tra cứu OpenStreetMap Nominatim API (Tra cứu chính xác địa danh Việt Nam)
+      let osmFeatures: any[] = [];
+      try {
+        const osmUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + " Đà Nẵng")}&format=json&limit=5&countrycodes=vn`;
+        const osmRes = await fetch(osmUrl, {
+          headers: { "User-Agent": "DNPulse-App/1.0" },
+        });
+        if (osmRes.ok) {
+          const osmData = await osmRes.json();
+          if (Array.isArray(osmData)) {
+            osmFeatures = osmData.map((item: any, idx: number) => ({
+              id: `osm-${item.place_id || idx}`,
+              text: item.display_name.split(",")[0],
+              text_vi: item.display_name.split(",")[0],
+              place_name: item.display_name,
+              place_name_vi: item.display_name,
+              center: [parseFloat(item.lon), parseFloat(item.lat)],
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn("Lỗi tra cứu OpenStreetMap:", err);
+      }
+
+      // 3. Tra cứu Mapbox Search Box API
+      let mapboxFeatures: any[] = [];
       try {
         const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
         const response = await fetch(
@@ -868,21 +941,27 @@ export default function Home() {
         );
         const data = await response.json();
         if (data.features) {
-          const normalizedFeatures = data.features.map((f: any) => ({
+          mapboxFeatures = data.features.map((f: any) => ({
             id: f.properties?.mapbox_id || f.id,
             text: f.properties?.name || "",
             text_vi: f.properties?.name || "",
             place_name: f.properties?.full_address || f.properties?.name || "",
-            place_name_vi:
-              f.properties?.full_address || f.properties?.name || "",
+            place_name_vi: f.properties?.full_address || f.properties?.name || "",
             center: f.geometry?.coordinates || [0, 0],
           }));
-          setSuggestions(normalizedFeatures);
-          setShowSuggestions(true);
         }
       } catch (error) {
         console.error("Lỗi lấy gợi ý tìm kiếm:", error);
       } finally {
+        // Tổng hợp dữ liệu kết quả & Lọc trùng tên
+        const combined = [...landmarkMatches, ...osmFeatures, ...mapboxFeatures];
+        const uniqueResults = combined.filter(
+          (item, index, self) =>
+            index === self.findIndex((t) => t.text.toLowerCase() === item.text.toLowerCase())
+        );
+
+        setSuggestions(uniqueResults.slice(0, 7));
+        setShowSuggestions(true);
         setLoadingSearch(false);
       }
     }, 300);
@@ -1240,23 +1319,37 @@ export default function Home() {
     const now = new Date();
     const features = activeOrSelectedEventRoads
       .filter((road) => road.geojson_coords && road.geojson_coords.length > 0)
-      .map((road) => ({
-        type: "Feature",
-        properties: {
-          road_id: road.road_id,
-          road_name: road.road_name,
-          restriction_type: road.restriction_type,
-          event_title: road.event_title || "Sự kiện cấm đường",
-          description: road.description || "",
-          isActive: isRoadRestrictionActive(road, now),
-          isSelected:
-            selectedRoadPopup && selectedRoadPopup.road_id === road.road_id,
-        },
-        geometry: {
-          type: "LineString",
-          coordinates: road.geojson_coords,
-        },
-      }));
+      .map((road) => {
+        const normalizedCoords = (road.geojson_coords || []).map((pt: any) => {
+          if (Array.isArray(pt) && pt.length >= 2) {
+            const p0 = Number(pt[0]);
+            const p1 = Number(pt[1]);
+            if (p0 < 50 && p1 > 50) {
+              return [p1, p0];
+            }
+            return [p0, p1];
+          }
+          return pt;
+        });
+
+        return {
+          type: "Feature",
+          properties: {
+            road_id: road.road_id,
+            road_name: road.road_name,
+            restriction_type: road.restriction_type,
+            event_title: road.event_title || "Sự kiện cấm đường",
+            description: road.description || "",
+            isActive: isRoadRestrictionActive(road, now),
+            isSelected:
+              selectedRoadPopup && selectedRoadPopup.road_id === road.road_id,
+          },
+          geometry: {
+            type: "LineString",
+            coordinates: normalizedCoords,
+          },
+        };
+      });
 
     return {
       type: "FeatureCollection",
@@ -1875,7 +1968,9 @@ export default function Home() {
             );
 
             // Chỉ hiển thị icon No Entry đối với đường cấm hoàn toàn
-            if (road.restriction_type !== "CLOSED") return null;
+            if (!midCoord || !Array.isArray(midCoord) || midCoord.length < 2 || isNaN(midCoord[0]) || isNaN(midCoord[1]) || midCoord[1] < -90 || midCoord[1] > 90) {
+              return null;
+            }
 
             return (
               <Marker
@@ -1920,11 +2015,18 @@ export default function Home() {
                 return <AlertTriangle size={13} />;
               };
 
+              const lat = Number(alert.latitude);
+              const lng = Number(alert.longitude);
+
+              if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                return null;
+              }
+
               return (
                 <Marker
                   key={`traffic-alert-${alert.id}`}
-                  longitude={alert.longitude}
-                  latitude={alert.latitude}
+                  longitude={lng}
+                  latitude={lat}
                   anchor="bottom"
                 >
                   <div
@@ -2125,164 +2227,166 @@ export default function Home() {
       </div>
 
       {/* HEADER TRÊN CÙNG & PANEL TÌM ĐƯỜNG */}
-      <div className="absolute top-4 left-4 right-4 md:top-6 md:left-6 md:right-6 z-10 flex flex-col pointer-events-none gap-2">
-        {/* Hàng trên: Search + Bell + Avatar */}
-        <div className="flex items-start justify-between gap-2 w-full">
-          {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
-          <div className="relative pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:max-h-[calc(100vh-80px)] max-md:overflow-y-auto scrollbar-none">
-            {!isNavigating && (
-              <>
-                <RoutePanel
-                  viewMode={viewMode}
-                  destination={destination}
-                  origin={origin}
-                  originQuery={originQuery}
-                  destinationQuery={destinationQuery}
-                  showSuggestions={showSuggestions}
-                  suggestions={suggestions}
-                  routeData={routeData}
-                  avoidFlood={avoidFlood}
-                  avoidCongestion={avoidCongestion}
-                  routeAlertMessage={routeAlertMessage}
-                  travelMode={travelMode}
-                  isSharingRoute={isSharingRoute}
-                  searchContainerRef={searchContainerRef}
-                  countdown={countdown}
-                  setDestinationQuery={setDestinationQuery}
-                  setOriginQuery={setOriginQuery}
-                  setActiveInputField={setActiveInputField}
-                  setShowSuggestions={setShowSuggestions}
-                  handleSwapLocations={handleSwapLocations}
-                  handleSelectSuggestion={handleSelectSuggestion}
-                  setAvoidFlood={setAvoidFlood}
-                  setAvoidCongestion={setAvoidCongestion}
-                  setTravelMode={setTravelMode}
-                  setShowSaveRouteModal={setShowSaveRouteModal}
-                  onOpenSaveRouteModal={openSaveRouteModal}
-                  handleShareRoute={handleShareRoute}
-                  setRouteData={setRouteData}
-                  setDestination={setDestination}
-                  setOrigin={setOrigin}
-                  setRouteAlertMessage={setRouteAlertMessage}
-                  setConfirmedFloodZoneIds={setConfirmedFloodZoneIds}
-                  onStartNavigation={handleStartNavigation}
-                  // TRUYỀN ĐẦY ĐỦ 2 PROPS NÀY VÀO TẤT CẢ CÁC NƠI GỌI ROUTEPANEL:
-                  favoriteEventIds={favoriteEventIds}
-                  onToggleEventFavorite={async (eventId: number) => {
-                    const eventObj = events.find((e) => e.event_id === eventId);
-                    if (eventObj) {
-                      await handleFavoriteEventToggle(eventObj);
-                      return !favoriteEventIds.has(eventId);
-                    }
-                    return false;
-                  }}
-                  waypoints={waypoints}
-                  setWaypoints={setWaypoints}
-                  waypointQueries={waypointQueries}
-                  setWaypointQueries={setWaypointQueries}
-                />
-                {viewMode === "pois" ? (
-                  <>
-                    {selectedFilter !== null && !routeData && !isNavigating && (
-                      <POIFeaturedSidebar
-                        pois={pois}
-                        selectedFilter={selectedFilter}
-                        onPOIClick={handlePOIClick}
-                        onDirectionsClick={(poi) => {
-                          setDestination({
-                            lng: poi.longitude,
-                            lat: poi.latitude,
-                            label: poi.name,
-                            poi_id: poi.poi_id,
-                          });
-                          setDestinationQuery(poi.name);
-                          if (userLocation) {
-                            setOrigin({
-                              lng: userLocation.lng,
-                              lat: userLocation.lat,
-                              label: "Vị trí của bạn",
+      {tab !== "profile" && (
+        <div className="absolute top-4 left-4 right-4 md:top-6 md:left-6 md:right-6 z-[100] flex flex-col pointer-events-none gap-2">
+          {/* Hàng trên: Search + Bell + Avatar */}
+          <div className="flex items-start justify-between gap-2 w-full">
+            {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
+            <div className="relative pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:max-h-[calc(100vh-80px)] max-md:overflow-y-auto scrollbar-none">
+              {!isNavigating && (
+                <>
+                  <RoutePanel
+                    viewMode={viewMode}
+                    destination={destination}
+                    origin={origin}
+                    originQuery={originQuery}
+                    destinationQuery={destinationQuery}
+                    showSuggestions={showSuggestions}
+                    suggestions={suggestions}
+                    routeData={routeData}
+                    avoidFlood={avoidFlood}
+                    avoidCongestion={avoidCongestion}
+                    routeAlertMessage={routeAlertMessage}
+                    travelMode={travelMode}
+                    isSharingRoute={isSharingRoute}
+                    searchContainerRef={searchContainerRef}
+                    countdown={countdown}
+                    setDestinationQuery={setDestinationQuery}
+                    setOriginQuery={setOriginQuery}
+                    setActiveInputField={setActiveInputField}
+                    setShowSuggestions={setShowSuggestions}
+                    handleSwapLocations={handleSwapLocations}
+                    handleSelectSuggestion={handleSelectSuggestion}
+                    setAvoidFlood={setAvoidFlood}
+                    setAvoidCongestion={setAvoidCongestion}
+                    setTravelMode={setTravelMode}
+                    setShowSaveRouteModal={setShowSaveRouteModal}
+                    onOpenSaveRouteModal={openSaveRouteModal}
+                    handleShareRoute={handleShareRoute}
+                    setRouteData={setRouteData}
+                    setDestination={setDestination}
+                    setOrigin={setOrigin}
+                    setRouteAlertMessage={setRouteAlertMessage}
+                    setConfirmedFloodZoneIds={setConfirmedFloodZoneIds}
+                    onStartNavigation={handleStartNavigation}
+                    // TRUYỀN ĐẦY ĐỦ 2 PROPS NÀY VÀO TẤT CẢ CÁC NƠI GỌI ROUTEPANEL:
+                    favoriteEventIds={favoriteEventIds}
+                    onToggleEventFavorite={async (eventId: number) => {
+                      const eventObj = events.find((e) => e.event_id === eventId);
+                      if (eventObj) {
+                        await handleFavoriteEventToggle(eventObj);
+                        return !favoriteEventIds.has(eventId);
+                      }
+                      return false;
+                    }}
+                    waypoints={waypoints}
+                    setWaypoints={setWaypoints}
+                    waypointQueries={waypointQueries}
+                    setWaypointQueries={setWaypointQueries}
+                  />
+                  {viewMode === "pois" ? (
+                    <>
+                      {selectedFilter !== null && !routeData && !isNavigating && (
+                        <POIFeaturedSidebar
+                          pois={pois}
+                          selectedFilter={selectedFilter}
+                          onPOIClick={handlePOIClick}
+                          onDirectionsClick={(poi) => {
+                            setDestination({
+                              lng: poi.longitude,
+                              lat: poi.latitude,
+                              label: poi.name,
+                              poi_id: poi.poi_id,
                             });
-                            setOriginQuery("Vị trí của bạn");
-                          }
-                        }}
-                        hasRoute={!!routeData}
-                        onClose={() => {
-                          setSelectedFilter(null);
-                          setSelectedPOI(null);
-                          setRouteData(null);
-                          setDestination(null);
-                          setOrigin(null);
-                          setOriginQuery("");
-                          setDestinationQuery("");
-                          setRouteAlertMessage(null);
-                        }}
-                        userLocation={userLocation}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {!destination && showEventsSidebar && (
-                      <EventsSidebar
-                        events={events}
-                        categories={eventCategories}
-                        onEventClick={handleEventClick}
-                        onClose={() => {
-                          setShowEventsSidebar(false);
-                          setSelectedEvent(null);
-                          setViewMode("pois");
-                        }}
-                        hasRoute={!!routeData}
-                      />
-                    )}
-                  </>
-                )}
-              </>
+                            setDestinationQuery(poi.name);
+                            if (userLocation) {
+                              setOrigin({
+                                lng: userLocation.lng,
+                                lat: userLocation.lat,
+                                label: "Vị trí của bạn",
+                              });
+                              setOriginQuery("Vị trí của bạn");
+                            }
+                          }}
+                          hasRoute={!!routeData}
+                          onClose={() => {
+                            setSelectedFilter(null);
+                            setSelectedPOI(null);
+                            setRouteData(null);
+                            setDestination(null);
+                            setOrigin(null);
+                            setOriginQuery("");
+                            setDestinationQuery("");
+                            setRouteAlertMessage(null);
+                          }}
+                          userLocation={userLocation}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {!destination && showEventsSidebar && (
+                        <EventsSidebar
+                          events={events}
+                          categories={eventCategories}
+                          onEventClick={handleEventClick}
+                          onClose={() => {
+                            setShowEventsSidebar(false);
+                            setSelectedEvent(null);
+                            setViewMode("pois");
+                          }}
+                          hasRoute={!!routeData}
+                        />
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+            {/* Filter chips — desktop only: nằm cùng hàng giữa search và bell/avatar */}
+            {!isNavigating && viewMode === "pois" && (
+              <FilterChips
+                selectedFilter={selectedFilter}
+                onFilterClick={handleFilterClick}
+              />
+            )}
+
+            {/* Thông báo & User - cùng hàng với search */}
+            {!isNavigating && (
+              <TopRightActions
+                userRole={userRole || "user"}
+                userProfile={userProfile}
+                unreadCount={unreadCount}
+                showNotificationModal={showNotificationModal}
+                setShowNotificationModal={setShowNotificationModal}
+                navigate={navigate}
+                floodZones={floodZones}
+                trafficAlerts={trafficAlerts}
+                events={events}
+                setMapControls={setMapControls}
+                mapRef={mapRef}
+                setSelectedFloodZone={setSelectedFloodZone}
+                setSelectedTrafficAlert={setSelectedTrafficAlert}
+                setSelectedPOI={setSelectedPOI}
+                setSelectedEvent={setSelectedEvent}
+                setSelectedRoadPopup={setSelectedRoadPopup}
+                setViewMode={setViewMode}
+                setShowEventsSidebar={setShowEventsSidebar}
+                handleEventClick={handleEventClick}
+              />
             )}
           </div>
-          {/* Filter chips — desktop only: nằm cùng hàng giữa search và bell/avatar */}
+
+          {/* Filter chips — mobile only: hàng riêng bênn dưới search */}
           {!isNavigating && viewMode === "pois" && (
             <FilterChips
               selectedFilter={selectedFilter}
               onFilterClick={handleFilterClick}
-            />
-          )}
-
-          {/* Thông báo & User - cùng hàng với search */}
-          {!isNavigating && (
-            <TopRightActions
-              userRole={userRole || "user"}
-              userProfile={userProfile}
-              unreadCount={unreadCount}
-              showNotificationModal={showNotificationModal}
-              setShowNotificationModal={setShowNotificationModal}
-              navigate={navigate}
-              floodZones={floodZones}
-              trafficAlerts={trafficAlerts}
-              events={events}
-              setMapControls={setMapControls}
-              mapRef={mapRef}
-              setSelectedFloodZone={setSelectedFloodZone}
-              setSelectedTrafficAlert={setSelectedTrafficAlert}
-              setSelectedPOI={setSelectedPOI}
-              setSelectedEvent={setSelectedEvent}
-              setSelectedRoadPopup={setSelectedRoadPopup}
-              setViewMode={setViewMode}
-              setShowEventsSidebar={setShowEventsSidebar}
-              handleEventClick={handleEventClick}
+              isMobile
             />
           )}
         </div>
-
-        {/* Filter chips — mobile only: hàng riêng bênn dưới search */}
-        {!isNavigating && viewMode === "pois" && (
-          <FilterChips
-            selectedFilter={selectedFilter}
-            onFilterClick={handleFilterClick}
-            isMobile
-          />
-        )}
-      </div>
+      )}
 
       {/* TRAFFIC LEGEND */}
       {/* TRAFFIC LEGEND */}
@@ -2642,7 +2746,7 @@ export default function Home() {
       />
 
       {tab === "profile" && (
-        <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+        <div className="fixed inset-0 z-[500] bg-white overflow-y-auto">
           <ProfilePage
             isOverlay={true}
             onClose={() => {

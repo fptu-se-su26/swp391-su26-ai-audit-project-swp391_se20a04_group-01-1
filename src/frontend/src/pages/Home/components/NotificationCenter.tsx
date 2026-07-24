@@ -385,7 +385,7 @@ export default function NotificationCenter({
             {/* Panel danh sách */}
             <div
                 ref={panelRef}
-                className="absolute right-0 top-[54px] w-[360px] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-30"
+                className="absolute right-0 top-[54px] w-[360px] bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[9999]"
                 style={{ animation: 'slideDown 0.18s ease' }}
             >
                 {/* Header */}

@@ -1,20 +1,12 @@
 import React from "react";
 import {
-  Plus,
-  Search,
-  Edit2,
-  Trash2,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-  RefreshCw,
-  Save,
-  Calendar,
-  X,
-  Upload,
+  Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight,
+  AlertCircle, RefreshCw, Save, Calendar, X, Upload,
+  Bot, Sparkles, CheckCircle2, XCircle
 } from "lucide-react";
 import { DBEvent, EventFormData } from "./types";
 import EventImagesReviewPanel from "./EventImagesReviewPanel";
+import { eventAPI } from "../../services/api";
 import Map, { Marker, NavigationControl } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -37,6 +29,7 @@ interface Props {
   handleDeleteEvent: (id: number) => void;
   handleCreateEvent: (e: React.FormEvent) => void;
   onImageChange: (banner: File | null, thumbnail: File | null) => void;
+  onRefresh?: () => void;
 }
 
 const ROWS_PER_PAGE = 5;
@@ -85,58 +78,49 @@ export default function EventsTab({
   handleDeleteEvent,
   handleCreateEvent,
   onImageChange,
+  onRefresh
 }: Props) {
-  // Trạng thái cho nút "Quét & đồng bộ sự kiện (AI)" — gọi API cào trang danh mục
-  // sự kiện/lễ hội Đà Nẵng, AI bóc tách, so sánh trùng lặp với DB, rồi đưa vào
-  // hàng đợi 'pending' để duyệt bên dưới.
-  const [isSyncing, setIsSyncing] = React.useState(false);
-  const [syncSummary, setSyncSummary] = React.useState<{
-    inserted: number;
-    updated: number;
-    skipped: number;
-    invalid: number;
-    total: number;
-  } | null>(null);
+  const [isScrapingAi, setIsScrapingAi] = React.useState(false);
+  const [aiScrapeMsg, setAiScrapeMsg] = React.useState<string | null>(null);
 
-  const handleSyncYearlyCatalog = async () => {
-    if (isSyncing) return;
-    setIsSyncing(true);
-    setSyncSummary(null);
+  const handleTriggerAiScrape = async () => {
+    setIsScrapingAi(true);
+    setAiScrapeMsg(null);
     try {
-      const token =
-        localStorage.getItem("token") || localStorage.getItem("auth_token");
-      const response = await fetch(
-        `${BASE_URL}/api/admin/events/sync-yearly-catalog`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({}),
-        },
+      const res = await eventAPI.triggerAiScrape();
+      setAiScrapeMsg(
+        res.data.message || "Cập nhật tin tức DanangFantastiCity thành công!"
       );
-      const result = await response.json();
-      if (response.ok && result.success) {
-        setSyncSummary(result.summary);
-        alert(
-          `✅ Đã quét xong!\nMới: ${result.summary.inserted} | Cập nhật: ${result.summary.updated} | Bỏ qua (trùng): ${result.summary.skipped} | Lỗi: ${result.summary.invalid}\n\nCác sự kiện mới/cập nhật đang ở trạng thái "Pending" — hãy lọc theo "Chờ phê duyệt" bên dưới để duyệt.`,
-        );
-        window.location.reload();
-      } else {
-        alert("❌ Lỗi: " + (result.message || "Không thể đồng bộ sự kiện."));
-      }
-    } catch (error) {
-      console.error("Lỗi kết nối khi đồng bộ danh mục sự kiện:", error);
-      alert("❌ Lỗi kết nối đến máy chủ.");
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      setAiScrapeMsg(
+        "❌ Lỗi AI cào tin: " + (err.response?.data?.message || err.message)
+      );
     } finally {
-      setIsSyncing(false);
+      setIsScrapingAi(false);
     }
   };
 
+  // Custom confirm modal for rejecting events
+  const [rejectEventModal, setRejectEventModal] = React.useState<{
+    isOpen: boolean;
+    eventId: number | null;
+    eventTitle: string;
+  }>({
+    isOpen: false,
+    eventId: null,
+    eventTitle: "",
+  });
+
+  const handleConfirmRejectEvent = () => {
+    if (!rejectEventModal.eventId) return;
+    const id = rejectEventModal.eventId;
+    setRejectEventModal({ isOpen: false, eventId: null, eventTitle: "" });
+    handleApproveEvent(id, "rejected");
+  };
+
   const [addressSuggestions, setAddressSuggestions] = React.useState<any[]>([]);
-  const [showAddressSuggestions, setShowAddressSuggestions] =
-    React.useState(false);
+  const [showAddressSuggestions, setShowAddressSuggestions] = React.useState(false);
   const [loadingAddressSearch, setLoadingAddressSearch] = React.useState(false);
   const [isFocused, setIsFocused] = React.useState(false);
 
@@ -144,9 +128,7 @@ export default function EventsTab({
   const [bannerFile, setBannerFile] = React.useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = React.useState<File | null>(null);
   const [bannerPreview, setBannerPreview] = React.useState<string | null>(null);
-  const [thumbnailPreview, setThumbnailPreview] = React.useState<string | null>(
-    null,
-  );
+  const [thumbnailPreview, setThumbnailPreview] = React.useState<string | null>(null);
 
   const bannerInputRef = React.useRef<HTMLInputElement>(null);
   const thumbnailInputRef = React.useRef<HTMLInputElement>(null);
@@ -161,7 +143,7 @@ export default function EventsTab({
       const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
       if (mapboxToken) {
         const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&language=vi`,
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&language=vi`
         );
         const data = await response.json();
         if (data.features && data.features.length > 0) {
@@ -177,7 +159,7 @@ export default function EventsTab({
       ...eventFormData,
       latitude: lat,
       longitude: lng,
-      location_name: placeName,
+      location_name: placeName
     });
   };
 
@@ -189,7 +171,7 @@ export default function EventsTab({
       const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
       if (mapboxToken) {
         const response = await fetch(
-          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&language=vi`,
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxToken}&language=vi`
         );
         const data = await response.json();
         if (data.features && data.features.length > 0) {
@@ -205,7 +187,7 @@ export default function EventsTab({
       ...eventFormData,
       latitude: lat,
       longitude: lng,
-      location_name: placeName,
+      location_name: placeName
     });
   };
 
@@ -213,8 +195,8 @@ export default function EventsTab({
   React.useEffect(() => {
     if (showModal) {
       if (editingEvent) {
-        setBannerPreview(resolveImageUrl(editingEvent.banner_url));
-        setThumbnailPreview(resolveImageUrl(editingEvent.thumbnail_url));
+        if (!bannerFile) setBannerPreview(resolveImageUrl(editingEvent.banner_url));
+        if (!thumbnailFile) setThumbnailPreview(resolveImageUrl(editingEvent.thumbnail_url));
       } else {
         setBannerFile(null);
         setThumbnailFile(null);
@@ -223,7 +205,21 @@ export default function EventsTab({
         onImageChange(null, null);
       }
     }
-  }, [showModal, editingEvent]);
+  }, [showModal]);
+
+  // Fly mini map to event location when modal opens or coordinates update
+  React.useEffect(() => {
+    if (showModal && miniMapRef.current && eventFormData.longitude && eventFormData.latitude) {
+      const timer = setTimeout(() => {
+        miniMapRef.current?.flyTo({
+          center: [eventFormData.longitude, eventFormData.latitude],
+          zoom: 14,
+          duration: 600
+        });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [showModal, eventFormData.latitude, eventFormData.longitude]);
 
   React.useEffect(() => {
     if (
@@ -250,16 +246,17 @@ export default function EventsTab({
         const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
         if (!mapboxToken) return;
         const response = await fetch(
-          `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(eventFormData.location_name)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`,
+          `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(eventFormData.location_name)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`
         );
         const data = await response.json();
         if (data.features) {
           const normalized = data.features.map((f: any) => ({
             id: f.properties?.mapbox_id || f.id,
-            place_name: f.properties?.full_address || f.properties?.name || "",
+            place_name:
+              f.properties?.full_address || f.properties?.name || "",
             place_name_vi:
               f.properties?.full_address || f.properties?.name || "",
-            center: f.geometry?.coordinates || [0, 0],
+            center: f.geometry?.coordinates || [0, 0]
           }));
           setAddressSuggestions(normalized);
           setShowAddressSuggestions(true);
@@ -285,17 +282,18 @@ export default function EventsTab({
 
   const paginatedEvents = filteredEvents.slice(
     (currentPage - 1) * ROWS_PER_PAGE,
-    currentPage * ROWS_PER_PAGE,
+    currentPage * ROWS_PER_PAGE
   );
   const totalPages = Math.ceil(filteredEvents.length / ROWS_PER_PAGE);
 
   return (
     <>
+      {/* Moderation Panel for User-Contributed Event Images */}
       <div className="mb-6">
         <EventImagesReviewPanel />
       </div>
 
-      {/* Các phần quản lý sự kiện hiện tại */}
+      {/* Quản lý sự kiện */}
       <div className="space-y-6 animate-fade-in">
         {/* THANH TÌM KIẾM VÀ LỌC TRẠNG THÁI */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
@@ -323,225 +321,190 @@ export default function EventsTab({
                   setStatusFilter(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none cursor-pointer appearance-none font-semibold text-slate-700"
+                className="pl-4 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none cursor-pointer"
               >
                 <option value="all">Tất cả trạng thái</option>
-                <option value="approved">Đã phê duyệt (Approved)</option>
-                <option value="pending">Chờ phê duyệt (Pending)</option>
-                <option value="cancelled">Đã hủy (Cancelled)</option>
+                <option value="pending">Pending (Chờ duyệt)</option>
+                <option value="approved">Approved (Đã duyệt)</option>
+                <option value="cancelled">Cancelled (Hủy/Từ chối)</option>
               </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-500">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setEditingEvent(null);
-              setEventFormData({
-                title: "",
-                short_description: "",
-                description: "",
-                location_name: "",
-                latitude: 16.0544,
-                longitude: 108.2022,
-                start_time: "",
-                end_time: "",
-                status: "pending",
-                category_id: 1,
-              });
-              setBannerFile(null);
-              setThumbnailFile(null);
-              setBannerPreview(null);
-              setThumbnailPreview(null);
-              onImageChange(null, null);
-              setShowModal(true);
-            }}
-            className="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-500/10 shrink-0"
-          >
-            <Plus size={16} /> Thêm sự kiện mới
-          </button>
-          <button
-            onClick={handleSyncYearlyCatalog}
-            disabled={isSyncing}
-            title="Quét trang danh mục sự kiện & lễ hội Đà Nẵng, dùng AI bóc tách, so sánh trùng lặp với DB và đưa vào hàng đợi chờ duyệt"
-            className="bg-emerald-600 text-white font-semibold px-5 py-2.5 rounded-xl hover:bg-emerald-700 transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-emerald-500/10 shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <RefreshCw size={16} className={isSyncing ? "animate-spin" : ""} />
-            {isSyncing
-              ? "Đang quét & bóc tách..."
-              : "Quét & đồng bộ sự kiện (AI)"}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleTriggerAiScrape}
+              disabled={isScrapingAi}
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-md disabled:opacity-50"
+            >
+              <Bot size={18} className={isScrapingAi ? "animate-spin" : ""} />
+              {isScrapingAi ? "AI Đang Tổng Hợp Dữ Liệu..." : "🤖 AI Thu Thập Sự Kiện Tự Động"}
+            </button>
+            <button
+              onClick={() => {
+                setEditingEvent(null);
+                setEventFormData({
+                  title: "",
+                  short_description: "",
+                  description: "",
+                  location_name: "",
+                  latitude: 16.0544,
+                  longitude: 108.2022,
+                  start_time: "",
+                  end_time: "",
+                  status: "pending",
+                  category_id: 1
+                });
+                onImageChange(null, null);
+                setShowModal(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2.5 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-md shadow-blue-500/20"
+            >
+              <Plus size={18} />
+              Thêm mới
+            </button>
+          </div>
         </div>
-        {syncSummary && (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-1">
-            <span>
-              Tổng quét được: <b>{syncSummary.total}</b>
-            </span>
-            <span>
-              Mới thêm: <b>{syncSummary.inserted}</b>
-            </span>
-            <span>
-              Đã cập nhật: <b>{syncSummary.updated}</b>
-            </span>
-            <span>
-              Bỏ qua (trùng, không đổi): <b>{syncSummary.skipped}</b>
-            </span>
-            <span>
-              Không hợp lệ: <b>{syncSummary.invalid}</b>
-            </span>
+
+        {/* AI Scrape Notification Toast/Banner */}
+        {aiScrapeMsg && (
+          <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-800 text-xs font-semibold flex items-center justify-between animate-fade-in shadow-sm">
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-indigo-600 shrink-0" />
+              <span>{aiScrapeMsg}</span>
+            </div>
+            <button onClick={() => setAiScrapeMsg(null)} className="text-indigo-400 hover:text-indigo-600 transition">
+              <X size={14} />
+            </button>
           </div>
         )}
 
-        {/* BẢNG DANH SÁCH SỰ KIỆN (HIỂN THỊ CÁC SỰ KIỆN TỰ ĐỘNG CÀO HOẶC TẠO THỦ CÔNG ĐANG CHỜ DUYỆT) */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* DANH SÁCH BẢNG SỰ KIỆN */}
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            {loadingEvents ? (
-              <div className="flex flex-col items-center justify-center h-64 gap-3">
-                <RefreshCw className="animate-spin text-blue-500" size={32} />
-                <p className="text-slate-500 text-sm">
-                  Đang lấy danh sách sự kiện...
-                </p>
-              </div>
-            ) : filteredEvents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 gap-2">
-                <AlertCircle className="text-slate-300" size={48} />
-                <p className="text-slate-600 font-semibold text-sm">
-                  Không tìm thấy sự kiện nào
-                </p>
-                <p className="text-slate-400 text-xs">
-                  Vui lòng điều chỉnh từ khóa tìm kiếm hoặc lọc trạng thái.
-                </p>
-              </div>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-4 px-6">Tên sự kiện</th>
-                    <th className="py-4 px-6">Ngày / Giờ diễn ra</th>
-                    <th className="py-4 px-6">Trạng thái</th>
-                    <th className="py-4 px-6">Lượt xem</th>
-                    <th className="py-4 px-6 text-center">Thao tác</th>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <th className="py-4 px-6">Tên sự kiện</th>
+                  <th className="py-4 px-6">Ngày / Giờ diễn ra</th>
+                  <th className="py-4 px-6">Trạng thái</th>
+                  <th className="py-4 px-6">Lượt xem</th>
+                  <th className="py-4 px-6 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm font-medium text-slate-700">
+                {loadingEvents ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                      <RefreshCw className="animate-spin inline-block mr-2" size={18} />
+                      Đang tải danh sách sự kiện...
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="text-sm font-medium text-slate-700 divide-y divide-slate-100">
-                  {paginatedEvents.map((evt) => (
-                    <tr
-                      key={evt.event_id}
-                      className="hover:bg-slate-50/50 transition"
-                    >
+                ) : paginatedEvents.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                      Không tìm thấy sự kiện nào phù hợp.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedEvents.map((e) => (
+                    <tr key={e.event_id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-4 px-6">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-slate-800">
-                            {evt.title}
-                          </span>
-                          <span className="text-xs text-slate-400 mt-0.5">
-                            📍 {evt.location_name || "Không xác định"}
-                          </span>
+                        <div className="font-semibold text-slate-800 line-clamp-1">{e.title}</div>
+                        <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                          {e.location_name || "Chưa xác định"}
                         </div>
                       </td>
-                      <td className="py-4 px-6">
-                        <div className="flex flex-col text-slate-600 text-xs">
-                          <span>
-                            {evt.start_time?.replace("T", " ") ||
-                              "Chưa xác định"}
-                          </span>
-                          <span className="text-[10px] text-slate-400">
-                            Đến{" "}
-                            {evt.end_time
-                              ? evt.end_time.replace("T", " ")
-                              : "Chưa xác định"}
-                          </span>
-                        </div>
+                      <td className="py-4 px-6 text-xs text-slate-500">
+                        <div>{e.start_time ? new Date(e.start_time).toISOString() : "---"}</div>
+                        <div className="text-[10px] text-slate-400">Đến {e.end_time ? new Date(e.end_time).toISOString() : "---"}</div>
                       </td>
                       <td className="py-4 px-6">
-                        <button
-                          onClick={() => {
-                            if (evt.status === "cancelled") return;
-                            handleApproveEvent(evt.event_id, evt.status);
-                          }}
-                          disabled={evt.status === "cancelled"}
-                          title={
-                            evt.status === "cancelled"
-                              ? "Sự kiện đã bị huỷ. Vào Sửa để khôi phục trạng thái."
-                              : undefined
-                          }
-                          className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${
-                            evt.status === "approved"
-                              ? "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100/50"
-                              : evt.status === "cancelled"
-                                ? "bg-rose-50 border-rose-200 text-rose-600 cursor-not-allowed"
-                                : "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100/50"
+                        <span
+                          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                            e.status === "approved"
+                              ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                              : e.status === "pending"
+                              ? "bg-amber-50 text-amber-600 border border-amber-200"
+                              : "bg-rose-50 text-rose-600 border border-rose-200"
                           }`}
                         >
-                          {evt.status === "approved"
-                            ? "Approved"
-                            : evt.status === "cancelled"
-                              ? "Cancelled"
-                              : "Pending"}
-                        </button>
+                          {e.status === "approved" ? "Approved" : e.status === "pending" ? "Pending" : "Cancelled"}
+                        </span>
                       </td>
-                      <td className="py-4 px-6 text-xs text-slate-500 font-bold">
-                        {evt.view_count.toLocaleString("vi-VN")}
-                      </td>
-                      <td className="py-4 px-6 text-center">
-                        <div className="flex items-center justify-center gap-3">
+                      <td className="py-4 px-6 text-xs text-slate-500">{e.view_count || 0}</td>
+                      <td className="py-4 px-6 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {e.status === "pending" && (
+                            <>
+                              <button
+                                onClick={() => handleApproveEvent(e.event_id, "approved")}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1 shadow-sm"
+                                title="Duyệt sự kiện này"
+                              >
+                                <CheckCircle2 size={13} /> Duyệt
+                              </button>
+                              <button
+                                onClick={() => setRejectEventModal({ isOpen: true, eventId: e.event_id, eventTitle: e.title })}
+                                className="px-2.5 py-1 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 rounded-lg text-xs font-semibold transition flex items-center gap-1"
+                                title="Từ chối sự kiện"
+                              >
+                                <XCircle size={13} /> Từ chối
+                              </button>
+                            </>
+                          )}
                           <button
                             onClick={() => {
-                              setEditingEvent(evt);
+                              setEditingEvent(e);
                               setEventFormData({
-                                title: evt.title,
-                                short_description: evt.short_description || "",
-                                description: evt.description || "",
-                                location_name: evt.location_name || "",
-                                latitude: evt.latitude,
-                                longitude: evt.longitude,
-                                start_time: formatDateTimeLocal(evt.start_time),
-                                end_time: formatDateTimeLocal(evt.end_time),
-                                status: evt.status,
-                                category_id: evt.category_id || 1,
+                                title: e.title,
+                                short_description: e.short_description || "",
+                                description: e.description || "",
+                                location_name: e.location_name || "",
+                                latitude: e.latitude || 16.0544,
+                                longitude: e.longitude || 108.2022,
+                                start_time: formatDateTimeLocal(e.start_time),
+                                end_time: formatDateTimeLocal(e.end_time),
+                                status: e.status,
+                                category_id: e.category_id || 1
                               });
+                              onImageChange(null, null);
                               setShowModal(true);
                             }}
-                            className="text-blue-500 hover:text-blue-600 p-1.5 hover:bg-blue-50 rounded-lg transition"
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
                             title="Sửa"
                           >
-                            <Edit2 size={15} />
+                            <Edit2 size={16} />
                           </button>
                           <button
-                            onClick={() => handleDeleteEvent(evt.event_id)}
-                            className="text-red-500 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-lg transition"
+                            onClick={() => handleDeleteEvent(e.event_id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                             title="Xóa"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
 
+          {/* PHÂN TRANG */}
           {totalPages > 1 && (
-            <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
-              <span className="text-xs text-slate-500">
-                Trang {currentPage} / {totalPages}
-              </span>
-              <div className="flex items-center gap-2">
+            <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50/50 text-xs text-slate-500">
+              <div>
+                Hiển thị {(currentPage - 1) * ROWS_PER_PAGE + 1} -{" "}
+                {Math.min(currentPage * ROWS_PER_PAGE, filteredEvents.length)} / {filteredEvents.length} sự kiện
+              </div>
+              <div className="flex items-center gap-1">
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
@@ -550,9 +513,7 @@ export default function EventsTab({
                   <ChevronLeft size={16} />
                 </button>
                 <button
-                  onClick={() =>
-                    setCurrentPage(Math.min(totalPages, currentPage + 1))
-                  }
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                   className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"
                 >
@@ -573,93 +534,55 @@ export default function EventsTab({
                 <Calendar className="w-5 h-5" />
                 {editingEvent ? "Chỉnh Sửa Sự Kiện" : "Thêm Sự Kiện Mới"}
               </h3>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-white/80 hover:text-white transition"
-              >
+              <button onClick={() => setShowModal(false)} className="text-white/80 hover:text-white transition">
                 <X size={20} />
               </button>
             </div>
 
-            <form
-              onSubmit={handleCreateEvent}
-              className="flex-1 flex flex-col min-h-0"
-            >
+            <form onSubmit={handleCreateEvent} className="flex-1 flex flex-col min-h-0">
               <div className="flex-1 grid grid-cols-1 md:grid-cols-12 min-h-0 overflow-hidden">
-                {/* Left Side: Form Fields (scrollable) */}
+                {/* Left Side: Form Fields */}
                 <div className="col-span-1 md:col-span-6 overflow-y-auto p-6 space-y-4 custom-scrollbar border-r border-slate-100 text-slate-700">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                      Tên sự kiện (*)
-                    </label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tên sự kiện (*)</label>
                     <input
-                      required
-                      type="text"
+                      required type="text"
                       placeholder="VD: Lễ hội pháo hoa quốc tế DIFF"
                       value={eventFormData.title}
-                      onChange={(e) =>
-                        setEventFormData({
-                          ...eventFormData,
-                          title: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setEventFormData({ ...eventFormData, title: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                        Thời gian bắt đầu (*)
-                      </label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Thời gian bắt đầu (*)</label>
                       <input
-                        required
-                        type="datetime-local"
+                        required type="datetime-local"
                         value={eventFormData.start_time}
-                        onChange={(e) =>
-                          setEventFormData({
-                            ...eventFormData,
-                            start_time: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setEventFormData({ ...eventFormData, start_time: e.target.value })}
                         className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                        Thời gian kết thúc (*)
-                      </label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Thời gian kết thúc (*)</label>
                       <input
-                        required
-                        type="datetime-local"
+                        required type="datetime-local"
                         value={eventFormData.end_time}
-                        onChange={(e) =>
-                          setEventFormData({
-                            ...eventFormData,
-                            end_time: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setEventFormData({ ...eventFormData, end_time: e.target.value })}
                         className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
                   </div>
 
                   <div className="relative">
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                      Địa điểm tổ chức (*)
-                    </label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Địa điểm tổ chức (*)</label>
                     <div className="relative">
                       <input
-                        required
-                        type="text"
+                        required type="text"
                         placeholder="Nhập địa chỉ (ví dụ: 370 Võ Nguyên Giáp, Đà Nẵng)"
                         value={eventFormData.location_name}
-                        onChange={(e) =>
-                          setEventFormData({
-                            ...eventFormData,
-                            location_name: e.target.value,
-                          })
-                        }
+                        onChange={(e) => setEventFormData({ ...eventFormData, location_name: e.target.value })}
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => {
                           setTimeout(() => setIsFocused(false), 200);
@@ -668,91 +591,67 @@ export default function EventsTab({
                       />
                       {loadingAddressSearch && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <RefreshCw
-                            className="animate-spin text-slate-400"
-                            size={14}
-                          />
+                          <RefreshCw className="animate-spin text-slate-400" size={14} />
                         </div>
                       )}
                     </div>
-
-                    {showAddressSuggestions &&
-                      isFocused &&
-                      addressSuggestions.length > 0 && (
-                        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100">
-                          {addressSuggestions.map((item: any) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => {
-                                const [lng, lat] = item.center;
-                                const fullName =
-                                  item.place_name_vi || item.place_name;
-                                setEventFormData({
-                                  ...eventFormData,
-                                  location_name: fullName,
-                                  latitude: lat,
-                                  longitude: lng,
-                                });
-                                setShowAddressSuggestions(false);
-
-                                miniMapRef.current?.flyTo({
-                                  center: [lng, lat],
-                                  zoom: 15,
-                                  duration: 1000,
-                                });
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition"
-                            >
-                              {item.place_name_vi || item.place_name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                    
+                    {showAddressSuggestions && isFocused && addressSuggestions.length > 0 && (
+                      <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100">
+                        {addressSuggestions.map((item: any) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              const [lng, lat] = item.center;
+                              const fullName = item.place_name_vi || item.place_name;
+                              setEventFormData({
+                                ...eventFormData,
+                                location_name: fullName,
+                                latitude: lat,
+                                longitude: lng
+                              });
+                              setShowAddressSuggestions(false);
+                              miniMapRef.current?.flyTo({
+                                center: [lng, lat],
+                                zoom: 15,
+                                duration: 1000
+                              });
+                            }}
+                            className="w-full text-left px-4 py-2 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition"
+                          >
+                            {item.place_name_vi || item.place_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                        Kinh độ (Longitude) (*)
-                      </label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Kinh độ (Longitude) (*)</label>
                       <input
-                        required
-                        type="number"
-                        step="any"
+                        required type="number" step="any"
                         placeholder="VD: 108.2022"
                         value={eventFormData.longitude || ""}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value) || 0;
-                          setEventFormData({
-                            ...eventFormData,
-                            longitude: val,
-                          });
-                          miniMapRef.current?.setCenter([
-                            val,
-                            eventFormData.latitude || 16.0544,
-                          ]);
+                          setEventFormData({ ...eventFormData, longitude: val });
+                          miniMapRef.current?.setCenter([val, eventFormData.latitude || 16.0544]);
                         }}
                         className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                        Vĩ độ (Latitude) (*)
-                      </label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Vĩ độ (Latitude) (*)</label>
                       <input
-                        required
-                        type="number"
-                        step="any"
+                        required type="number" step="any"
                         placeholder="VD: 16.0544"
                         value={eventFormData.latitude || ""}
                         onChange={(e) => {
                           const val = parseFloat(e.target.value) || 0;
                           setEventFormData({ ...eventFormData, latitude: val });
-                          miniMapRef.current?.setCenter([
-                            eventFormData.longitude || 108.2022,
-                            val,
-                          ]);
+                          miniMapRef.current?.setCenter([eventFormData.longitude || 108.2022, val]);
                         }}
                         className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
@@ -761,56 +660,30 @@ export default function EventsTab({
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                        Trạng thái ban đầu
-                      </label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Trạng thái ban đầu</label>
                       <div className="relative">
                         <select
                           value={eventFormData.status}
-                          onChange={(e) =>
-                            setEventFormData({
-                              ...eventFormData,
-                              status: e.target.value,
-                            })
-                          }
+                          onChange={(e) => setEventFormData({ ...eventFormData, status: e.target.value })}
                           className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none bg-white font-medium text-slate-700"
                         >
                           <option value="pending">Pending (Chờ duyệt)</option>
-                          <option value="approved">
-                            Approved (Duyệt ngay)
-                          </option>
+                          <option value="approved">Approved (Duyệt ngay)</option>
                           <option value="cancelled">Cancelled (Hủy bỏ)</option>
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 9l-7 7-7-7"
-                            />
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </div>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                        Loại danh mục
-                      </label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Loại danh mục</label>
                       <div className="relative">
                         <select
                           value={eventFormData.category_id}
-                          onChange={(e) =>
-                            setEventFormData({
-                              ...eventFormData,
-                              category_id: Number(e.target.value),
-                            })
-                          }
+                          onChange={(e) => setEventFormData({ ...eventFormData, category_id: Number(e.target.value) })}
                           className="w-full pl-3 pr-8 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer appearance-none bg-white font-medium text-slate-700"
                         >
                           <option value={1}>Lễ hội lớn (Festival)</option>
@@ -818,18 +691,8 @@ export default function EventsTab({
                           <option value={3}>Thể thao (Sports)</option>
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500">
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 9l-7 7-7-7"
-                            />
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </div>
                       </div>
@@ -837,46 +700,30 @@ export default function EventsTab({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                      Mô tả ngắn gọn
-                    </label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Mô tả ngắn gọn</label>
                     <input
                       type="text"
-                      placeholder="Mô tả tóm tắt sự kiện dưới 100 chữ..."
+                      placeholder="Tóm tắt ngắn 1-2 câu"
                       value={eventFormData.short_description}
-                      onChange={(e) =>
-                        setEventFormData({
-                          ...eventFormData,
-                          short_description: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setEventFormData({ ...eventFormData, short_description: e.target.value })}
                       className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                      Chi tiết sự kiện
-                    </label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Chi tiết sự kiện</label>
                     <textarea
                       rows={3}
-                      placeholder="Nội dung giới thiệu chi tiết sự kiện cho người dùng..."
+                      placeholder="Nội dung mô tả đầy đủ..."
                       value={eventFormData.description}
-                      onChange={(e) =>
-                        setEventFormData({
-                          ...eventFormData,
-                          description: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                      onChange={(e) => setEventFormData({ ...eventFormData, description: e.target.value })}
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                     />
                   </div>
 
                   {/* Banner Upload */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                      Ảnh Banner
-                    </label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Ảnh Banner</label>
                     <input
                       ref={bannerInputRef}
                       type="file"
@@ -887,8 +734,11 @@ export default function EventsTab({
                         const file = e.target.files?.[0] || null;
                         setBannerFile(file);
                         if (file) {
-                          const url = URL.createObjectURL(file);
-                          setBannerPreview(url);
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setBannerPreview(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
                         } else {
                           setBannerPreview(null);
                         }
@@ -898,6 +748,7 @@ export default function EventsTab({
                     {bannerPreview ? (
                       <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
                         <img
+                          key={bannerPreview}
                           src={bannerPreview}
                           alt="Banner preview"
                           className="w-full h-28 object-cover"
@@ -907,8 +758,7 @@ export default function EventsTab({
                           onClick={() => {
                             setBannerFile(null);
                             setBannerPreview(null);
-                            if (bannerInputRef.current)
-                              bannerInputRef.current.value = "";
+                            if (bannerInputRef.current) bannerInputRef.current.value = "";
                             onImageChange(null, thumbnailFile);
                           }}
                           className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 rounded-full p-1 shadow-md transition"
@@ -929,18 +779,14 @@ export default function EventsTab({
                         className="flex flex-col items-center justify-center gap-2 w-full h-24 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition text-slate-400 hover:text-blue-500"
                       >
                         <Upload size={20} />
-                        <span className="text-xs font-semibold">
-                          Nhấp để chọn ảnh banner
-                        </span>
+                        <span className="text-xs font-semibold">Nhấp để chọn ảnh banner</span>
                       </label>
                     )}
                   </div>
 
                   {/* Thumbnail Upload */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">
-                      Ảnh Thumbnail
-                    </label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Ảnh Thumbnail</label>
                     <input
                       ref={thumbnailInputRef}
                       type="file"
@@ -951,8 +797,11 @@ export default function EventsTab({
                         const file = e.target.files?.[0] || null;
                         setThumbnailFile(file);
                         if (file) {
-                          const url = URL.createObjectURL(file);
-                          setThumbnailPreview(url);
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setThumbnailPreview(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
                         } else {
                           setThumbnailPreview(null);
                         }
@@ -962,6 +811,7 @@ export default function EventsTab({
                     {thumbnailPreview ? (
                       <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
                         <img
+                          key={thumbnailPreview}
                           src={thumbnailPreview}
                           alt="Thumbnail preview"
                           className="w-full h-28 object-cover"
@@ -971,8 +821,7 @@ export default function EventsTab({
                           onClick={() => {
                             setThumbnailFile(null);
                             setThumbnailPreview(null);
-                            if (thumbnailInputRef.current)
-                              thumbnailInputRef.current.value = "";
+                            if (thumbnailInputRef.current) thumbnailInputRef.current.value = "";
                             onImageChange(bannerFile, null);
                           }}
                           className="absolute top-2 right-2 bg-white/90 hover:bg-white text-red-500 rounded-full p-1 shadow-md transition"
@@ -993,9 +842,7 @@ export default function EventsTab({
                         className="flex flex-col items-center justify-center gap-2 w-full h-24 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition text-slate-400 hover:text-blue-500"
                       >
                         <Upload size={20} />
-                        <span className="text-xs font-semibold">
-                          Nhấp để chọn ảnh thumbnail
-                        </span>
+                        <span className="text-xs font-semibold">Nhấp để chọn ảnh thumbnail</span>
                       </label>
                     )}
                   </div>
@@ -1009,79 +856,98 @@ export default function EventsTab({
                       initialViewState={{
                         longitude: eventFormData.longitude || 108.2022,
                         latitude: eventFormData.latitude || 16.0544,
-                        zoom: 14,
+                        zoom: 14
                       }}
                       onClick={handleMiniMapClick}
                       style={{ width: "100%", height: "100%" }}
                       mapStyle="mapbox://styles/mapbox/streets-v12"
-                      mapboxAccessToken={
-                        import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
-                      }
+                      mapboxAccessToken={import.meta.env.VITE_MAPBOX_ACCESS_TOKEN}
                     >
                       <NavigationControl position="bottom-right" />
-
                       <Marker
                         longitude={eventFormData.longitude || 108.2022}
                         latitude={eventFormData.latitude || 16.0544}
                         anchor="bottom"
-                        draggable={true}
+                        draggable
                         onDragEnd={handleMarkerDragEnd}
                       >
-                        <div className="relative w-[30px] h-[36px] flex flex-col items-center justify-end cursor-pointer">
-                          <svg
-                            width="30"
-                            height="36"
-                            viewBox="0 0 30 36"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="filter drop-shadow-md"
-                          >
-                            <ellipse
-                              cx="15"
-                              cy="32"
-                              rx="7"
-                              ry="2"
-                              fill="#64748b"
-                              opacity="0.4"
-                            />
-                            <path
-                              d="M15 0C6.72 0 0 6.72 0 15C0 22.92 15 33.33 15 33.33C15 33.33 30 22.92 30 15C30 6.72 23.28 0 15 0Z"
-                              fill="#3B82F6"
-                            />
-                            <circle cx="15" cy="13" r="4" fill="white" />
-                          </svg>
+                        <div className="relative group cursor-grab active:cursor-grabbing">
+                          <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg border-2 border-white transform transition hover:scale-110">
+                            <Calendar size={18} />
+                          </div>
+                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-blue-600 rotate-45 border-r border-b border-white"></div>
                         </div>
                       </Marker>
                     </Map>
                   </div>
-                  <div className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-slate-200 shadow-md pointer-events-none text-[10px] font-bold text-slate-700 flex flex-col gap-0.5 max-w-[80%]">
-                    <span className="text-blue-600">
-                      📍 Ghim Vị Trí Sự Kiện
-                    </span>
-                    <span className="text-slate-400 font-semibold leading-normal">
-                      Nhấp chuột lên bản đồ hoặc Kéo thả ghim để định vị chính
-                      xác.
-                    </span>
+                  <div className="absolute top-3 left-3 right-3 bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-md border border-slate-200/80 text-xs pointer-events-none">
+                    <p className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping"></span>
+                      Ghim Vị Trí Sự Kiện
+                    </p>
+                    <p className="text-slate-500 mt-0.5">Nhấp chuột lên bản đồ hoặc Kéo thả ghim để định vị chính xác.</p>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 p-4 border-t border-slate-100 bg-slate-50 shrink-0">
+              {/* Bottom Buttons */}
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 rounded-xl text-sm font-semibold transition"
+                  className="px-5 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 rounded-xl transition"
                 >
                   Hủy bỏ
                 </button>
                 <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-blue-600 text-white hover:bg-blue-700 rounded-xl text-sm font-semibold transition shadow-md flex items-center gap-1"
+                  type="button"
+                  onClick={handleCreateEvent}
+                  className="px-6 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-500/20 transition flex items-center gap-2"
                 >
-                  <Save size={16} /> Lưu sự kiện
+                  <Save size={16} />
+                  Lưu sự kiện
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM CONFIRM MODAL TỪ CHỐI SỰ KIỆN */}
+      {rejectEventModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-sm w-full text-left font-sans animate-scale-up">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 bg-rose-50 text-rose-600 border border-rose-100">
+                <XCircle size={22} />
+              </span>
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wide">
+                  Xác nhận từ chối
+                </h3>
+                <p className="text-xs text-slate-400">Sự kiện thu thập/đóng góp</p>
+              </div>
+            </div>
+            <p className="text-xs font-semibold text-slate-600 mb-6 leading-relaxed">
+              Bạn có chắc chắn muốn từ chối sự kiện <strong className="text-slate-800">"{rejectEventModal.eventTitle}"</strong> không?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                type="button"
+                onClick={() => setRejectEventModal({ isOpen: false, eventId: null, eventTitle: "" })}
+                className="px-4 py-2 text-xs font-bold text-slate-400 hover:bg-slate-50 rounded-xl transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRejectEvent}
+                className="px-5 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-md shadow-rose-200 transition-all flex items-center gap-1"
+              >
+                <XCircle size={14} />
+                Xác nhận từ chối
+              </button>
+            </div>
           </div>
         </div>
       )}

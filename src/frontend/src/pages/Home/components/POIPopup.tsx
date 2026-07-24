@@ -78,10 +78,17 @@ export default function POIPopup({ poi, onClose, onDirectionsClick, userLocation
         }
     };
 
+    const lat = Number(poi.latitude);
+    const lng = Number(poi.longitude);
+
+    if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return null;
+    }
+
     return (
         <Popup
-            longitude={poi.longitude}
-            latitude={poi.latitude}
+            longitude={lng}
+            latitude={lat}
             anchor="bottom"
             closeButton={false}
             closeOnClick={false}

@@ -30,8 +30,10 @@ const authenticateToken = (req, res, next) => {
 
 // ✅ Middleware: Kiểm tra role
 const authorizeRole = (...allowedRoles) => {
+    const roles = allowedRoles.flat(Infinity);
     return (req, res, next) => {
-        if (!req.user || !allowedRoles.includes(req.user.role)) {
+        const userRole = req.user?.role || req.user?.role_name;
+        if (!req.user || !roles.includes(userRole)) {
             return res.status(403).json({ 
                 message: 'Bạn không có quyền truy cập tài nguyên này!' 
             });
