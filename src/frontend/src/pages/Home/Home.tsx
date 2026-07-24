@@ -2227,164 +2227,166 @@ const DANANG_FAMOUS_LANDMARKS = [
       </div>
 
       {/* HEADER TRÊN CÙNG & PANEL TÌM ĐƯỜNG */}
-      <div className="absolute top-4 left-4 right-4 md:top-6 md:left-6 md:right-6 z-[100] flex flex-col pointer-events-none gap-2">
-        {/* Hàng trên: Search + Bell + Avatar */}
-        <div className="flex items-start justify-between gap-2 w-full">
-          {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
-          <div className="relative pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:max-h-[calc(100vh-80px)] max-md:overflow-y-auto scrollbar-none">
-            {!isNavigating && (
-              <>
-                <RoutePanel
-                  viewMode={viewMode}
-                  destination={destination}
-                  origin={origin}
-                  originQuery={originQuery}
-                  destinationQuery={destinationQuery}
-                  showSuggestions={showSuggestions}
-                  suggestions={suggestions}
-                  routeData={routeData}
-                  avoidFlood={avoidFlood}
-                  avoidCongestion={avoidCongestion}
-                  routeAlertMessage={routeAlertMessage}
-                  travelMode={travelMode}
-                  isSharingRoute={isSharingRoute}
-                  searchContainerRef={searchContainerRef}
-                  countdown={countdown}
-                  setDestinationQuery={setDestinationQuery}
-                  setOriginQuery={setOriginQuery}
-                  setActiveInputField={setActiveInputField}
-                  setShowSuggestions={setShowSuggestions}
-                  handleSwapLocations={handleSwapLocations}
-                  handleSelectSuggestion={handleSelectSuggestion}
-                  setAvoidFlood={setAvoidFlood}
-                  setAvoidCongestion={setAvoidCongestion}
-                  setTravelMode={setTravelMode}
-                  setShowSaveRouteModal={setShowSaveRouteModal}
-                  onOpenSaveRouteModal={openSaveRouteModal}
-                  handleShareRoute={handleShareRoute}
-                  setRouteData={setRouteData}
-                  setDestination={setDestination}
-                  setOrigin={setOrigin}
-                  setRouteAlertMessage={setRouteAlertMessage}
-                  setConfirmedFloodZoneIds={setConfirmedFloodZoneIds}
-                  onStartNavigation={handleStartNavigation}
-                  // TRUYỀN ĐẦY ĐỦ 2 PROPS NÀY VÀO TẤT CẢ CÁC NƠI GỌI ROUTEPANEL:
-                  favoriteEventIds={favoriteEventIds}
-                  onToggleEventFavorite={async (eventId: number) => {
-                    const eventObj = events.find((e) => e.event_id === eventId);
-                    if (eventObj) {
-                      await handleFavoriteEventToggle(eventObj);
-                      return !favoriteEventIds.has(eventId);
-                    }
-                    return false;
-                  }}
-                  waypoints={waypoints}
-                  setWaypoints={setWaypoints}
-                  waypointQueries={waypointQueries}
-                  setWaypointQueries={setWaypointQueries}
-                />
-                {viewMode === "pois" ? (
-                  <>
-                    {selectedFilter !== null && !routeData && !isNavigating && (
-                      <POIFeaturedSidebar
-                        pois={pois}
-                        selectedFilter={selectedFilter}
-                        onPOIClick={handlePOIClick}
-                        onDirectionsClick={(poi) => {
-                          setDestination({
-                            lng: poi.longitude,
-                            lat: poi.latitude,
-                            label: poi.name,
-                            poi_id: poi.poi_id,
-                          });
-                          setDestinationQuery(poi.name);
-                          if (userLocation) {
-                            setOrigin({
-                              lng: userLocation.lng,
-                              lat: userLocation.lat,
-                              label: "Vị trí của bạn",
+      {tab !== "profile" && (
+        <div className="absolute top-4 left-4 right-4 md:top-6 md:left-6 md:right-6 z-[100] flex flex-col pointer-events-none gap-2">
+          {/* Hàng trên: Search + Bell + Avatar */}
+          <div className="flex items-start justify-between gap-2 w-full">
+            {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
+            <div className="relative pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:max-h-[calc(100vh-80px)] max-md:overflow-y-auto scrollbar-none">
+              {!isNavigating && (
+                <>
+                  <RoutePanel
+                    viewMode={viewMode}
+                    destination={destination}
+                    origin={origin}
+                    originQuery={originQuery}
+                    destinationQuery={destinationQuery}
+                    showSuggestions={showSuggestions}
+                    suggestions={suggestions}
+                    routeData={routeData}
+                    avoidFlood={avoidFlood}
+                    avoidCongestion={avoidCongestion}
+                    routeAlertMessage={routeAlertMessage}
+                    travelMode={travelMode}
+                    isSharingRoute={isSharingRoute}
+                    searchContainerRef={searchContainerRef}
+                    countdown={countdown}
+                    setDestinationQuery={setDestinationQuery}
+                    setOriginQuery={setOriginQuery}
+                    setActiveInputField={setActiveInputField}
+                    setShowSuggestions={setShowSuggestions}
+                    handleSwapLocations={handleSwapLocations}
+                    handleSelectSuggestion={handleSelectSuggestion}
+                    setAvoidFlood={setAvoidFlood}
+                    setAvoidCongestion={setAvoidCongestion}
+                    setTravelMode={setTravelMode}
+                    setShowSaveRouteModal={setShowSaveRouteModal}
+                    onOpenSaveRouteModal={openSaveRouteModal}
+                    handleShareRoute={handleShareRoute}
+                    setRouteData={setRouteData}
+                    setDestination={setDestination}
+                    setOrigin={setOrigin}
+                    setRouteAlertMessage={setRouteAlertMessage}
+                    setConfirmedFloodZoneIds={setConfirmedFloodZoneIds}
+                    onStartNavigation={handleStartNavigation}
+                    // TRUYỀN ĐẦY ĐỦ 2 PROPS NÀY VÀO TẤT CẢ CÁC NƠI GỌI ROUTEPANEL:
+                    favoriteEventIds={favoriteEventIds}
+                    onToggleEventFavorite={async (eventId: number) => {
+                      const eventObj = events.find((e) => e.event_id === eventId);
+                      if (eventObj) {
+                        await handleFavoriteEventToggle(eventObj);
+                        return !favoriteEventIds.has(eventId);
+                      }
+                      return false;
+                    }}
+                    waypoints={waypoints}
+                    setWaypoints={setWaypoints}
+                    waypointQueries={waypointQueries}
+                    setWaypointQueries={setWaypointQueries}
+                  />
+                  {viewMode === "pois" ? (
+                    <>
+                      {selectedFilter !== null && !routeData && !isNavigating && (
+                        <POIFeaturedSidebar
+                          pois={pois}
+                          selectedFilter={selectedFilter}
+                          onPOIClick={handlePOIClick}
+                          onDirectionsClick={(poi) => {
+                            setDestination({
+                              lng: poi.longitude,
+                              lat: poi.latitude,
+                              label: poi.name,
+                              poi_id: poi.poi_id,
                             });
-                            setOriginQuery("Vị trí của bạn");
-                          }
-                        }}
-                        hasRoute={!!routeData}
-                        onClose={() => {
-                          setSelectedFilter(null);
-                          setSelectedPOI(null);
-                          setRouteData(null);
-                          setDestination(null);
-                          setOrigin(null);
-                          setOriginQuery("");
-                          setDestinationQuery("");
-                          setRouteAlertMessage(null);
-                        }}
-                        userLocation={userLocation}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {!destination && showEventsSidebar && (
-                      <EventsSidebar
-                        events={events}
-                        categories={eventCategories}
-                        onEventClick={handleEventClick}
-                        onClose={() => {
-                          setShowEventsSidebar(false);
-                          setSelectedEvent(null);
-                          setViewMode("pois");
-                        }}
-                        hasRoute={!!routeData}
-                      />
-                    )}
-                  </>
-                )}
-              </>
+                            setDestinationQuery(poi.name);
+                            if (userLocation) {
+                              setOrigin({
+                                lng: userLocation.lng,
+                                lat: userLocation.lat,
+                                label: "Vị trí của bạn",
+                              });
+                              setOriginQuery("Vị trí của bạn");
+                            }
+                          }}
+                          hasRoute={!!routeData}
+                          onClose={() => {
+                            setSelectedFilter(null);
+                            setSelectedPOI(null);
+                            setRouteData(null);
+                            setDestination(null);
+                            setOrigin(null);
+                            setOriginQuery("");
+                            setDestinationQuery("");
+                            setRouteAlertMessage(null);
+                          }}
+                          userLocation={userLocation}
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {!destination && showEventsSidebar && (
+                        <EventsSidebar
+                          events={events}
+                          categories={eventCategories}
+                          onEventClick={handleEventClick}
+                          onClose={() => {
+                            setShowEventsSidebar(false);
+                            setSelectedEvent(null);
+                            setViewMode("pois");
+                          }}
+                          hasRoute={!!routeData}
+                        />
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+            {/* Filter chips — desktop only: nằm cùng hàng giữa search và bell/avatar */}
+            {!isNavigating && viewMode === "pois" && (
+              <FilterChips
+                selectedFilter={selectedFilter}
+                onFilterClick={handleFilterClick}
+              />
+            )}
+
+            {/* Thông báo & User - cùng hàng với search */}
+            {!isNavigating && (
+              <TopRightActions
+                userRole={userRole || "user"}
+                userProfile={userProfile}
+                unreadCount={unreadCount}
+                showNotificationModal={showNotificationModal}
+                setShowNotificationModal={setShowNotificationModal}
+                navigate={navigate}
+                floodZones={floodZones}
+                trafficAlerts={trafficAlerts}
+                events={events}
+                setMapControls={setMapControls}
+                mapRef={mapRef}
+                setSelectedFloodZone={setSelectedFloodZone}
+                setSelectedTrafficAlert={setSelectedTrafficAlert}
+                setSelectedPOI={setSelectedPOI}
+                setSelectedEvent={setSelectedEvent}
+                setSelectedRoadPopup={setSelectedRoadPopup}
+                setViewMode={setViewMode}
+                setShowEventsSidebar={setShowEventsSidebar}
+                handleEventClick={handleEventClick}
+              />
             )}
           </div>
-          {/* Filter chips — desktop only: nằm cùng hàng giữa search và bell/avatar */}
+
+          {/* Filter chips — mobile only: hàng riêng bênn dưới search */}
           {!isNavigating && viewMode === "pois" && (
             <FilterChips
               selectedFilter={selectedFilter}
               onFilterClick={handleFilterClick}
-            />
-          )}
-
-          {/* Thông báo & User - cùng hàng với search */}
-          {!isNavigating && (
-            <TopRightActions
-              userRole={userRole || "user"}
-              userProfile={userProfile}
-              unreadCount={unreadCount}
-              showNotificationModal={showNotificationModal}
-              setShowNotificationModal={setShowNotificationModal}
-              navigate={navigate}
-              floodZones={floodZones}
-              trafficAlerts={trafficAlerts}
-              events={events}
-              setMapControls={setMapControls}
-              mapRef={mapRef}
-              setSelectedFloodZone={setSelectedFloodZone}
-              setSelectedTrafficAlert={setSelectedTrafficAlert}
-              setSelectedPOI={setSelectedPOI}
-              setSelectedEvent={setSelectedEvent}
-              setSelectedRoadPopup={setSelectedRoadPopup}
-              setViewMode={setViewMode}
-              setShowEventsSidebar={setShowEventsSidebar}
-              handleEventClick={handleEventClick}
+              isMobile
             />
           )}
         </div>
-
-        {/* Filter chips — mobile only: hàng riêng bênn dưới search */}
-        {!isNavigating && viewMode === "pois" && (
-          <FilterChips
-            selectedFilter={selectedFilter}
-            onFilterClick={handleFilterClick}
-            isMobile
-          />
-        )}
-      </div>
+      )}
 
       {/* TRAFFIC LEGEND */}
       {/* TRAFFIC LEGEND */}
@@ -2744,7 +2746,7 @@ const DANANG_FAMOUS_LANDMARKS = [
       />
 
       {tab === "profile" && (
-        <div className="fixed inset-0 z-50 bg-white overflow-y-auto">
+        <div className="fixed inset-0 z-[500] bg-white overflow-y-auto">
           <ProfilePage
             isOverlay={true}
             onClose={() => {
