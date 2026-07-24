@@ -2227,7 +2227,7 @@ const DANANG_FAMOUS_LANDMARKS = [
       </div>
 
       {/* HEADER TRÊN CÙNG & PANEL TÌM ĐƯỜNG */}
-      <div className="absolute top-4 left-4 right-4 md:top-6 md:left-6 md:right-6 z-10 flex flex-col pointer-events-none gap-2">
+      <div className="absolute top-4 left-4 right-4 md:top-6 md:left-6 md:right-6 z-[100] flex flex-col pointer-events-none gap-2">
         {/* Hàng trên: Search + Bell + Avatar */}
         <div className="flex items-start justify-between gap-2 w-full">
           {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
