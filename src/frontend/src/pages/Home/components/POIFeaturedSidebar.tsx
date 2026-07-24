@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Star, MapPin, Navigation, X } from 'lucide-react';
 import { POIData } from './POIPopup';
+import { getDistanceInKm } from '../../../utils/utlis';
 
 // Mapping filter ID → tên category trong database
 const FILTER_TO_CATEGORY: Record<string, string> = {
@@ -13,6 +14,8 @@ const FILTER_TO_CATEGORY: Record<string, string> = {
     'cafe': 'Quán cà phê',
     'gas_station': 'Trạm xăng',
     'hospital': 'Bệnh viện',
+    'pharmacy': 'Nhà thuốc',
+    'shopping': 'Khu mua sắm',
 };
 
 // Mapping filter ID → icon emoji
@@ -21,11 +24,13 @@ const FILTER_EMOJI: Record<string, string> = {
     'restaurants': '🍜',
     'hotels': '🏨',
     'entertainment': '🎡',
-    'museums': '🏛️',
+    'museums': '🏙️',
     'atm': '💳',
     'cafe': '☕',
     'gas_station': '⛽',
     'hospital': '🏥',
+    'pharmacy': '💊',
+    'shopping': '🛍️',
 };
 
 interface POIFeaturedSidebarProps {
@@ -35,6 +40,7 @@ interface POIFeaturedSidebarProps {
     onDirectionsClick: (poi: POIData) => void;
     hasRoute?: boolean;
     onClose?: () => void;
+    userLocation?: { lat: number; lng: number } | null;
 }
 
 // Component sao đánh giá
@@ -73,6 +79,7 @@ export default function POIFeaturedSidebar({
     onDirectionsClick,
     hasRoute = false,
     onClose,
+    userLocation,
 }: POIFeaturedSidebarProps) {
     const [isVisible, setIsVisible] = useState(true);
 
@@ -87,16 +94,29 @@ export default function POIFeaturedSidebar({
         const categoryName = FILTER_TO_CATEGORY[selectedFilter];
         if (!categoryName) return [];
 
-        return pois
-            .filter(poi => poi.category_name === categoryName)
+        const list = (pois || []).filter(poi => poi.category_name === categoryName);
+
+        const listWithDistance = list.map((poi): POIData & { distance?: number } => {
+            if (userLocation) {
+                const dist = getDistanceInKm(userLocation.lat, userLocation.lng, poi.latitude, poi.longitude);
+                return { ...poi, distance: dist };
+            }
+            return poi;
+        });
+
+        return listWithDistance
             .sort((a, b) => {
-                // Ưu tiên featured trước, sau đó sort theo rating
+                // Sắp xếp theo khoảng cách gần nhất lên đầu tiên (nếu có userLocation)
+                if (a.distance !== undefined && b.distance !== undefined) {
+                    return a.distance - b.distance;
+                }
+                // Fallback nếu không có khoảng cách
                 if (a.is_featured && !b.is_featured) return -1;
                 if (!a.is_featured && b.is_featured) return 1;
                 return (b.rating || 0) - (a.rating || 0);
             })
             .slice(0, 10);
-    }, [pois, selectedFilter]);
+    }, [pois, selectedFilter, userLocation]);
 
     if (!selectedFilter || !isVisible || filteredPois.length === 0) return null;
 
@@ -143,7 +163,12 @@ export default function POIFeaturedSidebar({
                         {/* Thumbnail */}
                         <div className="shrink-0 w-12 h-12 rounded-xl overflow-hidden bg-slate-100 relative">
                             <img
-                                src={poi.image_url || 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200'}
+                                src={(() => {
+                                    const base = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+                                    const url = poi.image_url;
+                                    if (!url) return 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200';
+                                    return url.startsWith('http') || url.startsWith('blob:') ? url : `${base}${url}`;
+                                })()}
                                 alt={poi.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -162,11 +187,16 @@ export default function POIFeaturedSidebar({
                             <p className="text-[11px] font-bold text-slate-800 group-hover:text-blue-600 transition-colors line-clamp-1">
                                 {poi.name}
                             </p>
-                            {poi.rating && (
-                                <div className="mt-0.5">
+                            <div className="flex items-center gap-2 mt-0.5">
+                                {poi.rating && (
                                     <StarRating rating={poi.rating} />
-                                </div>
-                            )}
+                                )}
+                                {(poi as any).distance !== undefined && (
+                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                        Cách {(poi as any).distance < 1 ? `${Math.round((poi as any).distance * 1000)}m` : `${(poi as any).distance.toFixed(1)}km`}
+                                    </span>
+                                )}
+                            </div>
                             {poi.address && (
                                 <div className="flex items-center gap-0.5 mt-0.5">
                                     <MapPin size={9} className="text-slate-400 shrink-0" />

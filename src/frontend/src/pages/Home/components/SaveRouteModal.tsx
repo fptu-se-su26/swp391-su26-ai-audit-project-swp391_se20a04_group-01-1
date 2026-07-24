@@ -8,6 +8,7 @@ interface SaveRouteModalProps {
   onChangeRouteName: (val: string) => void;
   onSubmit: () => void;
   isLoading: boolean;
+  isDuplicate?: boolean;
 }
 
 export const SaveRouteModal: React.FC<SaveRouteModalProps> = ({
@@ -17,6 +18,7 @@ export const SaveRouteModal: React.FC<SaveRouteModalProps> = ({
   onChangeRouteName,
   onSubmit,
   isLoading,
+  isDuplicate,
 }) => {
   if (!isOpen) return null;
 
@@ -33,7 +35,8 @@ export const SaveRouteModal: React.FC<SaveRouteModalProps> = ({
       >
         <div className="bg-gradient-to-r from-amber-500 to-yellow-500 px-6 py-4 flex justify-between text-white">
           <h3 className="font-extrabold text-sm flex gap-2 items-center">
-            <Bookmark className="w-5 h-5 fill-current animate-pulse" /> Lưu lộ trình
+            <Bookmark className="w-5 h-5 fill-current animate-pulse" /> Lưu lộ
+            trình
           </h3>
           <button
             onClick={onClose}
@@ -44,6 +47,12 @@ export const SaveRouteModal: React.FC<SaveRouteModalProps> = ({
         </div>
 
         <div className="p-6 space-y-4">
+          {isDuplicate && (
+            <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Lộ trình này đã được lưu trước đó. Bạn có thể đổi tên rồi lưu để
+              cập nhật lại bản ghi cũ.
+            </p>
+          )}
           <input
             required
             type="text"
@@ -58,7 +67,7 @@ export const SaveRouteModal: React.FC<SaveRouteModalProps> = ({
               disabled={isLoading || !routeName.trim()}
               className="px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 rounded-xl transition-all disabled:opacity-50 active:scale-95 shadow-md shadow-amber-500/10"
             >
-              {isLoading ? "Đang lưu..." : "Lưu lại"}
+              {isLoading ? "Đang lưu..." : isDuplicate ? "Cập nhật" : "Lưu lại"}
             </button>
           </div>
         </div>

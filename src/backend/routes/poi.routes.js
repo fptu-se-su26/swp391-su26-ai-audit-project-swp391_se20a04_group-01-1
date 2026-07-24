@@ -1,9 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const fs = require('fs');
 
 const { sql, poolPromise } = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const upload = require('../middleware/upload');
+const { uploadToCloudinary } = require('../utils/cloudinary');
+
+async function processUploadedImage(file, folder = "dnpulse_pois") {
+    if (!file) return null;
+    try {
+        const cloudUrl = await uploadToCloudinary(file, folder);
+        if (cloudUrl) return cloudUrl;
+    } catch (err) {
+        console.warn("⚠️ Cloudinary upload không thành công, lưu vào đĩa cục bộ:", err.message);
+    }
+
+    const ext = path.extname(file.originalname || "") || ".jpg";
+    const filename = `poi-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const uploadDir = path.join(__dirname, "..", "uploads");
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    const filePath = path.join(uploadDir, filename);
+    fs.writeFileSync(filePath, file.buffer);
+    return `/uploads/${filename}`;
+}
 
 // GET /api/pois - Lấy danh sách tất cả POIs (có thể lọc theo category)
 router.get("/", async (req, res) => {
@@ -97,12 +120,16 @@ router.post("/", authenticateToken, upload.single('image'), async (req, res) => 
         
         let image_url = null;
         if (req.file) {
-            image_url = `/uploads/${req.file.filename}`;
+            image_url = await processUploadedImage(req.file, "dnpulse_pois");
         }
         
         if (!category_id || !name || latitude === undefined || longitude === undefined) {
             return res.status(400).json({ success: false, message: "Thiếu thông tin bắt buộc (category_id, name, latitude, longitude)." });
         }
+
+        const isUserAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'system_admin');
+        const initialStatus = isUserAdmin ? 'approved' : 'pending';
+        const initialActive = isUserAdmin ? 1 : 0;
 
         const pool = await poolPromise;
         const request = pool.request();
@@ -115,7 +142,7 @@ router.post("/", authenticateToken, upload.single('image'), async (req, res) => 
             ) VALUES (
                 @created_by, @category_id, @name, @latitude, @longitude,
                 @address, @description, @image_url, @website_url, @phone_number,
-                'pending', 0
+                @status, @is_active
             )
         `;
 
@@ -129,6 +156,8 @@ router.post("/", authenticateToken, upload.single('image'), async (req, res) => 
         request.input("image_url", sql.NVarChar(255), image_url || null);
         request.input("website_url", sql.NVarChar(255), website_url || null);
         request.input("phone_number", sql.NVarChar(20), phone_number || null);
+        request.input("status", sql.NVarChar(20), initialStatus);
+        request.input("is_active", sql.Bit, initialActive);
 
         await request.query(query);
 
@@ -169,7 +198,7 @@ router.put("/:id", authenticateToken, upload.single('image'), async (req, res) =
 
         let image_url = checkResult.recordset[0].image_url;
         if (req.file) {
-            image_url = `/uploads/${req.file.filename}`;
+            image_url = await processUploadedImage(req.file, "dnpulse_pois");
         }
 
         const updateQuery = `

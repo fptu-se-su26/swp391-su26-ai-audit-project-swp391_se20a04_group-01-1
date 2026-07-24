@@ -180,12 +180,35 @@ export default function MapIntroducePage() {
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    const handleFormSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setFormSubmitted(true);
-        setTimeout(() => setFormSubmitted(false), 4000);
-        setContactForm({ name: '', email: '', message: '' });
-    };
+    const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+        const response = await fetch("https://api.web3forms.com/submit", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+            },
+            body: JSON.stringify({
+                access_key: import.meta.env.VITE_WEB3FORMS_ACCESS_KEY,
+                name: contactForm.name,
+                email: contactForm.email,
+                message: contactForm.message,
+            }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            setFormSubmitted(true); // Kích hoạt giao diện "Gửi thành công!" có sẵn của bạn
+        } else {
+            alert(data.message || "Có lỗi xảy ra, vui lòng thử lại.");
+        }
+    } catch (error) {
+        alert("Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại mạng.");
+    }
+};
 
     return (
         <div className="relative min-h-screen w-full bg-[#080d1a] text-white font-sans overflow-x-hidden selection:bg-blue-500 selection:text-white">
@@ -664,7 +687,7 @@ export default function MapIntroducePage() {
                                         color: 'text-blue-400',
                                         bg: 'bg-blue-500/10 border-blue-500/20',
                                         label: 'Email hỗ trợ',
-                                        value: 'support@danang-eventmap.vn',
+                                        value: 'dnpulse.vn@gmail.com',
                                         sub: 'Phản hồi trong vòng 24h'
                                     },
                                     {
@@ -672,7 +695,7 @@ export default function MapIntroducePage() {
                                         color: 'text-emerald-400',
                                         bg: 'bg-emerald-500/10 border-emerald-500/20',
                                         label: 'Hotline',
-                                        value: '1800 1234',
+                                        value: '1800 1334',
                                         sub: 'Thứ 2 – Thứ 6 | 8:00 – 17:00'
                                     },
                                     {

@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 // CHỈ THÊM IMPORT NÀY:
 import { GoogleLogin } from "@react-oauth/google";
 import { showPremiumToast } from "../../utils/toastUtils";
+import { usePreferenceStore } from "../../store/preferenceStore";
 
 const slides = [
   {
@@ -50,9 +51,14 @@ export default function Login() {
   useEffect(() => {
     const id = setInterval(
       () => setSlide((s) => (s + 1) % slides.length),
-      5000,
+      3000,
     );
     return () => clearInterval(id);
+  }, []);
+
+  // Reset preferences khi vào màn hình đăng nhập
+  useEffect(() => {
+    usePreferenceStore.getState().resetPreferences();
   }, []);
 
   const current = slides[slide];
@@ -293,20 +299,30 @@ export default function Login() {
           </p>
         </div>
       </div>
-
       {/* ── CỘT PHẢI: BANNER ── */}
-      <div className="auth-right">
-        <img
-          key={slide}
-          src={current.img}
-          alt={current.badge}
-          className="auth-right-img"
-          style={{ animation: "fadeInUp 0.8s ease both" }}
-        />
-        <div className="auth-right-overlay" />
+      <div className="auth-right" style={{ position: "relative", overflow: "hidden" }}>
+        
+        {/* Hình ảnh chạy trượt ngang */}
+        {slides.map((s, index) => (
+          <img
+            key={index}
+            src={s.img}
+            alt={s.badge}
+            className="auth-right-img"
+            style={{
+              left: `${index * 100}%`, // Đặt các ảnh nằm ngang nối tiếp nhau
+              right: "auto",           // QUAN TRỌNG: Ghi đè `inset: 0` trong CSS cũ để ảnh không bị bóp méo
+              transform: `translateX(-${slide * 100}%)`, // Hiệu ứng trượt ngang
+              transition: "transform 0.8s cubic-bezier(0.25, 0.8, 0.25, 1)",
+            }}
+          />
+        ))}
+
+        {/* Lớp phủ Overlay */}
+        <div className="auth-right-overlay" style={{ position: "absolute", inset: 0, zIndex: 1 }} />
 
         {/* Stats */}
-        <div className="auth-right-stats">
+        <div className="auth-right-stats" style={{ zIndex: 2, position: "absolute" }}>
           <div className="stat-card">
             <div className="stat-value">500+</div>
             <div className="stat-label">Sự Kiện Hàng Năm</div>
@@ -318,7 +334,7 @@ export default function Login() {
         </div>
 
         {/* Content */}
-        <div className="auth-right-content">
+        <div className="auth-right-content" style={{ zIndex: 2, position: "absolute", inset: 0 }}>
           <div className="auth-right-badge">
             <MapPin size={13} />
             {current.badge}

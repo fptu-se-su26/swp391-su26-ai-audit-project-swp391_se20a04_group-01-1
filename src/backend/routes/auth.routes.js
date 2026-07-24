@@ -561,6 +561,11 @@ router.post('/google', async (req, res) => {
 
         const userData = user.recordset[0];
 
+        // Cập nhật thời gian đăng nhập cuối (áp dụng cho cả user mới và user cũ)
+        await pool.request()
+            .input('user_id', sql.Int, userData.user_id)
+            .query('UPDATE Users SET last_login_at = GETDATE() WHERE user_id = @user_id');
+
         const jwtToken = jwt.sign(
             { id: userData.user_id, email: userData.email, role: userData.role },
             process.env.JWT_SECRET,
@@ -641,16 +646,16 @@ router.post('/verify-otp', async (req, res) => {
 
         const pool = await poolPromise;
         const result = await pool.request()
-            .input('email', sql.NVarChar, email.toLowerCase())
-            .input('otp', sql.NVarChar, otp)
-            .query(`
-                SELECT verification_id, expires_at 
-                FROM VerificationCodes 
-                WHERE LOWER(email) = LOWER(@email) 
-                AND otp_code = @otp 
-                AND otp_type = 'RESET_PASSWORD'
-                AND is_used = 0
-            `);
+    .input('email', sql.NVarChar, email.toLowerCase())
+    .input('otp', sql.NVarChar, otp)
+    .query(`
+        SELECT otp_id, expires_at
+        FROM VerificationCodes
+        WHERE LOWER(email) = LOWER(@email)
+        AND otp_code = @otp
+        AND otp_type = 'RESET_PASSWORD'
+        AND is_used = 0
+    `);
 
         if (result.recordset.length === 0) return res.status(400).json({ message: 'Mã OTP không chính xác!' });
 
@@ -682,16 +687,16 @@ router.post('/reset-password', async (req, res) => {
 
         // 1. Kiểm tra xem OTP có hợp lệ không
         const checkOtp = await pool.request()
-            .input('email', sql.NVarChar, email.toLowerCase())
-            .input('otp', sql.NVarChar, otp)
-            .query(`
-                SELECT verification_id, expires_at 
-                FROM VerificationCodes 
-                WHERE LOWER(email) = LOWER(@email) 
-                AND otp_code = @otp 
-                AND otp_type = 'RESET_PASSWORD'
-                AND is_used = 0
-            `);
+    .input('email', sql.NVarChar, email.toLowerCase())
+    .input('otp', sql.NVarChar, otp)
+    .query(`
+        SELECT otp_id, expires_at
+        FROM VerificationCodes
+        WHERE LOWER(email) = LOWER(@email)
+        AND otp_code = @otp
+        AND otp_type = 'RESET_PASSWORD'
+        AND is_used = 0
+    `);
 
         // 2. Nếu không tìm thấy (chưa xác thực hoặc đã quá 10 phút)
         if (checkOtp.recordset.length === 0) {

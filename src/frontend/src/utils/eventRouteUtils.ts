@@ -59,7 +59,7 @@ export function getBlockedRoadsForRoute(
   eventRoadsList: EventRoad[],
   originCoords?: { lng: number; lat: number } | null,
   destCoords?: { lng: number; lat: number } | null,
-  thresholdMeters = 30
+  thresholdMeters = 80
 ): EventRoad[] {
   if (!routeCoords || routeCoords.length < 2 || !eventRoadsList || eventRoadsList.length === 0) {
     return [];

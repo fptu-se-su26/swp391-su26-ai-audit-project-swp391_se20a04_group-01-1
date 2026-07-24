@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Cloud, CloudRain, CloudLightning, Sun, CloudDrizzle, 
+import {
+    Cloud, CloudRain, CloudLightning, Sun, CloudDrizzle,
     Compass, AlertTriangle, RefreshCw, X, Calendar, Droplets, Wind, CloudSun
 } from 'lucide-react';
 
@@ -136,7 +136,7 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
         const updateClock = () => {
             const now = new Date();
             setTimeStr(now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }));
-            
+
             // Format dạng "T2 23-08" (Thứ - Tháng - Ngày)
             const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
             const day = weekdays[now.getDay()];
@@ -150,7 +150,7 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
     }, []);
 
     const activeWeather = weatherList.find(w => w.district === selectedDistrict);
-    
+
     // Các quận có mưa lớn
     const highRiskDistricts = weatherList.filter(w => w.rain1h > 50 && w.district !== selectedDistrict);
 
@@ -215,7 +215,7 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
     // Thiết lập gradient background động dựa trên thời tiết và nhiệt độ
     const getWidgetTheme = () => {
         if (!activeWeather) return 'from-orange-400 via-amber-500 to-rose-500 text-white';
-        
+
         const status = activeWeather.status?.toLowerCase();
         const temp = activeWeather.temp;
 
@@ -258,7 +258,7 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
     const miniForecasts = forecastData.slice(0, 4);
 
     return (
-        <div className="absolute bottom-6 right-16 max-md:bottom-[150px] max-md:right-4 z-20 w-80 max-md:w-[calc(100vw-32px)] flex flex-col gap-2 pointer-events-auto select-none font-sans">
+        <div className="absolute bottom-6 right-24 max-md:bottom-[150px] max-md:right-4 z-20 w-80 max-md:w-[calc(100vw-32px)] flex flex-col gap-2 pointer-events-auto select-none font-sans">
             {/* Inject Animation CSS */}
             <style>{`
                 @keyframes spin-slow {
@@ -279,7 +279,7 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
 
             {/* Premium Weather Widget Card */}
             <div className={`relative overflow-hidden rounded-[2.5rem] shadow-2xl border bg-gradient-to-br transition-all duration-500 hover:-translate-y-1 hover:shadow-3xl ${getWidgetTheme()}`}>
-                
+
                 {/* 1. Concentric Glowing Sun Circles (Dành cho trời nắng/ấm) */}
                 {!isLowBandwidth && (!activeWeather || activeWeather.temp >= 30) && (
                     <>
@@ -290,22 +290,22 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
                 )}
 
                 {/* 2. Top Controls & Buttons */}
-                <div className="absolute top-4 right-4 flex items-center gap-1.5 z-10">
-                    <button 
+                <div className="absolute top-2 right-4 flex items-center gap-1.5 z-10 ">
+                    <button
                         onClick={handleOpenForecastModal}
                         className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-full transition-all"
                         title="Xem dự báo chi tiết"
                     >
                         <Calendar className="w-3.5 h-3.5" />
                     </button>
-                    <button 
+                    <button
                         onClick={fetchWeather}
                         className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-full transition-all"
                         title="Làm mới"
                     >
                         <RefreshCw className="w-3.5 h-3.5" />
                     </button>
-                    <button 
+                    <button
                         onClick={() => handleToggleCollapse(true)}
                         className="text-white/80 hover:text-white hover:bg-white/10 p-1.5 rounded-full transition-all"
                         title="Đóng thời tiết"
@@ -323,12 +323,12 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
                                 {getWeatherIcon(activeWeather.status, activeWeather.temp, "w-4 h-4")}
                                 <span className="text-[11px] font-extrabold uppercase tracking-widest">{activeWeather.status}</span>
                             </div>
-                            
+
                             <span className="text-[54px] font-light leading-none tracking-tight text-white mt-2 select-none relative">
                                 {Math.round(activeWeather.temp)}
                                 <span className="text-[20px] font-semibold absolute top-0.5 ml-1">°</span>
                             </span>
-                            
+
                             <span className="text-[10px] font-bold text-white/80 mt-1 uppercase tracking-wider">
                                 Thấp: {Math.round(activeWeather.temp - 4)}° • Cao: {Math.round(activeWeather.temp + 3)}°
                             </span>
@@ -338,17 +338,17 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
                         <div className="flex flex-col items-end text-right pr-6 mt-1">
                             <span className="text-[32px] font-light text-white leading-none tracking-tight">{timeStr}</span>
                             <span className="text-[10px] font-bold text-white/80 tracking-wider uppercase mt-1.5">{dateStr}</span>
-                            
+
                             {/* Selector quận kiểu ẩn chữ bóng bẩy */}
-                            <div className="mt-4 bg-white/10 hover:bg-white/15 px-3 py-1 rounded-full border border-white/10 flex items-center gap-1 transition-all">
+                            <div className="mt-4 bg-white/10 hover:bg-white/15 px-3 py-1 rounded-full border border-white/10 flex items-center gap-1 transition-all ">
                                 <Compass className="w-3 h-3 text-white/90" />
-                                <select 
-                                    value={selectedDistrict} 
+                                <select
+                                    value={selectedDistrict}
                                     onChange={(e) => setSelectedDistrict(e.target.value)}
                                     className="bg-transparent border-none text-[10px] font-black text-white focus:outline-none cursor-pointer pr-1 uppercase tracking-wider"
                                 >
                                     {weatherList.map(w => (
-                                        <option key={w.district} value={w.district} className="text-slate-800 bg-white">
+                                        <option key={w.district} value={w.district} className="text-slate-800 bg-white rounded">
                                             {w.district}
                                         </option>
                                     ))}
@@ -377,9 +377,8 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
                         <div className="col-span-4 text-center text-[9px] text-white/60 tracking-wider">Đang tải dự báo...</div>
                     ) : miniForecasts.length > 0 ? (
                         miniForecasts.map((item, idx) => (
-                            <div key={idx} className={`flex flex-col items-center gap-1 ${
-                                idx < 3 ? 'border-r border-white/5' : ''
-                            }`}>
+                            <div key={idx} className={`flex flex-col items-center gap-1 ${idx < 3 ? 'border-r border-white/5' : ''
+                                }`}>
                                 <span className="text-[8px] font-black text-white/70 tracking-wider">{item.time}</span>
                                 {getWeatherIcon(item.status, item.temp, "w-4 h-4 my-0.5")}
                                 <span className="text-[9px] font-black text-white">{item.temp}°</span>
@@ -398,7 +397,7 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
                     <div className="flex-1 text-[9px] text-left font-black tracking-wide leading-tight uppercase">
                         Mưa ngập tại Quận {highRiskDistricts.map(d => d.district).join(', ')}
                     </div>
-                    <button 
+                    <button
                         onClick={() => setSelectedDistrict(highRiskDistricts[0].district)}
                         className="text-[8px] font-black uppercase tracking-wider bg-white text-red-600 px-2 py-1 rounded-full transition-all hover:bg-red-50 active:scale-95"
                     >
@@ -411,7 +410,7 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
             {showForecastModal && (
                 <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={() => setShowForecastModal(false)} />
-                    
+
                     <div className="bg-white/95 backdrop-blur-md rounded-3xl w-full max-w-lg shadow-2xl border border-slate-100 overflow-hidden relative z-10 flex flex-col max-h-[85vh]">
                         {/* Header */}
                         <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-5 py-4 flex justify-between items-center">
@@ -422,8 +421,8 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
                                 </h3>
                                 <p className="text-[10px] opacity-80 mt-0.5">Khu vực Quận {selectedDistrict}, Đà Nẵng</p>
                             </div>
-                            <button 
-                                onClick={() => setShowForecastModal(false)} 
+                            <button
+                                onClick={() => setShowForecastModal(false)}
                                 className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
                             >
                                 <X size={16} />
@@ -458,24 +457,22 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
 
                                     <div className="grid grid-cols-4 gap-2.5">
                                         {forecastData.map((item, idx) => (
-                                            <div key={idx} className={`p-3 rounded-xl border flex flex-col items-center text-center transition-all ${
-                                                item.rain > 50 
-                                                    ? 'bg-red-50 border-red-200 shadow-sm ring-1 ring-red-400/20' 
-                                                    : item.status === 'Rain' 
-                                                        ? 'bg-blue-50/50 border-blue-100' 
-                                                        : 'bg-slate-50/60 border-slate-100'
-                                            }`}>
+                                            <div key={idx} className={`p-3 rounded-xl border flex flex-col items-center text-center transition-all ${item.rain > 50
+                                                ? 'bg-red-50 border-red-200 shadow-sm ring-1 ring-red-400/20'
+                                                : item.status === 'Rain'
+                                                    ? 'bg-blue-50/50 border-blue-100'
+                                                    : 'bg-slate-50/60 border-slate-100'
+                                                }`}>
                                                 <span className="text-[10px] font-bold text-slate-400">{item.time}</span>
                                                 <div className="my-2">{getWeatherIcon(item.status, item.temp, "w-6 h-6", true)}</div>
                                                 <span className="text-xs font-black text-slate-800">{item.temp}°C</span>
                                                 <span className="text-[9px] text-slate-500 capitalize mt-1 truncate w-full">{item.description}</span>
-                                                
+
                                                 {item.rain > 0 ? (
-                                                    <span className={`text-[8px] font-bold px-1 py-0.5 rounded-full mt-1.5 ${
-                                                        item.rain > 50 
-                                                            ? 'bg-red-500 text-white animate-pulse' 
-                                                            : 'bg-blue-100 text-blue-700'
-                                                    }`}>
+                                                    <span className={`text-[8px] font-bold px-1 py-0.5 rounded-full mt-1.5 ${item.rain > 50
+                                                        ? 'bg-red-500 text-white animate-pulse'
+                                                        : 'bg-blue-100 text-blue-700'
+                                                        }`}>
                                                         💧 {item.rain.toFixed(1)} mm/h
                                                     </span>
                                                 ) : (
@@ -484,7 +481,7 @@ export function WeatherWidget({ isCollapsed, onToggleCollapse, isLowBandwidth = 
                                             </div>
                                         ))}
                                     </div>
-                                    
+
                                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5 grid grid-cols-2 gap-4">
                                         <div className="flex items-center gap-2.5">
                                             <div className="w-8 h-8 rounded-full bg-blue-100/50 flex items-center justify-center text-blue-600"><Droplets className="w-4 h-4" /></div>

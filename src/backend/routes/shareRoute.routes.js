@@ -31,14 +31,15 @@ const { encodePolyline } = require('../utils/polylineHelper');
 // GET /api/routes/calculate - Proxy để tính toán lộ trình và nén Polyline siêu nhẹ khi mạng yếu
 router.get("/calculate", async (req, res) => {
     try {
-        const { origin, destination, mode, access_token } = req.query;
+        const { origin, destination, coords, mode, access_token } = req.query;
 
-        if (!origin || !destination || !access_token) {
-            return res.status(400).json({ success: false, message: "Thiếu tham số origin, destination hoặc access_token!" });
+        if (!access_token || (!coords && (!origin || !destination))) {
+            return res.status(400).json({ success: false, message: "Thiếu tham số coords (hoặc origin/destination) hoặc access_token!" });
         }
 
         const travelMode = mode || 'driving';
-        const mapboxUrl = `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${origin};${destination}?geometries=geojson&overview=full&access_token=${access_token}`;
+        const coordsString = coords || `${origin};${destination}`;
+        const mapboxUrl = `https://api.mapbox.com/directions/v5/mapbox/${travelMode}/${coordsString}?geometries=geojson&overview=full&access_token=${access_token}`;
 
         const response = await fetch(mapboxUrl);
         const data = await response.json();

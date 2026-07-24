@@ -200,22 +200,22 @@ describe('parseTimeToDate()', () => {
     test('"08:30:00" → trả về Date object', () => {
         const result = parseTimeToDate('08:30:00');
         expect(result).toBeInstanceOf(Date);
-        expect(result.getUTCHours()).toBe(8);
-        expect(result.getUTCMinutes()).toBe(30);
-        expect(result.getUTCSeconds()).toBe(0);
+        expect(result.getHours()).toBe(8);
+        expect(result.getMinutes()).toBe(30);
+        expect(result.getSeconds()).toBe(0);
     });
 
     test('"23:59:59" → trả về Date cuối ngày đúng', () => {
         const result = parseTimeToDate('23:59:59');
-        expect(result.getUTCHours()).toBe(23);
-        expect(result.getUTCMinutes()).toBe(59);
-        expect(result.getUTCSeconds()).toBe(59);
+        expect(result.getHours()).toBe(23);
+        expect(result.getMinutes()).toBe(59);
+        expect(result.getSeconds()).toBe(59);
     });
 
     test('"00:00:00" → trả về nửa đêm', () => {
         const result = parseTimeToDate('00:00:00');
-        expect(result.getUTCHours()).toBe(0);
-        expect(result.getUTCMinutes()).toBe(0);
+        expect(result.getHours()).toBe(0);
+        expect(result.getMinutes()).toBe(0);
     });
 
     test('chuỗi có NaN → trả về null', () => {

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { saveFavoriteLocation, getFavoriteLocations, deleteFavoriteLocation } from "../../../services/favoriteLocationService";
 import {
   Search,
   ArrowUpDown,
@@ -19,13 +20,15 @@ import {
   RotateCcw,
   ChevronDown,
   ChevronUp,
+  Mic,
+  MicOff,
 } from "lucide-react";
 
 import { savedRouteService } from "../../../services/savedRouteService";
 import { showPremiumToast } from "../../../utils/toastUtils";
 import { useFavoritePoiStore } from "../../../store/favoritePoiStore";
 import { LocationPoint, RouteData, RouteStep } from "../hooks/useMapRouting";
-
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 
 interface RoutePanelProps {
   viewMode: "pois" | "events";
@@ -47,7 +50,7 @@ interface RoutePanelProps {
 
   setDestinationQuery: (val: string) => void;
   setOriginQuery: (val: string) => void;
-  setActiveInputField: (field: "origin" | "destination" | null) => void;
+  setActiveInputField: (field: any) => void;
   setShowSuggestions: (val: boolean) => void;
   handleSwapLocations: () => void;
   handleSelectSuggestion: (item: any) => void;
@@ -55,6 +58,7 @@ interface RoutePanelProps {
   setAvoidCongestion: (val: boolean) => void;
   setTravelMode: (mode: "driving" | "walking" | "cycling") => void;
   setShowSaveRouteModal: (val: boolean) => void;
+  onOpenSaveRouteModal: () => void;
   handleShareRoute: () => void;
   setRouteData: (val: RouteData | null) => void;
   setDestination: (val: LocationPoint | null) => void;
@@ -63,6 +67,10 @@ interface RoutePanelProps {
   setConfirmedFloodZoneIds: (val: string[]) => void;
   favoriteEventIds: Set<number>;
   onToggleEventFavorite: (eventId: number) => Promise<boolean>;
+  waypoints?: LocationPoint[];
+  setWaypoints?: React.Dispatch<React.SetStateAction<LocationPoint[]>>;
+  waypointQueries?: string[];
+  setWaypointQueries?: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 export function RoutePanel({
@@ -91,6 +99,7 @@ export function RoutePanel({
   setAvoidCongestion,
   setTravelMode,
   setShowSaveRouteModal,
+  onOpenSaveRouteModal,
   handleShareRoute,
   setRouteData,
   setDestination,
@@ -100,101 +109,345 @@ export function RoutePanel({
   onStartNavigation,
   favoriteEventIds,
   onToggleEventFavorite,
+  waypoints,
+  setWaypoints,
+  waypointQueries,
+  setWaypointQueries,
 }: RoutePanelProps) {
   const [isStarting, setIsStarting] = useState(false);
+  const [isCustomLocationFavorited, setIsCustomLocationFavorited] =
+    useState(false);
   const { favoriteIds, toggleFavorite } = useFavoritePoiStore();
+
+  // new states to prevent duplicate clicks
+  const [isSavingFav, setIsSavingFav] = useState(false);
+  const [localFavState, setLocalFavState] = useState<boolean | null>(null);
+
+  // Voice Search integration
+  const {
+    isSupported: isSpeechSupported,
+    isListening,
+    transcript,
+    error: speechError,
+    startListening,
+    stopListening,
+  } = useSpeechRecognition();
+  const [listeningTarget, setListeningTarget] = useState<"destination" | "origin" | null>(null);
+
+  const handleToggleVoiceSearch = (target: "destination" | "origin") => {
+    if (!isSpeechSupported) {
+      showPremiumToast("Trình duyệt của bạn không hỗ trợ nhận diện giọng nói Web Speech API.", "error");
+      return;
+    }
+    if (isListening && listeningTarget === target) {
+      stopListening();
+      setListeningTarget(null);
+    } else {
+      setListeningTarget(target);
+      setActiveInputField(target);
+      startListening("vi-VN");
+      showPremiumToast("🎙️ Đang lắng nghe... Vui lòng đọc tên địa điểm.", "info");
+    }
+  };
+
+  useEffect(() => {
+    if (transcript && listeningTarget) {
+      if (listeningTarget === "destination") {
+        setDestinationQuery(transcript);
+        setActiveInputField("destination");
+        if (setShowSuggestions) setShowSuggestions(true);
+      } else if (listeningTarget === "origin") {
+        setOriginQuery(transcript);
+        setActiveInputField("origin");
+        if (setShowSuggestions) setShowSuggestions(true);
+      }
+    }
+  }, [transcript, listeningTarget]);
+
+  useEffect(() => {
+    if (speechError) {
+      showPremiumToast(speechError, "error");
+      setListeningTarget(null);
+    }
+  }, [speechError]);
 
   // Lấy ID của POI hoặc Event từ destination
   const destinationPoiId = destination?.poi_id;
   const destinationEventId = (destination as any)?.event_id;
 
-  // 1. ĐỒNG BỘ LOGIC YÊU THÍCH: Lấy trực tiếp từ favoriteEventIds của Home truyền xuống
-  // Không dùng useState cục bộ ở đây nữa!
-  const isFavDest = destinationPoiId
+  // Reset local state khi thay đổi điểm đến
+  useEffect(() => {
+    setLocalFavState(null);
+  }, [destinationPoiId, destinationEventId, destination?.lat, destination?.lng]);
+
+  useEffect(() => {
+  // Hàm xử lý khi nhận được tín hiệu cập nhật danh sách yêu thích
+  const handleFavoritesUpdated = () => {
+    // Reset trạng thái trước khi kiểm tra lại
+    setIsCustomLocationFavorited(false);
+
+    // Kiểm tra các địa điểm yêu thích tùy chỉnh
+    const checkIfCustomFavorited = async () => {
+      if (!destination) return;
+      if (destinationPoiId || destinationEventId) return; // system POI / event handled elsewhere
+      if (destination.lat === undefined || destination.lng === undefined) return;
+
+      try {
+        const favs = await getFavoriteLocations();
+        if (Array.isArray(favs)) {
+          const match = favs.find((f: any) => {
+            if (f.source_place_id && (destination as any).id) {
+              return f.source_place_id === (destination as any).id || f.source_place_id === (destination as any).place_id;
+            }
+            // fallback: distance-based (~20 meters)
+            const dLat = Math.abs(f.latitude - destination.lat);
+            const dLng = Math.abs(f.longitude - destination.lng);
+            return dLat < 0.00025 && dLng < 0.00025;
+          });
+          setIsCustomLocationFavorited(!!match);
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    checkIfCustomFavorited();
+  };
+
+  // 1. Chạy ngay khi destination thay đổi (như code ban đầu của bạn)
+  handleFavoritesUpdated();
+
+  // 2. Lắng nghe sự kiện "favorites:updated" khi có hành động Thêm/Xóa ở nơi khác (như ProfilePage)
+  window.addEventListener("favorites:updated", handleFavoritesUpdated);
+
+  // 3. Cleanup sự kiện khi component unmount hoặc destination thay đổi[cite: 3]
+  return () => {
+    window.removeEventListener("favorites:updated", handleFavoritesUpdated);
+  };
+}, [destination, destinationPoiId, destinationEventId]);
+
+  // 1. ĐỒNG BỘ LOGIC YÊU THÍCH: Kết hợp state cục bộ và state global
+  const derivedIsFavDest = destinationPoiId
     ? favoriteIds.has(destinationPoiId)
     : destinationEventId
       ? favoriteEventIds.has(destinationEventId)
-      : false;
+      : isCustomLocationFavorited;
 
-  const canBeFavorited = !!(destinationPoiId || destinationEventId);
+  const isFavDest = localFavState !== null ? localFavState : derivedIsFavDest;
+
+  // Luôn cho phép hiển thị nút yêu thích vì giờ đã hỗ trợ cả địa điểm tự do
+  const canBeFavorited = !!destinationQuery || !!destination;
+
+  const forwardGeocode = async (query: string) => {
+    try {
+      const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+      const response = await fetch(
+        `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(query)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=1&language=vi`,
+      );
+      const data = await response.json();
+      if (data?.features && data.features.length > 0) {
+        const f = data.features[0];
+        return {
+          lat: f.geometry?.coordinates?.[1],
+          lng: f.geometry?.coordinates?.[0],
+          label: f.properties?.full_address || f.properties?.name || f.text || query,
+          sourcePlaceId: f.properties?.mapbox_id || f.id || undefined,
+          rawFeature: f,
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error("Forward geocode error:", err);
+      return null;
+    }
+  };
+
+  const findExistingCustomFavorite = async (lat?: number, lng?: number, sourcePlaceId?: string, name?: string) => {
+    try {
+      const favs = await getFavoriteLocations();
+      if (!Array.isArray(favs)) return null;
+      return favs.find((f: any) => {
+        if (sourcePlaceId && f.source_place_id) {
+          return f.source_place_id === sourcePlaceId;
+        }
+        // name match fallback
+        if (name && f.name && f.name === name) return true;
+        if (lat !== undefined && lng !== undefined) {
+          const dLat = Math.abs(f.latitude - lat);
+          const dLng = Math.abs(f.longitude - lng);
+          return dLat < 0.00025 && dLng < 0.00025; // ~ <30m
+        }
+        return false;
+      }) || null;
+    } catch (err) {
+      console.error("Error checking existing favorites:", err);
+      return null;
+    }
+  };
 
   const handleFavDestClick = async () => {
-    if (!canBeFavorited) return;
+    if (!canBeFavorited || isSavingFav) return;
 
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
+    // Kiểm tra đăng nhập
+    const token = localStorage.getItem("token") || localStorage.getItem("auth_token");
     if (!token) {
       showPremiumToast(
         "Vui lòng đăng nhập để lưu địa điểm/sự kiện yêu thích.",
-        "error",
+        "error"
       );
       return;
     }
 
+    setIsSavingFav(true);
+
     try {
+      // 1) POI đã có trong hệ thống
       if (destinationPoiId) {
-        // Lưu POI
-        const res = await toggleFavorite(destinationPoiId);
-        showPremiumToast(
-          res
-            ? "Đã lưu địa điểm vào danh sách yêu thích!"
-            : "Đã xóa địa điểm khỏi danh sách yêu thích.",
-          "success",
-        );
-      } else if (destinationEventId) {
-        // Lưu Event: Gọi hàm được truyền từ Home.tsx xuống để đồng bộ 100%
-        const isFav = await onToggleEventFavorite(destinationEventId);
-        showPremiumToast(
-          isFav
-            ? "Đã lưu sự kiện vào danh sách yêu thích!"
-            : "Đã xóa sự kiện khỏi danh sách.",
-          "success",
-        );
+        try {
+          const res = await toggleFavorite(destinationPoiId);
+          setLocalFavState(res);
+          showPremiumToast(
+            res
+              ? "Đã lưu địa điểm vào danh sách yêu thích!"
+              : "Đã xóa địa điểm khỏi danh sách yêu thích.",
+            "success"
+          );
+        } catch (err: any) {
+          // Nếu toggleFavorite trả về lỗi 404 (POI không tồn tại) => fallback: lưu như custom location nếu có tọa độ
+          console.warn("toggleFavorite error:", err);
+          const status = err?.response?.status;
+          if (status === 404) {
+            // fallback to saving custom location if we have coords
+            const lat = destination?.lat;
+            const lng = destination?.lng;
+            const label = destination?.label || destinationQuery;
+            const sourcePlaceId = (destination as any)?.id || (destination as any)?.place_id;
+            if (lat !== undefined && lng !== undefined) {
+              // check existing then save
+              const existing = await findExistingCustomFavorite(lat, lng, sourcePlaceId, label);
+              if (existing) {
+                await deleteFavoriteLocation(existing.favorite_id);
+                setIsCustomLocationFavorited(false);
+                setLocalFavState(false);
+                showPremiumToast("Đã xóa khỏi danh sách yêu thích!", "success");
+              } else {
+                await saveFavoriteLocation(label || destinationQuery, lat, lng, sourcePlaceId);
+                setIsCustomLocationFavorited(true);
+                setLocalFavState(true);
+                showPremiumToast("Đã lưu địa điểm tự do vào danh sách yêu thích!", "success");
+              }
+              // notify others
+              window.dispatchEvent(new CustomEvent("favorites:updated"));
+            } else {
+              showPremiumToast("Không có toạ độ để lưu địa điểm.", "error");
+            }
+          } else {
+            showPremiumToast("Không thể cập nhật trạng thái yêu thích lúc này.", "error");
+          }
+        } finally {
+          setIsSavingFav(false);
+        }
+        return;
+      }
+
+      // 2) Event -> dùng onToggleEventFavorite (đã truyền từ Home)
+      if (destinationEventId) {
+        try {
+          const isFav = await onToggleEventFavorite(destinationEventId);
+          setLocalFavState(isFav);
+          showPremiumToast(
+            isFav
+              ? "Đã lưu sự kiện vào danh sách yêu thích!"
+              : "Đã xóa sự kiện khỏi danh sách.",
+            "success"
+          );
+        } catch (err) {
+          console.error("Error toggling event favorite:", err);
+          showPremiumToast("Không thể cập nhật sự kiện yêu thích.", "error");
+        } finally {
+          setIsSavingFav(false);
+        }
+        return;
+      }
+
+      // 3) Địa điểm tự do (custom): cần coords. Nếu chưa có coords, gọi forward-geocode từ destinationQuery
+      let lat = destination?.lat;
+      let lng = destination?.lng;
+      let label = destination?.label || destinationQuery;
+      let sourcePlaceId = (destination as any)?.id || (destination as any)?.place_id;
+
+      if ((lat === undefined || lng === undefined) && destinationQuery) {
+        const resolved = await forwardGeocode(destinationQuery);
+        if (!resolved) {
+          showPremiumToast("Không tìm thấy địa điểm. Vui lòng thử lại hoặc chọn từ gợi ý.", "error");
+          setIsSavingFav(false);
+          return;
+        }
+        lat = resolved.lat;
+        lng = resolved.lng;
+        label = resolved.label;
+        sourcePlaceId = resolved.sourcePlaceId;
+        // update destination in parent UI (so user sees marker)
+        setDestination({
+          lat,
+          lng,
+          label,
+          ...(sourcePlaceId ? { id: sourcePlaceId } : {}),
+        } as any);
+        setDestinationQuery(label);
+      }
+
+      if (lat === undefined || lng === undefined) {
+        showPremiumToast("Thiếu toạ độ địa điểm. Vui lòng chọn vị trí hợp lệ.", "error");
+        setIsSavingFav(false);
+        return;
+      }
+
+      // Kiểm tra xem đã có favorite tương ứng chưa
+      const existing = await findExistingCustomFavorite(lat, lng, sourcePlaceId, label);
+      if (existing) {
+        // Nếu tồn tại -> xóa (toggle)
+        try {
+          await deleteFavoriteLocation(existing.favorite_id);
+          setIsCustomLocationFavorited(false);
+          setLocalFavState(false);
+          showPremiumToast("Đã xóa khỏi danh sách yêu thích!", "success");
+          // notify others
+          window.dispatchEvent(new CustomEvent("favorites:updated"));
+        } catch (err) {
+          console.error("Error deleting favorite location:", err);
+          showPremiumToast("Không thể xóa địa điểm yêu thích.", "error");
+        } finally {
+          setIsSavingFav(false);
+        }
+        return;
+      }
+
+      // Nếu chưa tồn tại -> lưu
+      try {
+        await saveFavoriteLocation(label || destinationQuery, lat, lng, sourcePlaceId);
+        setIsCustomLocationFavorited(true);
+        setLocalFavState(true);
+        showPremiumToast("Đã lưu địa điểm tự do vào danh sách yêu thích!", "success");
+        // notify others
+        window.dispatchEvent(new CustomEvent("favorites:updated"));
+      } catch (err) {
+        console.error("Lỗi khi lưu favorite location:", err);
+        showPremiumToast("Không thể lưu địa điểm lúc này.", "error");
+      } finally {
+        setIsSavingFav(false);
       }
     } catch (error) {
-      console.error("Lỗi yêu thích:", error);
-      showPremiumToast("Không thể cập nhật trạng thái yêu thích.", "error");
+      console.error("Lỗi khi xử lý yêu thích:", error);
+      showPremiumToast("Có lỗi xảy ra. Vui lòng thử lại.", "error");
+      setIsSavingFav(false);
     }
   };
 
-  const handleStartTrip = async () => {
+  const handleStartTrip = () => {
     if (!origin || !destination || !routeData) return;
-
-    setIsStarting(true);
-    const token =
-      localStorage.getItem("token") || localStorage.getItem("auth_token");
-    try {
-      if (token) {
-        await savedRouteService.saveRoute({
-          origin_name: originQuery || origin.label || "Vị trí hiện tại",
-          origin_lat: origin.lat,
-          origin_lng: origin.lng,
-          destination_name: destinationQuery || destination.label || "Điểm đến",
-          destination_lat: destination.lat,
-          destination_lng: destination.lng,
-          route_name: `Lịch sử: ${originQuery || "Điểm đi"} ➔ ${destinationQuery || "Điểm đến"}`,
-          route_data: JSON.stringify(routeData.coordinates),
-          distance_meters: routeData.totalDistanceKm * 1000,
-          duration_seconds: routeData.totalTimeMin * 60,
-          profile: travelMode,
-        });
-      }
-      onStartNavigation();
-      showPremiumToast(
-        token
-          ? "Đã bắt đầu chuyến đi và lưu vào lịch sử!"
-          : "Đã bắt đầu chuyến đi!",
-        "success",
-      );
-    } catch (error) {
-      console.error("Lỗi khi lưu lịch sử lộ trình:", error);
-      showPremiumToast(
-        "Đã bắt đầu chuyến đi nhưng không thể lưu lịch sử do lỗi mạng.",
-        "warning",
-      );
-    } finally {
-      setIsStarting(false);
-    }
+    onStartNavigation();
+    showPremiumToast("Dẫn đường đã bắt đầu!", "success");
   };
 
   // ✅ Sửa điều kiện chặn hiển thị: Cho phép cả pois VÀ events
@@ -203,53 +456,12 @@ export function RoutePanel({
   return (
     <>
       <div ref={searchContainerRef} className="relative z-50">
-      {!destination ? (
-        <div className="w-full h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
-          <Search className="text-blue-500 mr-2 shrink-0" size={18} />
-          <input
-            type="text"
-            placeholder="Tìm kiếm địa điểm tại Đà Nẵng..."
-            value={destinationQuery}
-            onChange={(e) => {
-              setDestinationQuery(e.target.value);
-              setActiveInputField("destination");
-            }}
-            onFocus={() => {
-              setActiveInputField("destination");
-              if (suggestions.length > 0) setShowSuggestions(true);
-            }}
-            className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
-          />
-        </div>
-      ) : (
-        <div className="w-full max-md:max-h-[35vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
-          <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
-          <div className="flex items-center gap-3 relative">
-            <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-            </span>
+        {!destination ? (
+          <div className="w-full h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
+            <Search className="text-blue-500 mr-2 shrink-0" size={18} />
             <input
               type="text"
-              placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
-              value={originQuery}
-              onChange={(e) => {
-                setOriginQuery(e.target.value);
-                setActiveInputField("origin");
-              }}
-              onFocus={() => {
-                setActiveInputField("origin");
-                if (suggestions.length > 0) setShowSuggestions(true);
-              }}
-              className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-            />
-          </div>
-          <div className="flex items-center gap-3 relative">
-            <span className="text-red-500 z-10 text-sm font-bold shrink-0">
-              📍
-            </span>
-            <input
-              type="text"
-              placeholder="Chọn điểm đến..."
+              placeholder="Tìm kiếm địa điểm..."
               value={destinationQuery}
               onChange={(e) => {
                 setDestinationQuery(e.target.value);
@@ -259,40 +471,219 @@ export function RoutePanel({
                 setActiveInputField("destination");
                 if (suggestions.length > 0) setShowSuggestions(true);
               }}
-              className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+              className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
             />
-          </div>
-          <button
-            onClick={handleSwapLocations}
-            className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
-            title="Đảo ngược vị trí"
-          >
-            <ArrowUpDown size={14} />
-          </button>
-        </div>
-      )}
-
-      {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
-          {suggestions.map((item: any) => (
             <button
-              key={item.id}
-              onClick={() => handleSelectSuggestion(item)}
-              className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-start gap-2 text-[11px] font-medium text-slate-700 border-b border-slate-50 last:border-b-0"
+              type="button"
+              onClick={() => handleToggleVoiceSearch("destination")}
+              className={`ml-2 p-1.5 rounded-full transition-all shrink-0 ${
+                isListening && listeningTarget === "destination"
+                  ? "bg-red-500 text-white animate-pulse shadow-md shadow-red-300"
+                  : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
+              }`}
+              title={
+                isListening && listeningTarget === "destination"
+                  ? "Đang lắng nghe giọng nói..."
+                  : "Tìm kiếm bằng giọng nói"
+              }
             >
-              <span className="text-slate-400 mt-0.5">📍</span>
-              <div>
-                <div className="font-bold text-slate-800 line-clamp-1">
-                  {item.text_vi || item.text}
-                </div>
-                <div className="text-slate-400 text-[10px] line-clamp-1 mt-0.5">
-                  {item.place_name_vi || item.place_name}
-                </div>
-              </div>
+              {isListening && listeningTarget === "destination" ? (
+                <MicOff size={16} />
+              ) : (
+                <Mic size={16} />
+              )}
             </button>
-          ))}
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="w-full max-md:max-h-[35vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
+            <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
+            <div className="flex items-center gap-3 relative">
+              <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              </span>
+              <div className="relative w-full flex items-center">
+                <input
+                  type="text"
+                  placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
+                  value={originQuery}
+                  onChange={(e) => {
+                    setOriginQuery(e.target.value);
+                    setActiveInputField("origin");
+                  }}
+                  onFocus={() => {
+                    setActiveInputField("origin");
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleToggleVoiceSearch("origin")}
+                  className={`absolute right-2 p-1 rounded-full transition-all shrink-0 ${
+                    isListening && listeningTarget === "origin"
+                      ? "bg-red-500 text-white animate-pulse"
+                      : "text-slate-400 hover:text-blue-600 hover:bg-slate-200"
+                  }`}
+                  title={
+                    isListening && listeningTarget === "origin"
+                      ? "Đang lắng nghe..."
+                      : "Tìm bằng giọng nói"
+                  }
+                >
+                  {isListening && listeningTarget === "origin" ? (
+                    <MicOff size={14} />
+                  ) : (
+                    <Mic size={14} />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Chặng đi giữa (Waypoints) */}
+            {waypoints &&
+              waypoints.map((wp, idx) => (
+                <div
+                  key={`waypoint-input-${idx}`}
+                  className="flex items-center gap-3 relative"
+                >
+                  <span className="w-4 h-4 rounded-full border-2 border-slate-400 bg-white z-10 flex items-center justify-center shrink-0 text-[9px] font-black text-slate-500">
+                    {String.fromCharCode(66 + idx)}
+                  </span>
+                  <div className="relative w-full flex items-center">
+                    <input
+                      type="text"
+                      placeholder={`Chọn điểm dừng ${idx + 1}...`}
+                      value={waypointQueries?.[idx] || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (setWaypointQueries) {
+                          setWaypointQueries((prev) => {
+                            const next = [...prev];
+                            next[idx] = val;
+                            return next;
+                          });
+                        }
+                        setActiveInputField(`waypoint-${idx}`);
+                      }}
+                      onFocus={() => {
+                        setActiveInputField(`waypoint-${idx}`);
+                        if (suggestions.length > 0) setShowSuggestions(true);
+                      }}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                    />
+                    <button
+                      onClick={() => {
+                        if (setWaypoints && setWaypointQueries) {
+                          setWaypoints((prev) =>
+                            prev.filter((_, i) => i !== idx),
+                          );
+                          setWaypointQueries((prev) =>
+                            prev.filter((_, i) => i !== idx),
+                          );
+                        }
+                      }}
+                      className="absolute right-3 text-slate-400 hover:text-slate-600 font-bold text-sm"
+                      title="Xóa điểm dừng"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+            <div className="flex items-center gap-3 relative">
+              <span className="text-red-500 z-10 text-sm font-bold shrink-0">
+                📍
+              </span>
+              <div className="relative w-full flex items-center">
+                <input
+                  type="text"
+                  placeholder="Chọn điểm đến..."
+                  value={destinationQuery}
+                  onChange={(e) => {
+                    setDestinationQuery(e.target.value);
+                    setActiveInputField("destination");
+                  }}
+                  onFocus={() => {
+                    setActiveInputField("destination");
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleToggleVoiceSearch("destination")}
+                  className={`absolute right-2 p-1 rounded-full transition-all shrink-0 ${
+                    isListening && listeningTarget === "destination"
+                      ? "bg-red-500 text-white animate-pulse"
+                      : "text-slate-400 hover:text-blue-600 hover:bg-slate-200"
+                  }`}
+                  title={
+                    isListening && listeningTarget === "destination"
+                      ? "Đang lắng nghe..."
+                      : "Tìm bằng giọng nói"
+                  }
+                >
+                  {isListening && listeningTarget === "destination" ? (
+                    <MicOff size={14} />
+                  ) : (
+                    <Mic size={14} />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Nút Thêm điểm dừng */}
+            {(!waypoints || waypoints.length < 3) && (
+              <button
+                onClick={() => {
+                  if (setWaypoints && setWaypointQueries) {
+                    setWaypoints((prev) => [
+                      ...prev,
+                      { lat: undefined, lng: undefined, label: "" } as any,
+                    ]);
+                    setWaypointQueries((prev) => [...prev, ""]);
+                  }
+                }}
+                className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-700 font-semibold self-start ml-7 mt-0.5 hover:underline"
+              >
+                <span className="text-sm font-bold">+</span> Thêm điểm dừng
+              </button>
+            )}
+
+            {(!waypoints || waypoints.length === 0) && (
+              <button
+                onClick={handleSwapLocations}
+                className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
+                title="Đảo ngược vị trí"
+              >
+                <ArrowUpDown size={14} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute top-full left-0 mt-2 w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
+            {suggestions.map((item: any) => (
+              <button
+                key={item.id}
+                onClick={() => handleSelectSuggestion(item)}
+                className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors flex items-start gap-2 text-[11px] font-medium text-slate-700 border-b border-slate-50 last:border-b-0"
+              >
+                <span className="text-slate-400 mt-0.5">📍</span>
+                <div>
+                  <div className="font-bold text-slate-800 line-clamp-1">
+                    {item.text_vi || item.text}
+                  </div>
+                  <div className="text-slate-400 text-[10px] line-clamp-1 mt-0.5">
+                    {item.place_name_vi || item.place_name}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {routeData && (
@@ -418,7 +809,7 @@ export function RoutePanel({
             {/* Hàng: Lưu lộ trình + Chia sẻ */}
             <div className="flex gap-2">
               <button
-                onClick={() => setShowSaveRouteModal(true)}
+                onClick={onOpenSaveRouteModal}
                 className="flex-1 bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
               >
                 <Bookmark size={13} className="fill-current" /> Lưu lộ trình
@@ -437,6 +828,7 @@ export function RoutePanel({
             {canBeFavorited ? (
               <button
                 onClick={handleFavDestClick}
+                disabled={isSavingFav}
                 className={`w-full py-2.5 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all border ${
                   isFavDest
                     ? "bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100"
@@ -478,7 +870,7 @@ export function TurnByTurnSteps({ steps }: { steps: RouteStep[] }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const filteredSteps = steps.filter(
-    (s) => s.maneuver.type !== "depart" && s.maneuver.type !== "arrive"
+    (s) => s.maneuver.type !== "depart" && s.maneuver.type !== "arrive",
   );
   const displaySteps = isExpanded ? steps : steps.slice(0, 3);
 
@@ -491,8 +883,7 @@ export function TurnByTurnSteps({ steps }: { steps: RouteStep[] }) {
     }
     if (type === "depart")
       return <Navigation size={14} className="text-emerald-600" />;
-    if (type === "arrive")
-      return <Flag size={14} className="text-red-500" />;
+    if (type === "arrive") return <Flag size={14} className="text-red-500" />;
     if (type === "rotary" || type === "roundabout")
       return <RotateCcw size={14} className="text-violet-600" />;
     if (type === "merge" || type === "on ramp" || type === "off ramp")
