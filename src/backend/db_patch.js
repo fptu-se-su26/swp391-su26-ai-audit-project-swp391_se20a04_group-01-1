@@ -117,7 +117,31 @@ async function runPatch() {
                 PRINT 'UserSocialAccount table already exists';
             END
         `;
-        // ... [các đoạn code cũ trong file] ...
+        console.log('Checking UserFavoritePlaces table...');
+        const checkFavoritePlacesQuery = `
+            IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserFavoritePlaces')
+            BEGIN
+                CREATE TABLE UserFavoritePlaces (
+                    favorite_id INT IDENTITY(1,1) PRIMARY KEY,
+                    user_id INT NOT NULL FOREIGN KEY REFERENCES Users (user_id) ON DELETE CASCADE,
+                    poi_id INT NULL,
+                    favorite_type NVARCHAR(50) NOT NULL DEFAULT 'custom',
+                    source NVARCHAR(100) NULL,
+                    latitude DECIMAL(9,6) NOT NULL,
+                    longitude DECIMAL(9,6) NOT NULL,
+                    name NVARCHAR(255) NOT NULL,
+                    address NVARCHAR(255) NULL,
+                    note NVARCHAR(MAX) NULL,
+                    created_at DATETIME NOT NULL DEFAULT GETDATE()
+                );
+                PRINT 'Created UserFavoritePlaces table';
+            END
+            ELSE
+            BEGIN
+                PRINT 'UserFavoritePlaces table already exists';
+            END
+        `;
+        await pool.request().query(checkFavoritePlacesQuery);
 
         console.log('Checking UserFavoriteLocations table...');
         const checkFavoriteLocationsQuery = `
@@ -129,7 +153,7 @@ async function runPatch() {
                     label NVARCHAR(255) NOT NULL,
                     latitude DECIMAL(9,6) NOT NULL,
                     longitude DECIMAL(9,6) NOT NULL,
-                    source_place_id NVARCHAR(100) NULL, -- mapbox_id để tránh trùng lặp
+                    source_place_id NVARCHAR(100) NULL,
                     saved_at DATETIME NOT NULL DEFAULT GETDATE()
                 );
                 PRINT 'Created UserFavoriteLocations table';
@@ -139,6 +163,7 @@ async function runPatch() {
                 PRINT 'UserFavoriteLocations table already exists';
             END
         `;
+        await pool.request().query(checkFavoriteLocationsQuery);
         await pool.request().query(checkUserSocialAccountQuery);
         
         console.log('✅ Database patch applied successfully!');
