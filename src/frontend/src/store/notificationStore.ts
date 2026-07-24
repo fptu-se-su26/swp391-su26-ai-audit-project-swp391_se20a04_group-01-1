@@ -30,7 +30,7 @@ interface NotificationStore {
     stopPolling: () => void;
 }
 
-const getToken = () => localStorage.getItem('token') || '';
+const getToken = () => localStorage.getItem('token') || localStorage.getItem('auth_token') || '';
 
 export const useNotificationStore = create<NotificationStore>((set, get) => ({
     notifications: [],
@@ -48,7 +48,8 @@ export const useNotificationStore = create<NotificationStore>((set, get) => ({
             });
             const data = await res.json();
             if (data.success) {
-                set({ notifications: data.data });
+                const unread = data.data.filter((n: any) => !n.is_read).length;
+                set({ notifications: data.data, unreadCount: unread });
             }
         } catch (err) {
             console.error('[NotificationStore] fetchNotifications error:', err);

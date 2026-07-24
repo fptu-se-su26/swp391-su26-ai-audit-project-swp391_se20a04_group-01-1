@@ -2494,7 +2494,7 @@ export default function Home() {
           {/* Hàng trên: Search + Bell + Avatar */}
           <div className="flex items-start justify-between gap-2 w-full">
             {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
-            <div className="relative z-[200] pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:overflow-visible">
+            <div className="relative z-[200] pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-h-[calc(100dvh-3rem)] max-md:overflow-visible">
               {!isNavigating && (
                 <>
                   <RoutePanel
@@ -2871,6 +2871,7 @@ export default function Home() {
   w-[calc(100%-48px)]
   md:left-6 md:top-6 md:w-80
   pointer-events-auto
+  max-h-[calc(100dvh-3rem)]
 
   max-md:fixed
   max-md:top-auto

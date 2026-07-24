@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   saveFavoriteLocation,
   getFavoriteLocations,
@@ -130,6 +130,31 @@ export function RoutePanel({
   // new states to prevent duplicate clicks
   const [isSavingFav, setIsSavingFav] = useState(false);
   const [localFavState, setLocalFavState] = useState<boolean | null>(null);
+
+  // Responsive Drag / Collapse State (Chỉ áp dụng cho giao diện mobile/responsive)
+  const [isMobileExpanded, setIsMobileExpanded] = useState(true);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartY.current === null) return;
+    const currentY = e.touches[0].clientY;
+    const diffY = currentY - touchStartY.current;
+    if (diffY > 40) {
+      setIsMobileExpanded(false);
+      touchStartY.current = null;
+    } else if (diffY < -40) {
+      setIsMobileExpanded(true);
+      touchStartY.current = null;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartY.current = null;
+  };
 
   // Voice Search integration
   const {
@@ -527,262 +552,288 @@ export function RoutePanel({
 
   return (
     <>
-      <div ref={searchContainerRef} className="relative z-50">
-        {!destination ? (
-          <div className="w-full h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
-            <Search className="text-blue-500 mr-2 shrink-0" size={18} />
-            <input
-              type="text"
-              placeholder="Tìm kiếm địa điểm..."
-              value={destinationQuery}
-              onChange={(e) => {
-                setDestinationQuery(e.target.value);
-                setActiveInputField("destination");
-                setShowSuggestions(true);
-              }}
-              onFocus={() => {
-                setActiveInputField("destination");
-                if (suggestions.length > 0) setShowSuggestions(true);
-              }}
-              className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
-            />
-            <button
-              type="button"
-              onClick={() => handleToggleVoiceSearch("destination")}
-              className={`ml-2 p-1.5 rounded-full transition-all shrink-0 ${
-                isListening && listeningTarget === "destination"
-                  ? "bg-red-500 text-white animate-pulse shadow-md shadow-red-300"
-                  : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
-              }`}
-              title={
-                isListening && listeningTarget === "destination"
-                  ? "Đang lắng nghe giọng nói..."
-                  : "Tìm kiếm bằng giọng nói"
-              }
-            >
-              {isListening && listeningTarget === "destination" ? (
-                <MicOff size={16} />
-              ) : (
-                <Mic size={16} />
-              )}
-            </button>
-          </div>
-        ) : (
-          <div className="w-full max-md:max-h-[35vh] max-md:overflow-y-auto scrollbar-none bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
-            <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
-            <div className="flex items-center gap-3 relative">
-              <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-              </span>
-              <div className="relative w-full flex items-center">
-                <input
-                  type="text"
-                  placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
-                  value={originQuery}
-                  onChange={(e) => {
-                    setOriginQuery(e.target.value);
-                    setActiveInputField("origin");
-                  }}
-                  onFocus={() => {
-                    setActiveInputField("origin");
-                    if (suggestions.length > 0) setShowSuggestions(true);
-                  }}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleToggleVoiceSearch("origin")}
-                  className={`absolute right-2 p-1 rounded-full transition-all shrink-0 ${
-                    isListening && listeningTarget === "origin"
-                      ? "bg-red-500 text-white animate-pulse"
-                      : "text-slate-400 hover:text-blue-600 hover:bg-slate-200"
-                  }`}
-                  title={
-                    isListening && listeningTarget === "origin"
-                      ? "Đang lắng nghe..."
-                      : "Tìm bằng giọng nói"
-                  }
-                >
-                  {isListening && listeningTarget === "origin" ? (
-                    <MicOff size={14} />
-                  ) : (
-                    <Mic size={14} />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Chặng đi giữa (Waypoints) */}
-            {waypoints &&
-              waypoints.map((wp, idx) => (
-                <div
-                  key={`waypoint-input-${idx}`}
-                  className="flex items-center gap-3 relative"
-                >
-                  <span className="w-4 h-4 rounded-full border-2 border-slate-400 bg-white z-10 flex items-center justify-center shrink-0 text-[9px] font-black text-slate-500">
-                    {String.fromCharCode(66 + idx)}
-                  </span>
-                  <div className="relative w-full flex items-center">
-                    <input
-                      type="text"
-                      placeholder={`Chọn điểm dừng ${idx + 1}...`}
-                      value={waypointQueries?.[idx] || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (setWaypointQueries) {
-                          setWaypointQueries((prev) => {
-                            const next = [...prev];
-                            next[idx] = val;
-                            return next;
-                          });
-                        }
-                        setActiveInputField(`waypoint-${idx}`);
-                      }}
-                      onFocus={() => {
-                        setActiveInputField(`waypoint-${idx}`);
-                        if (suggestions.length > 0) setShowSuggestions(true);
-                      }}
-                      className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-                    />
-                    <button
-                      onClick={() => {
-                        if (setWaypoints && setWaypointQueries) {
-                          setWaypoints((prev) =>
-                            prev.filter((_, i) => i !== idx),
-                          );
-                          setWaypointQueries((prev) =>
-                            prev.filter((_, i) => i !== idx),
-                          );
-                        }
-                      }}
-                      className="absolute right-3 text-slate-400 hover:text-slate-600 font-bold text-sm"
-                      title="Xóa điểm dừng"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-            <div className="flex items-center gap-3 relative">
-              <span className="text-red-500 z-10 text-sm font-bold shrink-0">
-                📍
-              </span>
-              <div className="relative w-full flex items-center">
-                <input
-                  type="text"
-                  placeholder="Chọn điểm đến..."
-                  value={destinationQuery}
-                  onChange={(e) => {
-                    setDestinationQuery(e.target.value);
-                    setActiveInputField("destination");
-                  }}
-                  onFocus={() => {
-                    setActiveInputField("destination");
-                    if (suggestions.length > 0) setShowSuggestions(true);
-                  }}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
-                />
-                <button
-                  type="button"
-                  onClick={() => handleToggleVoiceSearch("destination")}
-                  className={`absolute right-2 p-1 rounded-full transition-all shrink-0 ${
-                    isListening && listeningTarget === "destination"
-                      ? "bg-red-500 text-white animate-pulse"
-                      : "text-slate-400 hover:text-blue-600 hover:bg-slate-200"
-                  }`}
-                  title={
-                    isListening && listeningTarget === "destination"
-                      ? "Đang lắng nghe..."
-                      : "Tìm bằng giọng nói"
-                  }
-                >
-                  {isListening && listeningTarget === "destination" ? (
-                    <MicOff size={14} />
-                  ) : (
-                    <Mic size={14} />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Nút Thêm điểm dừng */}
-            {(!waypoints || waypoints.length < 3) && (
-              <button
-                onClick={() => {
-                  if (setWaypoints && setWaypointQueries) {
-                    setWaypoints((prev) => [
-                      ...prev,
-                      { lat: undefined, lng: undefined, label: "" } as any,
-                    ]);
-                    setWaypointQueries((prev) => [...prev, ""]);
-                  }
+      <div ref={searchContainerRef} className="relative z-50 flex flex-col gap-2 max-h-[calc(100dvh-3.5rem)]">
+        {/* Khung ô nhập liệu & gợi ý tìm kiếm */}
+        <div className="relative z-50 shrink-0">
+          {!destination ? (
+            <div className="w-full h-[42px] bg-white rounded-full shadow-md border border-slate-200/60 flex items-center px-4">
+              <Search className="text-blue-500 mr-2 shrink-0" size={18} />
+              <input
+                type="text"
+                placeholder="Tìm kiếm địa điểm..."
+                value={destinationQuery}
+                onChange={(e) => {
+                  setDestinationQuery(e.target.value);
+                  setActiveInputField("destination");
+                  setShowSuggestions(true);
                 }}
-                className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-700 font-semibold self-start ml-7 mt-0.5 hover:underline"
-              >
-                <span className="text-sm font-bold">+</span> Thêm điểm dừng
-              </button>
-            )}
-
-            {(!waypoints || waypoints.length === 0) && (
+                onFocus={() => {
+                  setActiveInputField("destination");
+                  if (suggestions.length > 0) setShowSuggestions(true);
+                }}
+                className="w-full bg-transparent outline-none text-xs font-medium text-slate-700 placeholder-slate-400"
+              />
               <button
-                onClick={handleSwapLocations}
-                className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
-                title="Đảo ngược vị trí"
+                type="button"
+                onClick={() => handleToggleVoiceSearch("destination")}
+                className={`ml-2 p-1.5 rounded-full transition-all shrink-0 ${
+                  isListening && listeningTarget === "destination"
+                    ? "bg-red-500 text-white animate-pulse shadow-md shadow-red-300"
+                    : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
+                }`}
+                title={
+                  isListening && listeningTarget === "destination"
+                    ? "Đang lắng nghe giọng nói..."
+                    : "Tìm kiếm bằng giọng nói"
+                }
               >
-                <ArrowUpDown size={14} />
+                {isListening && listeningTarget === "destination" ? (
+                  <MicOff size={16} />
+                ) : (
+                  <Mic size={16} />
+                )}
               </button>
-            )}
-          </div>
-        )}
-
-        {showSuggestions && (
-          <div className="absolute top-full left-0 right-0 mt-2 w-full max-h-[min(45dvh,320px)] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-[999]">
-            {loadingSearch ? (
-              <div className="flex items-center justify-center gap-2 px-3 py-4 text-xs text-slate-500">
-                <div className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-                <span>Đang tìm địa điểm...</span>
+            </div>
+          ) : (
+            <div className="w-full max-h-[35dvh] overflow-y-auto custom-scrollbar bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex flex-col gap-3 relative">
+              <div className="absolute left-[26px] top-[34px] bottom-[34px] w-[2px] border-l-2 border-dashed border-slate-200"></div>
+              <div className="flex items-center gap-3 relative">
+                <span className="w-4 h-4 rounded-full border-2 border-blue-500 bg-white z-10 flex items-center justify-center shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                </span>
+                <div className="relative w-full flex items-center">
+                  <input
+                    type="text"
+                    placeholder="Chọn điểm đi (Mặc định: Vị trí của bạn)"
+                    value={originQuery}
+                    onChange={(e) => {
+                      setOriginQuery(e.target.value);
+                      setActiveInputField("origin");
+                    }}
+                    onFocus={() => {
+                      setActiveInputField("origin");
+                      if (suggestions.length > 0) setShowSuggestions(true);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleToggleVoiceSearch("origin")}
+                    className={`absolute right-2 p-1 rounded-full transition-all shrink-0 ${
+                      isListening && listeningTarget === "origin"
+                        ? "bg-red-500 text-white animate-pulse"
+                        : "text-slate-400 hover:text-blue-600 hover:bg-slate-200"
+                    }`}
+                    title={
+                      isListening && listeningTarget === "origin"
+                        ? "Đang lắng nghe..."
+                        : "Tìm bằng giọng nói"
+                    }
+                  >
+                    {isListening && listeningTarget === "origin" ? (
+                      <MicOff size={14} />
+                    ) : (
+                      <Mic size={14} />
+                    )}
+                  </button>
+                </div>
               </div>
-            ) : suggestions.length > 0 ? (
-              suggestions.map((item: any) => (
-                <button
-                  type="button"
-                  key={item.id}
-                  onClick={() => handleSelectSuggestion(item)}
-                  className="w-full min-h-12 text-left p-2.5 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-start gap-2 text-[11px] font-medium text-slate-700 border-b border-slate-50 last:border-b-0"
-                >
-                  <span className="text-slate-400 mt-0.5" aria-hidden="true">
-                    📍
-                  </span>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-slate-800 line-clamp-1">
-                      {item.text_vi || item.text}
-                    </div>
-
-                    <div className="text-slate-500 text-[10px] line-clamp-2 mt-0.5">
-                      {item.place_name_vi || item.place_name}
+              {/* Chặng đi giữa (Waypoints) */}
+              {waypoints &&
+                waypoints.map((wp, idx) => (
+                  <div
+                    key={`waypoint-input-${idx}`}
+                    className="flex items-center gap-3 relative"
+                  >
+                    <span className="w-4 h-4 rounded-full border-2 border-slate-400 bg-white z-10 flex items-center justify-center shrink-0 text-[9px] font-black text-slate-500">
+                      {String.fromCharCode(66 + idx)}
+                    </span>
+                    <div className="relative w-full flex items-center">
+                      <input
+                        type="text"
+                        placeholder={`Chọn điểm dừng ${idx + 1}...`}
+                        value={waypointQueries?.[idx] || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (setWaypointQueries) {
+                            setWaypointQueries((prev) => {
+                              const next = [...prev];
+                              next[idx] = val;
+                              return next;
+                            });
+                          }
+                          setActiveInputField(`waypoint-${idx}`);
+                        }}
+                        onFocus={() => {
+                          setActiveInputField(`waypoint-${idx}`);
+                          if (suggestions.length > 0) setShowSuggestions(true);
+                        }}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                      />
+                      <button
+                        onClick={() => {
+                          if (setWaypoints && setWaypointQueries) {
+                            setWaypoints((prev) =>
+                              prev.filter((_, i) => i !== idx),
+                            );
+                            setWaypointQueries((prev) =>
+                              prev.filter((_, i) => i !== idx),
+                            );
+                          }
+                        }}
+                        className="absolute right-3 text-slate-400 hover:text-slate-600 font-bold text-sm"
+                        title="Xóa điểm dừng"
+                      >
+                        ✕
+                      </button>
                     </div>
                   </div>
-                </button>
-              ))
-            ) : (
-              <div className="px-3 py-4 text-center">
-                <div className="text-sm font-semibold text-slate-700">
-                  Không tìm thấy địa điểm
-                </div>
+                ))}
 
-                <div className="text-[11px] text-slate-500 mt-1">
-                  Hãy thử nhập tên đường, địa danh hoặc quận khác.
+              <div className="flex items-center gap-3 relative">
+                <span className="text-red-500 z-10 text-sm font-bold shrink-0">
+                  📍
+                </span>
+                <div className="relative w-full flex items-center">
+                  <input
+                    type="text"
+                    placeholder="Chọn điểm đến..."
+                    value={destinationQuery}
+                    onChange={(e) => {
+                      setDestinationQuery(e.target.value);
+                      setActiveInputField("destination");
+                    }}
+                    onFocus={() => {
+                      setActiveInputField("destination");
+                      if (suggestions.length > 0) setShowSuggestions(true);
+                    }}
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-blue-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleToggleVoiceSearch("destination")}
+                    className={`absolute right-2 p-1 rounded-full transition-all shrink-0 ${
+                      isListening && listeningTarget === "destination"
+                        ? "bg-red-500 text-white animate-pulse"
+                        : "text-slate-400 hover:text-blue-600 hover:bg-slate-200"
+                    }`}
+                    title={
+                      isListening && listeningTarget === "destination"
+                        ? "Đang lắng nghe..."
+                        : "Tìm bằng giọng nói"
+                    }
+                  >
+                    {isListening && listeningTarget === "destination" ? (
+                      <MicOff size={14} />
+                    ) : (
+                      <Mic size={14} />
+                    )}
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Nút Thêm điểm dừng */}
+              {(!waypoints || waypoints.length < 3) && (
+                <button
+                  onClick={() => {
+                    if (setWaypoints && setWaypointQueries) {
+                      setWaypoints((prev) => [
+                        ...prev,
+                        { lat: undefined, lng: undefined, label: "" } as any,
+                      ]);
+                      setWaypointQueries((prev) => [...prev, ""]);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-700 font-semibold self-start ml-7 mt-0.5 hover:underline"
+                >
+                  <span className="text-sm font-bold">+</span> Thêm điểm dừng
+                </button>
+              )}
+
+              {(!waypoints || waypoints.length === 0) && (
+                <button
+                  onClick={handleSwapLocations}
+                  className="absolute right-6 top-[40px] w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center hover:bg-slate-50 text-slate-600 transition-colors"
+                  title="Đảo ngược vị trí"
+                >
+                  <ArrowUpDown size={14} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {showSuggestions && (
+            <div className="absolute top-full left-0 right-0 mt-2 w-full max-h-[min(45dvh,320px)] overflow-y-auto overscroll-contain bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-[999]">
+              {loadingSearch ? (
+                <div className="flex items-center justify-center gap-2 px-3 py-4 text-xs text-slate-500">
+                  <div className="w-4 h-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                  <span>Đang tìm địa điểm...</span>
+                </div>
+              ) : suggestions.length > 0 ? (
+                suggestions.map((item: any) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    onClick={() => handleSelectSuggestion(item)}
+                    className="w-full min-h-12 text-left p-2.5 rounded-xl hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-start gap-2 text-[11px] font-medium text-slate-700 border-b border-slate-50 last:border-b-0"
+                  >
+                    <span className="text-slate-400 mt-0.5" aria-hidden="true">
+                      📍
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-slate-800 line-clamp-1">
+                        {item.text_vi || item.text}
+                      </div>
+
+                      <div className="text-slate-500 text-[10px] line-clamp-2 mt-0.5">
+                        {item.place_name_vi || item.place_name}
+                      </div>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="px-3 py-4 text-center">
+                  <div className="text-sm font-semibold text-slate-700">
+                    Không tìm thấy địa điểm
+                  </div>
+
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    Hãy thử nhập tên đường, địa danh hoặc quận khác.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {routeData && (
-          <div className="w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-4 mt-2 max-md:fixed max-md:left-3 max-md:right-3 max-md:bottom-3 max-md:w-auto max-md:max-h-[42dvh] max-md:overflow-y-auto max-md:overscroll-contain max-md:mt-0 max-md:z-[100] max-md:rounded-2xl">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
+          <div
+            className={`w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-4 flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar transition-all duration-300 max-md:fixed max-md:left-3 max-md:right-3 max-md:bottom-3 max-md:w-auto max-md:mt-0 max-md:z-[100] max-md:rounded-2xl ${
+              isMobileExpanded
+                ? "max-md:max-h-[82dvh]"
+                : "max-md:max-h-[145px] max-md:overflow-hidden"
+            }`}
+          >
+            {/* THANH KÉO (DRAG HANDLE) CHỈ HIỆN TRÊN MOBILE / RESPONSIVE */}
+            <div
+              onClick={() => setIsMobileExpanded((prev) => !prev)}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className="md:hidden w-full flex flex-col items-center pb-2 cursor-pointer touch-none select-none border-b border-slate-100 mb-2"
+            >
+              <div className="w-12 h-1.5 bg-slate-300 hover:bg-slate-400 rounded-full transition-colors mb-1" />
+              <div className="flex items-center justify-between w-full text-[10px] font-bold text-slate-500 px-1">
+                <span className="uppercase tracking-wider">Chi tiết lộ trình</span>
+                <span className="text-blue-600 font-extrabold flex items-center gap-1">
+                  {isMobileExpanded ? "Thu gọn ▼" : "Kéo lên mở rộng ▲"}
+                </span>
+              </div>
+            </div>
+
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 max-md:hidden">
               Chi tiết lộ trình
             </h3>
 
