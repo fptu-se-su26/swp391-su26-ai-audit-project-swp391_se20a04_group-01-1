@@ -75,39 +75,49 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
   };
 
   const wrapperClass = isMobile
-    ? "relative flex md:hidden items-center w-full pointer-events-auto"
-    : "relative hidden md:flex items-center max-w-[750px] lg:max-w-[950px] xl:max-w-[1000px] w-full pointer-events-auto shrink-0 self-start mt-0.5";
-
+    ? "relative flex md:hidden items-center w-full min-w-0 pointer-events-auto overflow-hidden rounded-full"
+    : "relative hidden md:flex flex-1 min-w-0 items-center pointer-events-auto self-start mt-0.5 overflow-hidden";
   return (
     <div className={wrapperClass}>
-      {/* Left Chevron */}
+      {showLeftArrow && (
+        <div
+          className="pointer-events-none absolute left-0 top-0 bottom-0 z-10 w-16 bg-gradient-to-r from-white via-white/95 to-transparent"
+          aria-hidden="true"
+        />
+      )}
+
       {showLeftArrow && (
         <button
+          type="button"
           onClick={() => scroll("left")}
-          className="absolute left-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-lg border border-slate-200/80 flex items-center justify-center text-slate-600 hover:text-blue-600 hover:scale-105 active:scale-95 transition-all z-20"
-          title="Cuộn sang trái"
+          className="absolute left-1 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg active:scale-95"
+          aria-label="Xem các danh mục phía trước"
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={17} />
         </button>
       )}
 
-      {/* Scrollable Container */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex items-center gap-2 overflow-x-auto scrollbar-none flex-nowrap w-full scroll-smooth px-1 scrollbar-hiden"
+        className={`relative z-0 flex items-center gap-2 overflow-x-auto overscroll-x-contain scrollbar-none flex-nowrap w-full min-w-0 scroll-smooth ${
+          isMobile ? "pl-4 pr-14 scroll-px-4" : "px-1 pr-12"
+        }`}
       >
         {filterCategories.map((cat) => {
           const Icon = cat.icon;
           const isSelected = selectedFilter === cat.id;
+
           return (
             <button
+              type="button"
               key={cat.id}
               onClick={() => onFilterClick(cat.id)}
-              className={`flex items-center gap-1.5 px-3.5 h-[42px] rounded-full text-[11px] font-bold shadow-md border transition-all shrink-0 ${isSelected
-                ? "bg-blue-600 text-white border-blue-700 hover:bg-blue-700"
-                : "bg-white text-slate-700 border-slate-200/60 hover:bg-slate-50 hover:text-blue-600"
-                }`}
+              className={`flex h-[42px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[11px] font-bold shadow-md transition-all ${
+                isSelected
+                  ? "border-blue-700 bg-blue-600 text-white"
+                  : "border-slate-200/60 bg-white text-slate-700"
+              }`}
             >
               <Icon
                 size={13}
@@ -119,14 +129,21 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
         })}
       </div>
 
-      {/* Right Chevron */}
+      {showRightArrow && (
+        <div
+          className="pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-20 bg-gradient-to-l from-white via-white/95 via-50% to-transparent"
+          aria-hidden="true"
+        />
+      )}
+
       {showRightArrow && (
         <button
+          type="button"
           onClick={() => scroll("right")}
-          className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white shadow-lg border border-slate-200/80 flex items-center justify-center text-slate-600 hover:text-blue-600 hover:scale-105 active:scale-95 transition-all z-20"
-          title="Cuộn sang phải"
+          className="absolute right-1 top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-lg active:scale-95"
+          aria-label="Xem thêm danh mục địa điểm"
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={17} />
         </button>
       )}
     </div>

@@ -358,6 +358,7 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
   const [pendingDestination, setPendingDestination] = useState<{
     lng: number;
     lat: number;
@@ -856,49 +857,137 @@ export default function Home() {
     setPendingDestination({ lng, lat });
   };
 
-// Danh mục các địa danh nổi tiếng bậc nhất Đà Nẵng
-const DANANG_FAMOUS_LANDMARKS = [
-  { name: "Cầu Rồng", address: "Cầu Rồng, Quận Hải Châu / Sơn Trà, Đà Nẵng", center: [108.2278968, 16.0611682] },
-  { name: "Cầu Sông Hàn", address: "Cầu Sông Hàn, Đà Nẵng", center: [108.2284106, 16.0723604] },
-  { name: "Bãi biển Mỹ Khê", address: "Bãi biển Mỹ Khê, Quận Sơn Trà, Đà Nẵng", center: [108.2462, 16.0602] },
-  { name: "Chợ Hàn", address: "119 Trần Phú, Phước Ninh, Hải Châu, Đà Nẵng", center: [108.2242830, 16.0683525] },
-  { name: "Chợ Cồn", address: "290 Hùng Vương, Vĩnh Trung, Thanh Khê, Đà Nẵng", center: [108.2136, 16.0681] },
-  { name: "Bà Nà Hills", address: "Hòa Phú, Hòa Vang, Đà Nẵng", center: [107.9877, 15.9961] },
-  { name: "Bán đảo Sơn Trà (Chùa Linh Ứng)", address: "Thọ Quang, Sơn Trà, Đà Nẵng", center: [108.2778, 16.1000] },
-  { name: "Cung thể thao Tuyên Sơn", address: "Đường Nại Nam 2, Hòa Cường Bắc, Hải Châu, Đà Nẵng", center: [108.2240, 16.0360] },
-  { name: "Công viên Biển Đông", address: "Võ Nguyên Giáp, Phước Mỹ, Sơn Trà, Đà Nẵng", center: [108.2472, 16.0678] },
-  { name: "Cầu Trần Thị Lý", address: "Cầu Trần Thị Lý, Đà Nẵng", center: [108.2312, 16.0508] },
-  { name: "Bảo tàng Điêu khắc Chăm", address: "Số 2 2 Tháng 9, Bình Hiên, Hải Châu, Đà Nẵng", center: [108.2227, 16.0601] },
-  { name: "Bảo tàng Đà Nẵng (Thành Điện Hải)", address: "24 Trần Phú, Thạch Thang, Hải Châu, Đà Nẵng", center: [108.2244, 16.0754] },
-  { name: "Chợ đêm Sơn Trà", address: "Mai Hắc Đế, An Hải Trung, Sơn Trà, Đà Nẵng", center: [108.2305, 16.0620] },
-  { name: "Chợ đêm Helio", address: "Đường 2 Tháng 9, Hòa Cường Bắc, Hải Châu, Đà Nẵng", center: [108.2253, 16.0381] },
-  { name: "Sân bay Quốc tế Đà Nẵng", address: "Nguyễn Văn Linh, Hòa Thuận Tây, Hải Châu, Đà Nẵng", center: [108.2022, 16.0544] }
-];
+  // Danh mục các địa danh nổi tiếng bậc nhất Đà Nẵng
+  const DANANG_FAMOUS_LANDMARKS = [
+    {
+      name: "Cầu Rồng",
+      address: "Cầu Rồng, Quận Hải Châu / Sơn Trà, Đà Nẵng",
+      center: [108.2278968, 16.0611682],
+    },
+    {
+      name: "Cầu Sông Hàn",
+      address: "Cầu Sông Hàn, Đà Nẵng",
+      center: [108.2284106, 16.0723604],
+    },
+    {
+      name: "Bãi biển Mỹ Khê",
+      address: "Bãi biển Mỹ Khê, Quận Sơn Trà, Đà Nẵng",
+      center: [108.2462, 16.0602],
+    },
+    {
+      name: "Chợ Hàn",
+      address: "119 Trần Phú, Phước Ninh, Hải Châu, Đà Nẵng",
+      center: [108.224283, 16.0683525],
+    },
+    {
+      name: "Chợ Cồn",
+      address: "290 Hùng Vương, Vĩnh Trung, Thanh Khê, Đà Nẵng",
+      center: [108.2136, 16.0681],
+    },
+    {
+      name: "Bà Nà Hills",
+      address: "Hòa Phú, Hòa Vang, Đà Nẵng",
+      center: [107.9877, 15.9961],
+    },
+    {
+      name: "Bán đảo Sơn Trà (Chùa Linh Ứng)",
+      address: "Thọ Quang, Sơn Trà, Đà Nẵng",
+      center: [108.2778, 16.1],
+    },
+    {
+      name: "Cung thể thao Tuyên Sơn",
+      address: "Đường Nại Nam 2, Hòa Cường Bắc, Hải Châu, Đà Nẵng",
+      center: [108.224, 16.036],
+    },
+    {
+      name: "Công viên Biển Đông",
+      address: "Võ Nguyên Giáp, Phước Mỹ, Sơn Trà, Đà Nẵng",
+      center: [108.2472, 16.0678],
+    },
+    {
+      name: "Cầu Trần Thị Lý",
+      address: "Cầu Trần Thị Lý, Đà Nẵng",
+      center: [108.2312, 16.0508],
+    },
+    {
+      name: "Bảo tàng Điêu khắc Chăm",
+      address: "Số 2 2 Tháng 9, Bình Hiên, Hải Châu, Đà Nẵng",
+      center: [108.2227, 16.0601],
+    },
+    {
+      name: "Bảo tàng Đà Nẵng (Thành Điện Hải)",
+      address: "24 Trần Phú, Thạch Thang, Hải Châu, Đà Nẵng",
+      center: [108.2244, 16.0754],
+    },
+    {
+      name: "Chợ đêm Sơn Trà",
+      address: "Mai Hắc Đế, An Hải Trung, Sơn Trà, Đà Nẵng",
+      center: [108.2305, 16.062],
+    },
+    {
+      name: "Chợ đêm Helio",
+      address: "Đường 2 Tháng 9, Hòa Cường Bắc, Hải Châu, Đà Nẵng",
+      center: [108.2253, 16.0381],
+    },
+    {
+      name: "Sân bay Quốc tế Đà Nẵng",
+      address: "Nguyễn Văn Linh, Hòa Thuận Tây, Hải Châu, Đà Nẵng",
+      center: [108.2022, 16.0544],
+    },
+  ];
 
   useEffect(() => {
     let query = "";
-    if (activeInputField === "origin") query = originQuery;
-    else if (activeInputField === "destination") query = destinationQuery;
-    else if (activeInputField && activeInputField.startsWith("waypoint-")) {
+
+    if (activeInputField === "origin") {
+      query = originQuery;
+    } else if (activeInputField === "destination") {
+      query = destinationQuery;
+    } else if (activeInputField && activeInputField.startsWith("waypoint-")) {
       const idx = parseInt(activeInputField.split("-")[1], 10);
       query = waypointQueries[idx] || "";
     }
 
-    if (!query.trim() || query === "Vị trí của bạn") {
+    const trimmedQuery = query.trim();
+
+    // Không tìm khi ô nhập rỗng, đang dùng vị trí hiện tại
+    // hoặc mới nhập dưới 2 ký tự.
+    if (
+      !trimmedQuery ||
+      trimmedQuery === "Vị trí của bạn" ||
+      trimmedQuery.length < 2
+    ) {
+      searchAbortControllerRef.current?.abort();
       setSuggestions([]);
       setShowSuggestions(false);
+      setLoadingSearch(false);
       return;
     }
 
     const delayDebounceFn = setTimeout(async () => {
-      setLoadingSearch(true);
-      const normalizedQuery = query.toLowerCase().trim();
+      // Hủy request tìm kiếm trước đó nếu người dùng tiếp tục nhập.
+      searchAbortControllerRef.current?.abort();
 
-      // 1. Tìm kiếm trong Danh mục Địa danh Nổi tiếng Đà Nẵng (Tức thì, 0ms latency)
+      const controller = new AbortController();
+      searchAbortControllerRef.current = controller;
+
+      setLoadingSearch(true);
+
+      const normalizedQuery = trimmedQuery.toLowerCase();
+
+      // 1. Tìm trước trong danh sách địa danh cố định.
       const landmarkMatches = DANANG_FAMOUS_LANDMARKS.filter((lm) => {
         const nameLower = lm.name.toLowerCase();
-        const words = normalizedQuery.split(/\s+/);
-        return nameLower.includes(normalizedQuery) || words.every((w) => nameLower.includes(w));
+        const addressLower = lm.address.toLowerCase();
+        const words = normalizedQuery.split(/\s+/).filter(Boolean);
+
+        return (
+          nameLower.includes(normalizedQuery) ||
+          addressLower.includes(normalizedQuery) ||
+          words.every(
+            (word) => nameLower.includes(word) || addressLower.includes(word),
+          )
+        );
       }).map((lm, idx) => ({
         id: `landmark-${idx}`,
         text: lm.name,
@@ -908,97 +997,231 @@ const DANANG_FAMOUS_LANDMARKS = [
         center: lm.center,
       }));
 
-      // 2. Tra cứu OpenStreetMap Nominatim API (Tra cứu chính xác địa danh Việt Nam)
       let osmFeatures: any[] = [];
+      let mapboxFeatures: any[] = [];
+
       try {
-        const osmUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + " Đà Nẵng")}&format=json&limit=5&countrycodes=vn`;
+        // 2. Tìm bằng OpenStreetMap.
+        const osmUrl =
+          `https://nominatim.openstreetmap.org/search` +
+          `?q=${encodeURIComponent(`${trimmedQuery} Đà Nẵng`)}` +
+          `&format=json` +
+          `&limit=5` +
+          `&countrycodes=vn` +
+          `&addressdetails=1`;
+
         const osmRes = await fetch(osmUrl, {
-          headers: { "User-Agent": "DNPulse-App/1.0" },
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+          },
         });
+
         if (osmRes.ok) {
           const osmData = await osmRes.json();
+
           if (Array.isArray(osmData)) {
-            osmFeatures = osmData.map((item: any, idx: number) => ({
-              id: `osm-${item.place_id || idx}`,
-              text: item.display_name.split(",")[0],
-              text_vi: item.display_name.split(",")[0],
-              place_name: item.display_name,
-              place_name_vi: item.display_name,
-              center: [parseFloat(item.lon), parseFloat(item.lat)],
-            }));
+            osmFeatures = osmData
+              .map((item: any, idx: number) => {
+                const lng = Number(item.lon);
+                const lat = Number(item.lat);
+
+                if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+                  return null;
+                }
+
+                const displayName =
+                  typeof item.display_name === "string"
+                    ? item.display_name
+                    : "";
+
+                return {
+                  id: `osm-${item.place_id || idx}`,
+                  text: displayName.split(",")[0] || trimmedQuery,
+                  text_vi: displayName.split(",")[0] || trimmedQuery,
+                  place_name: displayName,
+                  place_name_vi: displayName,
+                  center: [lng, lat],
+                };
+              })
+              .filter(Boolean);
           }
         }
-      } catch (err) {
-        console.warn("Lỗi tra cứu OpenStreetMap:", err);
-      }
 
-      // 3. Tra cứu Mapbox Search Box API
-      let mapboxFeatures: any[] = [];
-      try {
+        // 3. Chỉ gọi Mapbox khi có token.
         const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-        const response = await fetch(
-          `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(query)}&access_token=${mapboxToken}&bbox=108.0,15.9,108.4,16.2&limit=5&language=vi`,
-        );
-        const data = await response.json();
-        if (data.features) {
-          mapboxFeatures = data.features.map((f: any) => ({
-            id: f.properties?.mapbox_id || f.id,
-            text: f.properties?.name || "",
-            text_vi: f.properties?.name || "",
-            place_name: f.properties?.full_address || f.properties?.name || "",
-            place_name_vi: f.properties?.full_address || f.properties?.name || "",
-            center: f.geometry?.coordinates || [0, 0],
-          }));
+
+        if (mapboxToken) {
+          const mapboxUrl =
+            `https://api.mapbox.com/search/searchbox/v1/forward` +
+            `?q=${encodeURIComponent(trimmedQuery)}` +
+            `&access_token=${encodeURIComponent(mapboxToken)}` +
+            `&bbox=108.0,15.9,108.4,16.2` +
+            `&limit=5` +
+            `&language=vi`;
+
+          const mapboxResponse = await fetch(mapboxUrl, {
+            signal: controller.signal,
+          });
+
+          if (mapboxResponse.ok) {
+            const data = await mapboxResponse.json();
+
+            if (Array.isArray(data.features)) {
+              mapboxFeatures = data.features
+                .map((feature: any) => {
+                  const coordinates = feature.geometry?.coordinates;
+
+                  if (
+                    !Array.isArray(coordinates) ||
+                    coordinates.length < 2 ||
+                    !Number.isFinite(Number(coordinates[0])) ||
+                    !Number.isFinite(Number(coordinates[1]))
+                  ) {
+                    return null;
+                  }
+
+                  const name =
+                    feature.properties?.name ||
+                    feature.properties?.full_address ||
+                    "";
+
+                  const fullAddress =
+                    feature.properties?.full_address ||
+                    feature.properties?.place_formatted ||
+                    name;
+
+                  return {
+                    id:
+                      feature.properties?.mapbox_id ||
+                      feature.id ||
+                      `mapbox-${coordinates[0]}-${coordinates[1]}`,
+                    text: name,
+                    text_vi: name,
+                    place_name: fullAddress,
+                    place_name_vi: fullAddress,
+                    center: [Number(coordinates[0]), Number(coordinates[1])],
+                  };
+                })
+                .filter(Boolean);
+            }
+          } else {
+            console.warn("Mapbox search thất bại:", mapboxResponse.status);
+          }
         }
-      } catch (error) {
-        console.error("Lỗi lấy gợi ý tìm kiếm:", error);
-      } finally {
-        // Tổng hợp dữ liệu kết quả & Lọc trùng tên
-        const combined = [...landmarkMatches, ...osmFeatures, ...mapboxFeatures];
-        const uniqueResults = combined.filter(
-          (item, index, self) =>
-            index === self.findIndex((t) => t.text.toLowerCase() === item.text.toLowerCase())
-        );
+
+        // Không cập nhật kết quả nếu request này đã bị hủy.
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        const combined = [
+          ...landmarkMatches,
+          ...osmFeatures,
+          ...mapboxFeatures,
+        ];
+
+        // Lọc trùng bằng tên + địa chỉ, không chỉ dựa vào tên.
+        const uniqueResults = combined.filter((item, index, self) => {
+          const currentKey = `${item.text || ""}|${item.place_name || ""}`
+            .toLowerCase()
+            .trim();
+
+          return (
+            index ===
+            self.findIndex((other) => {
+              const otherKey = `${other.text || ""}|${other.place_name || ""}`
+                .toLowerCase()
+                .trim();
+
+              return currentKey === otherKey;
+            })
+          );
+        });
 
         setSuggestions(uniqueResults.slice(0, 7));
         setShowSuggestions(true);
-        setLoadingSearch(false);
-      }
-    }, 300);
-    return () => clearTimeout(delayDebounceFn);
-  }, [originQuery, destinationQuery, waypointQueries, activeInputField]);
+      } catch (error: any) {
+        // AbortError là hành vi bình thường khi người dùng gõ tiếp.
+        if (error?.name !== "AbortError") {
+          console.error("Lỗi lấy gợi ý tìm kiếm:", error);
 
+          setSuggestions(landmarkMatches.slice(0, 7));
+          setShowSuggestions(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingSearch(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      clearTimeout(delayDebounceFn);
+      searchAbortControllerRef.current?.abort();
+    };
+  }, [originQuery, destinationQuery, waypointQueries, activeInputField]);
   const handleSelectSuggestion = (item: any) => {
-    const [lng, lat] = item.center;
-    const fullName = item.place_name_vi || item.place_name;
+    if (!item || !Array.isArray(item.center) || item.center.length < 2) {
+      showPremiumToast("Địa điểm không có tọa độ hợp lệ.", "error");
+      return;
+    }
+
+    const lng = Number(item.center[0]);
+    const lat = Number(item.center[1]);
+
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+      showPremiumToast("Tọa độ địa điểm không hợp lệ.", "error");
+      return;
+    }
+
+    const fullName =
+      item.place_name_vi ||
+      item.place_name ||
+      item.text_vi ||
+      item.text ||
+      "Địa điểm đã chọn";
 
     validateLocation(
       lng,
       lat,
       fullName,
       activeInputField || "destination",
+
+      // Khi vị trí hợp lệ
       () => {
         if (activeInputField === "origin") {
-          setOrigin({ lng, lat, label: fullName });
+          setOrigin({
+            lng,
+            lat,
+            label: fullName,
+          });
+
           setOriginQuery(fullName);
         } else if (
           activeInputField &&
           activeInputField.startsWith("waypoint-")
         ) {
           const idx = parseInt(activeInputField.split("-")[1], 10);
+
           setWaypoints((prev) => {
             const next = [...prev];
-            next[idx] = { lng, lat, label: fullName };
+            next[idx] = {
+              lng,
+              lat,
+              label: fullName,
+            };
             return next;
           });
+
           setWaypointQueries((prev) => {
             const next = [...prev];
             next[idx] = fullName;
             return next;
           });
         } else {
-          // Khi tìm kiếm địa điểm: Hiển thị Modal địa điểm trên bản đồ trước, KHÔNG chỉ đường ngay
-          // Chỉ khi người dùng bấm nút "Chỉ đường tới đây" trên Modal thì mới bắt đầu tính tuyến đường
+          // Chọn kết quả tìm kiếm làm địa điểm trên bản đồ.
+          // Chưa tính đường ngay, chỉ mở popup/modal địa điểm.
           setSelectedPOI({
             poi_id: Math.floor(Date.now() % 1000000),
             name: fullName,
@@ -1015,16 +1238,22 @@ const DANANG_FAMOUS_LANDMARKS = [
             category_icon: "📍",
             category_color: "#3B82F6",
           });
+
           setDestinationQuery(fullName);
         }
 
+        setSuggestions([]);
         setShowSuggestions(false);
+        setActiveInputField(null);
+
         mapRef.current?.flyTo({
           center: [lng, lat],
           zoom: 15,
           duration: 1200,
         });
       },
+
+      // Khi người dùng hủy vì vùng ngập
       () => {
         if (activeInputField === "origin") {
           setOrigin(null);
@@ -1034,13 +1263,19 @@ const DANANG_FAMOUS_LANDMARKS = [
           activeInputField.startsWith("waypoint-")
         ) {
           const idx = parseInt(activeInputField.split("-")[1], 10);
+
           setWaypoints((prev) => prev.filter((_, i) => i !== idx));
+
           setWaypointQueries((prev) => prev.filter((_, i) => i !== idx));
         } else {
           setDestination(null);
           setDestinationQuery("");
+          setSelectedPOI(null);
         }
+
+        setSuggestions([]);
         setShowSuggestions(false);
+        setActiveInputField(null);
       },
     );
   };
@@ -1423,6 +1658,12 @@ const DANANG_FAMOUS_LANDMARKS = [
       features,
     };
   }, [trafficAlerts, mapControls.traffic]);
+  const shouldHideRoutePanel =
+    showSaveRouteModal ||
+    showShareModal ||
+    showSavedRoutesSidebar ||
+    showAddPOIModal ||
+    showReportModal;
 
   return (
     <div className="w-full h-screen relative bg-slate-100 overflow-hidden font-sans select-none">
@@ -1572,7 +1813,13 @@ const DANANG_FAMOUS_LANDMARKS = [
               latitude={userLocation.lat}
               anchor="center"
             >
-              <div className="w-4 h-4 bg-blue-600 border-2 border-white rounded-full shadow-lg animate-pulse" />
+              <div className="relative flex h-10 w-10 items-center justify-center">
+                <div className="absolute h-10 w-10 rounded-full bg-blue-500/25 animate-ping" />
+
+                <div className="relative flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-blue-600 shadow-lg">
+                  <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                </div>
+              </div>
             </Marker>
           )}
 
@@ -1968,7 +2215,15 @@ const DANANG_FAMOUS_LANDMARKS = [
             );
 
             // Chỉ hiển thị icon No Entry đối với đường cấm hoàn toàn
-            if (!midCoord || !Array.isArray(midCoord) || midCoord.length < 2 || isNaN(midCoord[0]) || isNaN(midCoord[1]) || midCoord[1] < -90 || midCoord[1] > 90) {
+            if (
+              !midCoord ||
+              !Array.isArray(midCoord) ||
+              midCoord.length < 2 ||
+              isNaN(midCoord[0]) ||
+              isNaN(midCoord[1]) ||
+              midCoord[1] < -90 ||
+              midCoord[1] > 90
+            ) {
               return null;
             }
 
@@ -2018,7 +2273,14 @@ const DANANG_FAMOUS_LANDMARKS = [
               const lat = Number(alert.latitude);
               const lng = Number(alert.longitude);
 
-              if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+              if (
+                isNaN(lat) ||
+                isNaN(lng) ||
+                lat < -90 ||
+                lat > 90 ||
+                lng < -180 ||
+                lng > 180
+              ) {
                 return null;
               }
 
@@ -2232,10 +2494,12 @@ const DANANG_FAMOUS_LANDMARKS = [
           {/* Hàng trên: Search + Bell + Avatar */}
           <div className="flex items-start justify-between gap-2 w-full">
             {/* Search + Route Panel: flex-1 trên mobile, max-w-sm trên desktop */}
-            <div className="relative pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:max-h-[calc(100vh-80px)] max-md:overflow-y-auto scrollbar-none">
+            <div className="relative z-[200] pointer-events-auto flex-1 md:flex-none md:w-80 min-w-0 flex flex-col gap-2 max-md:overflow-visible">
               {!isNavigating && (
                 <>
                   <RoutePanel
+                    hidden={shouldHideRoutePanel}
+                    loadingSearch={loadingSearch}
                     viewMode={viewMode}
                     destination={destination}
                     origin={origin}
@@ -2272,7 +2536,9 @@ const DANANG_FAMOUS_LANDMARKS = [
                     // TRUYỀN ĐẦY ĐỦ 2 PROPS NÀY VÀO TẤT CẢ CÁC NƠI GỌI ROUTEPANEL:
                     favoriteEventIds={favoriteEventIds}
                     onToggleEventFavorite={async (eventId: number) => {
-                      const eventObj = events.find((e) => e.event_id === eventId);
+                      const eventObj = events.find(
+                        (e) => e.event_id === eventId,
+                      );
                       if (eventObj) {
                         await handleFavoriteEventToggle(eventObj);
                         return !favoriteEventIds.has(eventId);
@@ -2286,42 +2552,44 @@ const DANANG_FAMOUS_LANDMARKS = [
                   />
                   {viewMode === "pois" ? (
                     <>
-                      {selectedFilter !== null && !routeData && !isNavigating && (
-                        <POIFeaturedSidebar
-                          pois={pois}
-                          selectedFilter={selectedFilter}
-                          onPOIClick={handlePOIClick}
-                          onDirectionsClick={(poi) => {
-                            setDestination({
-                              lng: poi.longitude,
-                              lat: poi.latitude,
-                              label: poi.name,
-                              poi_id: poi.poi_id,
-                            });
-                            setDestinationQuery(poi.name);
-                            if (userLocation) {
-                              setOrigin({
-                                lng: userLocation.lng,
-                                lat: userLocation.lat,
-                                label: "Vị trí của bạn",
+                      {selectedFilter !== null &&
+                        !routeData &&
+                        !isNavigating && (
+                          <POIFeaturedSidebar
+                            pois={pois}
+                            selectedFilter={selectedFilter}
+                            onPOIClick={handlePOIClick}
+                            onDirectionsClick={(poi) => {
+                              setDestination({
+                                lng: poi.longitude,
+                                lat: poi.latitude,
+                                label: poi.name,
+                                poi_id: poi.poi_id,
                               });
-                              setOriginQuery("Vị trí của bạn");
-                            }
-                          }}
-                          hasRoute={!!routeData}
-                          onClose={() => {
-                            setSelectedFilter(null);
-                            setSelectedPOI(null);
-                            setRouteData(null);
-                            setDestination(null);
-                            setOrigin(null);
-                            setOriginQuery("");
-                            setDestinationQuery("");
-                            setRouteAlertMessage(null);
-                          }}
-                          userLocation={userLocation}
-                        />
-                      )}
+                              setDestinationQuery(poi.name);
+                              if (userLocation) {
+                                setOrigin({
+                                  lng: userLocation.lng,
+                                  lat: userLocation.lat,
+                                  label: "Vị trí của bạn",
+                                });
+                                setOriginQuery("Vị trí của bạn");
+                              }
+                            }}
+                            hasRoute={!!routeData}
+                            onClose={() => {
+                              setSelectedFilter(null);
+                              setSelectedPOI(null);
+                              setRouteData(null);
+                              setDestination(null);
+                              setOrigin(null);
+                              setOriginQuery("");
+                              setDestinationQuery("");
+                              setRouteAlertMessage(null);
+                            }}
+                            userLocation={userLocation}
+                          />
+                        )}
                     </>
                   ) : (
                     <>
@@ -2597,7 +2865,24 @@ const DANANG_FAMOUS_LANDMARKS = [
       />
       {/* NAVIGATION PANEL */}
       {isNavigating && routeData && (
-        <div className="absolute top-6 left-6 md:left-6 md:top-6 z-40 w-[calc(100%-48px)] md:w-80 pointer-events-auto max-md:top-auto max-md:bottom-4 max-md:left-4 max-md:w-[calc(100%-32px)]">
+        <div
+          className="
+  absolute top-6 left-6 z-40
+  w-[calc(100%-48px)]
+  md:left-6 md:top-6 md:w-80
+  pointer-events-auto
+
+  max-md:fixed
+  max-md:top-auto
+  max-md:bottom-3
+  max-md:left-3
+  max-md:right-3
+  max-md:w-auto
+  max-md:max-h-[42dvh]
+  max-md:overflow-y-auto
+  max-md:overscroll-contain
+"
+        >
           <NavigationPanel
             steps={routeData.steps || []}
             currentStepIndex={currentStepIndex}
@@ -2641,9 +2926,17 @@ const DANANG_FAMOUS_LANDMARKS = [
 
       {/* DIALOG CHỌN CHẾ ĐỘ DẪN ĐƯỜNG */}
       {showNavModeSelector && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm pointer-events-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="navigation-mode-title"
+        >
           <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl shadow-2xl w-full max-w-sm p-6 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-black text-center mb-2 text-blue-400">
+            <h3
+              id="navigation-mode-title"
+              className="text-lg font-black text-center mb-2 text-blue-400"
+            >
               CHỌN CHẾ ĐỘ DẪN ĐƯỜNG
             </h3>
             <p className="text-xs text-slate-400 text-center mb-6 leading-relaxed">
