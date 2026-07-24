@@ -42,6 +42,17 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(event.request.url);
 
+    // 0. Bỏ qua cache hoàn toàn cho localhost trong quá trình phát triển (Tránh lỗi F5 không nhận code mới)
+    if (url.hostname.includes('localhost') || url.hostname.includes('127.0.0.1')) {
+        event.respondWith(
+            fetch(event.request).catch((err) => {
+                // Nếu sập server hoặc mất mạng hoàn toàn, mới dùng cache dự phòng
+                return caches.match(event.request).then(cached => cached || Promise.reject(err));
+            })
+        );
+        return;
+    }
+
     // 1. Handle Mapbox GL Tile or assets requests (Stale-While-Revalidate)
     if (url.hostname.includes('api.mapbox.com') || url.hostname.includes('tiles.mapbox.com')) {
         event.respondWith(

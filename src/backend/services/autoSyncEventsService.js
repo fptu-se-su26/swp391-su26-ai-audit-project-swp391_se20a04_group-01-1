@@ -64,31 +64,364 @@ function normalizeBoolean(value) {
 // ==========================================
 // Lấy toạ độ từ Mapbox Geocoding dựa trên địa chỉ / tên địa điểm
 // ==========================================
+// ==========================================
+// Lấy tọa độ từ Mapbox dựa trên địa chỉ sự kiện.
+// Không dùng vị trí mặc định. Không xác định được thì trả về null.
+// ==========================================
+
+/**
+ * Geocode địa điểm sự kiện bằng Mapbox.
+ *
+ * Quy tắc:
+ * - Thiếu token => trả về null.
+ * - Thiếu toàn bộ thông tin địa điểm => trả về null.
+ * - Thử nhiều query từ chi tiết đến đơn giản.
+ * - Chỉ chấp nhận kết quả nằm trong khu vực Đà Nẵng.
+ * - Không dùng tọa độ mặc định.
+ *
+ * @param {Object} eventData
+ * @returns {Promise<{
+ *   lat: number,
+ *   lng: number,
+ *   formattedAddress: string
+ * } | null>}
+ */
+// Cache trong bộ nhớ để cùng một địa chỉ không gọi Mapbox nhiều lần.
+// Cache tồn tại cho đến khi backend restart.
+const geocodeCache = new Map();
+
+function buildGeocodeCacheKey(eventData) {
+  return [eventData?.location_name, eventData?.address, eventData?.district]
+    .map((value) => normalizeText(value))
+    .filter(Boolean)
+    .join("|");
+}
+/**
+ * Geocode địa điểm sự kiện bằng Mapbox.
+ *
+ * Quy tắc:
+ * - Không có token thì trả về null.
+ * - Không có thông tin địa điểm thì trả về null.
+ * - Dùng cache để tránh gọi Mapbox lặp lại.
+ * - Thử query ngắn trước, query dài sau.
+ * - Chỉ nhận tọa độ thuộc vùng Đà Nẵng/Hội An.
+ * - Không dùng tọa độ mặc định.
+ *
+ * @param {Object} eventData
+ * @returns {Promise<{
+ *   lat: number,
+ *   lng: number,
+ *   formattedAddress: string
+ * } | null>}
+ */
 async function geocodeAddress(eventData) {
-  const mapboxToken = process.env.VITE_MAPBOX_ACCESS_TOKEN || "";
-  const fullAddress = `${eventData.address || eventData.location_name || ""}, ${
-    eventData.district || ""
-  }, Đà Nẵng, Việt Nam`;
+  const mapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
 
-  let lat = 16.0544,
-    lng = 108.2022; // Mặc định trung tâm Đà Nẵng nếu không tìm thấy
+  if (!mapboxToken) {
+    console.error("[GEOCODE] Thiếu biến môi trường MAPBOX_ACCESS_TOKEN.");
+    return null;
+  }
 
-  if (mapboxToken) {
+  const title = String(eventData?.title || "").trim();
+  const locationName = String(eventData?.location_name || "").trim();
+  const address = String(eventData?.address || "").trim();
+  const district = String(eventData?.district || "").trim();
+
+  if (!locationName && !address && !district) {
+    console.warn("[GEOCODE] Bỏ qua sự kiện vì thiếu địa chỉ:", {
+      title,
+      location_name: locationName,
+      address,
+      district,
+    });
+
+    return null;
+  }
+
+  const cacheKey = buildGeocodeCacheKey(eventData);
+
+  if (cacheKey && geocodeCache.has(cacheKey)) {
+    const cachedResult = geocodeCache.get(cacheKey);
+
+    console.log("[GEOCODE] Sử dụng kết quả cache:", {
+      title,
+      cacheKey,
+      found: Boolean(cachedResult),
+    });
+
+    return cachedResult;
+  }
+
+  /*
+   * Thử query ngắn, rõ nghĩa trước.
+   * Query đầy đủ và dài được đặt cuối cùng.
+   */
+  const rawQueries = [
+    [locationName, district, "Đà Nẵng", "Việt Nam"],
+    [locationName, "Đà Nẵng", "Việt Nam"],
+    [address, district, "Đà Nẵng", "Việt Nam"],
+    [address, "Đà Nẵng", "Việt Nam"],
+    [district, "Đà Nẵng", "Việt Nam"],
+    [locationName, address, district, "Đà Nẵng", "Việt Nam"],
+  ];
+
+  const queries = rawQueries
+    .map((parts) => parts.filter(Boolean).join(", "))
+    .filter(
+      (query, index, array) =>
+        query &&
+        query !== "Đà Nẵng, Việt Nam" &&
+        array.indexOf(query) === index,
+    )
+    .map((query) => {
+      const words = query.split(/\s+/);
+      return words.length > 18 ? words.slice(0, 18).join(" ") : query;
+    });
+
+  /*
+   * Giới hạn tương đối bao gồm Đà Nẵng và Hội An.
+   * Mapbox trả tọa độ theo thứ tự [longitude, latitude].
+   */
+  const LOCATION_BOUNDS = {
+    minLat: 15.7,
+    maxLat: 16.3,
+    minLng: 107.8,
+    maxLng: 108.6,
+  };
+
+  function isInsideAllowedBounds(lat, lng) {
+    return (
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      lat >= LOCATION_BOUNDS.minLat &&
+      lat <= LOCATION_BOUNDS.maxLat &&
+      lng >= LOCATION_BOUNDS.minLng &&
+      lng <= LOCATION_BOUNDS.maxLng
+    );
+  }
+
+  function getFeatureCoordinates(feature) {
+    const coordinates =
+      feature?.geometry?.coordinates ||
+      feature?.properties?.coordinates?.coordinates;
+
+    if (!Array.isArray(coordinates) || coordinates.length < 2) {
+      return null;
+    }
+
+    const lng = Number(coordinates[0]);
+    const lat = Number(coordinates[1]);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+
+    return { lat, lng };
+  }
+
+  function getFeatureText(feature) {
+    const contextText = Array.isArray(feature?.properties?.context)
+      ? feature.properties.context
+          .map(
+            (item) =>
+              item?.name ||
+              item?.text ||
+              item?.place_name ||
+              item?.short_code ||
+              "",
+          )
+          .filter(Boolean)
+          .join(", ")
+      : "";
+
+    return [
+      feature?.properties?.name,
+      feature?.properties?.name_preferred,
+      feature?.properties?.full_address,
+      feature?.properties?.place_formatted,
+      feature?.properties?.address,
+      feature?.place_name,
+      feature?.text,
+      contextText,
+    ]
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  function normalizeLocationText(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function hasAllowedLocationContext(feature) {
+    const featureText = normalizeLocationText(getFeatureText(feature));
+
+    return (
+      featureText.includes("da nang") ||
+      featureText.includes("danang") ||
+      featureText.includes("hoi an") ||
+      featureText.includes("quang nam")
+    );
+  }
+
+  for (const query of queries) {
     try {
-      const geoRes = await axios.get(
-        `https://api.mapbox.com/search/searchbox/v1/forward?q=${encodeURIComponent(
-          fullAddress,
-        )}&access_token=${mapboxToken}&limit=1`,
+      console.log("[GEOCODE] Đang thử query:", {
+        title,
+        query,
+      });
+
+      const response = await axios.get(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json`,
+        {
+          params: {
+            access_token: mapboxToken,
+            country: "VN",
+            language: "vi",
+            limit: 5,
+            // 2. Ép Mapbox TÌM KIẾM CHÍNH XÁC trong khung tọa độ Đà Nẵng/Hội An
+            // Format: minLng,minLat,maxLng,maxLat
+            bbox: "107.8,15.7,108.6,16.3",
+            // Ưu tiên các kết quả xoay quanh trung tâm Đà Nẵng
+            proximity: "108.2022,16.0544",
+          },
+          timeout: 10000,
+        },
       );
-      if (geoRes.data?.features?.length > 0) {
-        [lng, lat] = geoRes.data.features[0].geometry.coordinates;
+
+      const features = Array.isArray(response.data?.features)
+        ? response.data.features
+        : [];
+
+      if (features.length === 0) {
+        console.warn("[GEOCODE] Query không có kết quả:", {
+          title,
+          query,
+        });
+
+        continue;
       }
-    } catch (e) {
-      console.error("Lỗi Mapbox Geocoding:", e.message);
+
+      const validFeature = features.find((feature) => {
+        const coordinates = getFeatureCoordinates(feature);
+
+        if (!coordinates) {
+          return false;
+        }
+
+        const insideBounds = isInsideAllowedBounds(
+          coordinates.lat,
+          coordinates.lng,
+        );
+
+        const hasLocationContext = hasAllowedLocationContext(feature);
+
+        /*
+         * Ưu tiên an toàn:
+         * Phải nằm trong giới hạn tọa độ.
+         * Context chỉ dùng làm tín hiệu bổ sung, không thay thế bounds.
+         */
+        return insideBounds;
+      });
+
+      if (!validFeature) {
+        console.warn("[GEOCODE] Có kết quả nhưng không đủ điều kiện vị trí:", {
+          title,
+          query,
+        });
+
+        continue;
+      }
+
+      const coordinates = getFeatureCoordinates(validFeature);
+
+      if (!coordinates) {
+        continue;
+      }
+
+      const formattedAddress =
+        validFeature?.properties?.full_address ||
+        validFeature?.properties?.place_formatted ||
+        validFeature?.place_name ||
+        validFeature?.properties?.name ||
+        query;
+
+      const result = {
+        lat: coordinates.lat,
+        lng: coordinates.lng,
+        formattedAddress,
+      };
+
+      if (cacheKey) {
+        geocodeCache.set(cacheKey, result);
+      }
+
+      console.log("[GEOCODE] Xác định địa điểm thành công:", {
+        title,
+        query,
+        lat: result.lat,
+        lng: result.lng,
+        formattedAddress: result.formattedAddress,
+      });
+
+      return result;
+    } catch (error) {
+      const status = error.response?.status;
+
+      console.error("[GEOCODE] Lỗi Mapbox Geocoding:", {
+        title,
+        query,
+        status,
+        data: error.response?.data,
+        message: error.message,
+      });
+
+      /*
+       * Token sai hoặc không có quyền:
+       * mọi query tiếp theo đều sẽ thất bại nên dừng luôn.
+       */
+      if (status === 401 || status === 403) {
+        if (cacheKey) {
+          geocodeCache.set(cacheKey, null);
+        }
+
+        return null;
+      }
+
+      /*
+       * Rate limit:
+       * tránh gửi tiếp nhiều request liên tục.
+       */
+      if (status === 429) {
+        console.error(
+          "[GEOCODE] Mapbox đã giới hạn số lượng request. Dừng geocode sự kiện hiện tại.",
+        );
+
+        return null;
+      }
+
+      /*
+       * Timeout hoặc lỗi mạng:
+       * chuyển sang query tiếp theo.
+       */
     }
   }
 
-  return { lat, lng };
+  if (cacheKey) {
+    geocodeCache.set(cacheKey, null);
+  }
+
+  console.warn("[GEOCODE] Không tìm thấy kết quả Mapbox:", {
+    title,
+    queries,
+  });
+
+  return null;
 }
 
 // ==========================================
@@ -112,15 +445,26 @@ async function findExistingEvent(pool, eventData) {
   const result = await pool
     .request()
     .input("title", sql.NVarChar, eventData.title)
-    .input("start_time", sql.DateTime, safeDate(eventData.start_time))
-    .query(
-      `SELECT event_id, title, description, short_description,
-          location_name, address, district,
-          start_time, end_time,
-          banner_url, ticket_price, is_free, status
-   FROM Events
-   WHERE title = @title`,
-    );
+    .input("start_time", sql.DateTime, safeDate(eventData.start_time)).query(`
+    SELECT
+      event_id,
+      title,
+      description,
+      short_description,
+      location_name,
+      address,
+      district,
+      latitude,
+      longitude,
+      start_time,
+      end_time,
+      banner_url,
+      ticket_price,
+      is_free,
+      status
+    FROM Events
+    WHERE title = @title
+  `);
 
   if (result.recordset.length > 0) return result.recordset[0];
 
@@ -130,15 +474,26 @@ async function findExistingEvent(pool, eventData) {
 
   const dayResult = await pool
     .request()
-    .input("start_time", sql.DateTime, startDate)
-    .query(
-      `SELECT event_id, title, description, short_description,
-          location_name, address, district,
-          start_time, end_time,
-          banner_url, ticket_price, is_free, status
-   FROM Events
-   WHERE CAST(start_time AS DATE) = CAST(@start_time AS DATE)`,
-    );
+    .input("start_time", sql.DateTime, startDate).query(`
+    SELECT
+      event_id,
+      title,
+      description,
+      short_description,
+      location_name,
+      address,
+      district,
+      latitude,
+      longitude,
+      start_time,
+      end_time,
+      banner_url,
+      ticket_price,
+      is_free,
+      status
+    FROM Events
+    WHERE CAST(start_time AS DATE) = CAST(@start_time AS DATE)
+  `);
 
   const normNew = normalizeTitle(eventData.title);
   for (const row of dayResult.recordset) {
@@ -160,6 +515,29 @@ async function findExistingEvent(pool, eventData) {
 // (vd: mô tả dài/chi tiết hơn, thời gian kết thúc thay đổi, có thêm ảnh, đổi giá vé...)
 // ==========================================
 function hasMeaningfulUpdate(existingRow, newData) {
+  const oldLatitude = Number(existingRow.latitude);
+  const oldLongitude = Number(existingRow.longitude);
+
+  const isMissingCoordinates =
+    !Number.isFinite(oldLatitude) || !Number.isFinite(oldLongitude);
+
+  const isOldDefaultCoordinates =
+    Math.abs(oldLatitude - 16.0544) < 0.00001 &&
+    Math.abs(oldLongitude - 108.2022) < 0.00001;
+
+  if (isMissingCoordinates || isOldDefaultCoordinates) {
+    console.log(
+      "[UPDATE CHECK] Sự kiện đang dùng tọa độ mặc định cũ, cần geocode lại:",
+      {
+        title: existingRow.title,
+        latitude: existingRow.latitude,
+        longitude: existingRow.longitude,
+      },
+    );
+
+    return true;
+  }
+
   // Không so sánh description vì AI có thể sinh câu chữ khác nhau.
 
   if (datesDiffer(existingRow.start_time, newData.start_time)) {
@@ -286,19 +664,73 @@ async function upsertScrapedEvent(
   createdBy = DEFAULT_SYSTEM_USER_ID,
 ) {
   if (!eventData || !eventData.title || !eventData.start_time) {
-    return { action: "invalid", title: eventData?.title || null };
+    return {
+      action: "invalid",
+      title: eventData?.title || null,
+    };
   }
 
   const existingRow = await findExistingEvent(pool, eventData);
-  const { lat, lng } = await geocodeAddress(eventData);
+
+  /*
+   * Nếu event đã tồn tại và dữ liệu mới không có thay đổi,
+   * bỏ qua ngay, không cần gọi Mapbox.
+   */
+  if (existingRow && !hasMeaningfulUpdate(existingRow, eventData)) {
+    console.log(
+      `⏭️ [SYNC] Sự kiện đã tồn tại & không có gì mới, bỏ qua: "${eventData.title}"`,
+    );
+
+    return {
+      action: "skipped",
+      reason: "duplicate",
+      eventId: existingRow.event_id,
+      title: eventData.title,
+    };
+  }
+
+  /*
+   * Chỉ geocode khi:
+   * - Event chưa tồn tại, cần INSERT.
+   * - Event đã tồn tại nhưng có thay đổi, cần UPDATE.
+   */
+  const geocodedLocation = await geocodeAddress(eventData);
+
+  if (!geocodedLocation) {
+    console.warn(
+      `⏭️ [SYNC] Bỏ qua sự kiện vì không xác định được địa điểm: "${eventData.title}"`,
+    );
+
+    return {
+      action: "skipped",
+      reason: "geocode_failed",
+      eventId: existingRow?.event_id || null,
+      title: eventData.title,
+    };
+  }
+
+  const { lat, lng, formattedAddress } = geocodedLocation;
+
   const categoryId = await resolveCategoryId(pool, eventData.category_name);
 
   const shortDescription = eventData.description
     ? eventData.description.substring(0, 150)
     : "";
 
+  const startTime = safeDate(eventData.start_time);
+  const endTime = safeDate(eventData.end_time) || startTime;
+
+  const isFree = normalizeBoolean(eventData.is_free);
+  const ticketPrice = Number(eventData.ticket_price);
+
+  const normalizedIsFree = isFree === null ? 0 : isFree ? 1 : 0;
+
+  const normalizedTicketPrice = Number.isFinite(ticketPrice) ? ticketPrice : 0;
+
   if (!existingRow) {
-    // ---- INSERT MỚI ----
+    // ==========================================
+    // INSERT MỚI
+    // ==========================================
     const insertResult = await pool
       .request()
       .input("category_id", sql.Int, categoryId)
@@ -309,60 +741,83 @@ async function upsertScrapedEvent(
       .input("location_name", sql.NVarChar, eventData.location_name || "")
       .input("latitude", sql.Decimal(9, 6), lat)
       .input("longitude", sql.Decimal(9, 6), lng)
-      .input("address", sql.NVarChar, eventData.address || "")
-      .input("district", sql.NVarChar, eventData.district || "")
-      .input("start_time", sql.DateTime, safeDate(eventData.start_time))
       .input(
-        "end_time",
-        sql.DateTime,
-        safeDate(eventData.end_time) || safeDate(eventData.start_time),
+        "address",
+        sql.NVarChar,
+        eventData.address || formattedAddress || "",
       )
+      .input("district", sql.NVarChar, eventData.district || "")
+      .input("start_time", sql.DateTime, startTime)
+      .input("end_time", sql.DateTime, endTime)
       .input("banner_url", sql.NVarChar, eventData.banner_url || "")
-      .input("is_free", sql.Bit, eventData.is_free ? 1 : 0)
-      .input("ticket_price", sql.Decimal(10, 2), eventData.ticket_price || 0)
-      .query(`
+      .input("is_free", sql.Bit, normalizedIsFree)
+      .input("ticket_price", sql.Decimal(10, 2), normalizedTicketPrice).query(`
         INSERT INTO Events (
-          category_id, created_by, title, short_description, description,
-          location_name, latitude, longitude, address, district,
-          start_time, end_time, banner_url, is_free, ticket_price, status, created_at, updated_at
+          category_id,
+          created_by,
+          title,
+          short_description,
+          description,
+          location_name,
+          latitude,
+          longitude,
+          address,
+          district,
+          start_time,
+          end_time,
+          banner_url,
+          is_free,
+          ticket_price,
+          status,
+          created_at,
+          updated_at
         )
         OUTPUT INSERTED.event_id
         VALUES (
-          @category_id, @created_by, @title, @short_description, @description,
-          @location_name, @latitude, @longitude, @address, @district,
-          @start_time, @end_time, @banner_url, @is_free, @ticket_price, 'pending', GETDATE(), GETDATE()
+          @category_id,
+          @created_by,
+          @title,
+          @short_description,
+          @description,
+          @location_name,
+          @latitude,
+          @longitude,
+          @address,
+          @district,
+          @start_time,
+          @end_time,
+          @banner_url,
+          @is_free,
+          @ticket_price,
+          'pending',
+          GETDATE(),
+          GETDATE()
         )
       `);
 
     const newEventId = insertResult.recordset[0].event_id;
+
     const gallery = [
       eventData.banner_url,
       ...(eventData.gallery_urls || []),
     ].filter(Boolean);
+
     await saveEventImages(pool, newEventId, gallery);
 
     console.log(
       `✨ [SYNC] Đã thêm sự kiện mới vào hàng đợi chờ duyệt: "${eventData.title}"`,
     );
-    return { action: "inserted", eventId: newEventId, title: eventData.title };
-  }
 
-  // ---- ĐÃ TỒN TẠI: kiểm tra xem có nội dung mới hơn để UPDATE không ----
-  if (!hasMeaningfulUpdate(existingRow, eventData)) {
-    console.log(
-      `⏭️  [SYNC] Sự kiện đã tồn tại & không có gì mới, bỏ qua: "${eventData.title}"`,
-    );
     return {
-      action: "skipped",
-      eventId: existingRow.event_id,
+      action: "inserted",
+      eventId: newEventId,
       title: eventData.title,
     };
   }
 
-  // Nếu sự kiện đã được duyệt trước đó, khi có nội dung mới, đưa lại về 'pending' để Admin
-  // duyệt lại thay đổi (không hiển thị nội dung mới chưa qua kiểm duyệt cho người dùng cuối)
-  const newStatus = "pending";
-
+  // ==========================================
+  // UPDATE EVENT ĐÃ TỒN TẠI
+  // ==========================================
   await pool
     .request()
     .input("event_id", sql.Int, existingRow.event_id)
@@ -373,30 +828,35 @@ async function upsertScrapedEvent(
       sql.NVarChar,
       eventData.description || existingRow.description || "",
     )
-    .input("location_name", sql.NVarChar, eventData.location_name || "")
+    .input(
+      "location_name",
+      sql.NVarChar,
+      eventData.location_name || existingRow.location_name || "",
+    )
     .input("latitude", sql.Decimal(9, 6), lat)
     .input("longitude", sql.Decimal(9, 6), lng)
     .input(
       "address",
       sql.NVarChar,
-      eventData.address || existingRow.address || "",
+      eventData.address || formattedAddress || existingRow.address || "",
     )
-    .input("district", sql.NVarChar, eventData.district || "")
-    .input("start_time", sql.DateTime, safeDate(eventData.start_time))
     .input(
-      "end_time",
-      sql.DateTime,
-      safeDate(eventData.end_time) || safeDate(eventData.start_time),
+      "district",
+      sql.NVarChar,
+      eventData.district || existingRow.district || "",
     )
+    .input("start_time", sql.DateTime, startTime)
+    .input("end_time", sql.DateTime, endTime)
     .input(
       "banner_url",
       sql.NVarChar,
       eventData.banner_url || existingRow.banner_url || "",
     )
-    .input("is_free", sql.Bit, eventData.is_free ? 1 : 0)
-    .input("ticket_price", sql.Decimal(10, 2), eventData.ticket_price || 0)
-    .input("status", sql.NVarChar, newStatus).query(`
-      UPDATE Events SET
+    .input("is_free", sql.Bit, normalizedIsFree)
+    .input("ticket_price", sql.Decimal(10, 2), normalizedTicketPrice)
+    .input("status", sql.NVarChar, "pending").query(`
+      UPDATE Events
+      SET
         category_id = @category_id,
         short_description = @short_description,
         description = @description,
@@ -419,11 +879,13 @@ async function upsertScrapedEvent(
     eventData.banner_url,
     ...(eventData.gallery_urls || []),
   ].filter(Boolean);
+
   await saveEventImages(pool, existingRow.event_id, gallery);
 
   console.log(
-    `♻️  [SYNC] Sự kiện đã tồn tại có nội dung mới hơn -> đã cập nhật & đưa lại về 'pending': "${eventData.title}"`,
+    `♻️ [SYNC] Sự kiện có nội dung mới -> đã cập nhật và đưa về 'pending': "${eventData.title}"`,
   );
+
   return {
     action: "updated",
     eventId: existingRow.event_id,
@@ -434,8 +896,44 @@ async function upsertScrapedEvent(
 // ==========================================
 // JOB A: Tự động đồng bộ sự kiện từ trang danh sách "/su-kien" (từng bài viết chi tiết)
 // ==========================================
+// ==========================================
+// Hàm cập nhật kết quả thống kê đồng bộ
+// ==========================================
+function updateSyncSummary(summary, result) {
+  summary.total += 1;
+
+  if (result.action === "skipped" && result.reason === "geocode_failed") {
+    summary.geocode_failed += 1;
+    return;
+  }
+
+  if (result.action === "skipped" && result.reason === "duplicate") {
+    summary.duplicate += 1;
+    return;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(summary, result.action)) {
+    summary[result.action] += 1;
+    return;
+  }
+
+  summary.invalid += 1;
+}
+
+// ==========================================
+// JOB A: Tự động đồng bộ sự kiện từ trang danh sách
+// ==========================================
 async function syncDanangEventsAutomatically() {
-  const summary = { inserted: 0, updated: 0, skipped: 0, invalid: 0, total: 0 };
+  const summary = {
+    inserted: 0,
+    updated: 0,
+    skipped: 0,
+    geocode_failed: 0,
+    duplicate: 0,
+    invalid: 0,
+    total: 0,
+  };
+
   try {
     console.log(
       "🔄 [CRON] Bắt đầu tự động đồng bộ sự kiện từ DanangFantastiCity qua AI Scraper...",
@@ -444,14 +942,12 @@ async function syncDanangEventsAutomatically() {
     await runAiEventScraper();
 
     // Gọi thêm hàm cào link bài lẻ
-    let links = await fetchEventLinksFromListing();
+    const links = await fetchEventLinksFromListing();
     if (!links || links.length === 0) {
       console.log("[CRON] Không tìm thấy link bài viết sự kiện lẻ nào.");
 
-      // FALLBACK: Chuyển sang cào Poster tổng hợp nếu không có bài lẻ
-      console.log(
-        "🔄 [CRON] Chuyển sang quét danh mục sự kiện năm từ Poster...",
-      );
+      console.log("🔄 [CRON] Chuyển sang quét danh mục sự kiện năm...");
+
       return await syncYearlyEventCatalog();
     }
 
@@ -460,44 +956,68 @@ async function syncDanangEventsAutomatically() {
     for (const url of links) {
       try {
         const eventData = await scrapeAndExtractEventDetail(url);
-        if (!eventData || !eventData.title) continue;
 
-        const result = await upsertScrapedEvent(pool, eventData);
-        summary.total += 1;
-        summary[result.action] = (summary[result.action] || 0) + 1;
-      } catch (itemErr) {
-        console.error(`Lỗi xử lý URL ${url}:`, itemErr.message);
+        if (!eventData || !eventData.title) {
+          summary.invalid += 1;
+
+          console.warn(
+            `[CRON] Bỏ qua URL vì không trích xuất được sự kiện hợp lệ: ${url}`,
+          );
+
+          continue;
+        }
+
+        const result = await upsertScrapedEvent(
+          pool,
+          eventData,
+          DEFAULT_SYSTEM_USER_ID,
+        );
+
+        updateSyncSummary(summary, result);
+      } catch (itemError) {
+        console.error(`[CRON] Lỗi xử lý URL ${url}:`, itemError.message);
+
+        summary.invalid += 1;
       }
     }
   } catch (error) {
-    console.error("Lỗi trong quá trình tự động đồng bộ sự kiện:", error);
+    console.error("[CRON] Lỗi trong quá trình tự động đồng bộ sự kiện:", error);
   }
 
   console.log("📊 [CRON] Kết quả đồng bộ bài lẻ:", summary);
+
   return summary;
 }
+
 // ==========================================
-// JOB B: Đồng bộ TOÀN BỘ danh mục sự kiện & lễ hội năm 2026 từ 1 trang tổng hợp duy nhất.
-// Đây là quy trình chính theo yêu cầu: quét trang danh mục -> AI bóc tách toàn bộ sự kiện
-// kèm ảnh -> so sánh trùng lặp với DB (update nếu có thông tin mới hơn, thêm mới nếu chưa có)
-// -> lưu với status = 'pending' chờ Admin duyệt -> khi duyệt xong tự động hiển thị lên
-// thanh sự kiện & bản đồ (do GET /api/events mặc định chỉ trả về status = 'approved').
+// JOB B: Đồng bộ toàn bộ danh mục sự kiện năm
 // ==========================================
 async function syncYearlyEventCatalog(
   catalogUrl = YEARLY_CATALOG_URL,
   createdBy = DEFAULT_SYSTEM_USER_ID,
 ) {
-  const summary = { inserted: 0, updated: 0, skipped: 0, invalid: 0, total: 0 };
+  const summary = {
+    inserted: 0,
+    updated: 0,
+    skipped: 0,
+    geocode_failed: 0,
+    duplicate: 0,
+    invalid: 0,
+    total: 0,
+  };
+
   try {
     console.log(
       `🔄 [CATALOG SYNC] Bắt đầu đồng bộ danh mục sự kiện năm từ: ${catalogUrl}`,
     );
 
     const events = await crawlYearlyEventCatalog(catalogUrl);
+
     if (!events || events.length === 0) {
       console.warn(
         "[CATALOG SYNC] Không bóc tách được sự kiện nào từ trang danh mục.",
       );
+
       return summary;
     }
 
@@ -505,27 +1025,42 @@ async function syncYearlyEventCatalog(
 
     for (const eventData of events) {
       try {
+        if (!eventData || !eventData.title || !eventData.start_time) {
+          console.warn(
+            "[CATALOG SYNC] Bỏ qua dữ liệu sự kiện không hợp lệ:",
+            eventData?.title || "Không có tiêu đề",
+          );
+
+          summary.invalid += 1;
+          continue;
+        }
+
         const result = await upsertScrapedEvent(pool, eventData, createdBy);
-        summary.total += 1;
-        summary[result.action] = (summary[result.action] || 0) + 1;
-      } catch (itemErr) {
+
+        updateSyncSummary(summary, result);
+      } catch (itemError) {
         console.error(
-          `Lỗi xử lý sự kiện "${eventData?.title}":`,
-          itemErr.message,
+          `[CATALOG SYNC] Lỗi xử lý sự kiện "${eventData?.title}":`,
+          itemError.message,
         );
+
         summary.invalid += 1;
       }
     }
   } catch (error) {
-    console.error("Lỗi trong quá trình đồng bộ danh mục sự kiện năm:", error);
+    console.error(
+      "[CATALOG SYNC] Lỗi trong quá trình đồng bộ danh mục sự kiện năm:",
+      error,
+    );
   }
 
   console.log("📊 [CATALOG SYNC] Kết quả đồng bộ:", summary);
+
   return summary;
 }
 
 module.exports = {
   syncDanangEventsAutomatically,
   syncYearlyEventCatalog,
-  upsertScrapedEvent, // export để route Admin có thể dùng chung logic dedup/update
+  upsertScrapedEvent,
 };
